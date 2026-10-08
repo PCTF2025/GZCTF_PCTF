@@ -7,6 +7,7 @@ import {
   Group,
   Paper,
   ScrollArea,
+  Select,
   Stack,
   Switch,
   Table,
@@ -27,18 +28,27 @@ import {
   mdiPencilOutline,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import React, { FC, useEffect, useRef, useState } from 'react'
+import React, { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ActionIconWithConfirm } from '@Components/ActionIconWithConfirm'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { UserEditModal, RoleColorMap } from '@Components/admin/UserEditModal'
 import { showErrorMsg } from '@Utils/Shared'
+import { useConfig } from '@Hooks/useConfig'
 import { useArrayResponse } from '@Hooks/useArrayResponse'
 import { useUser } from '@Hooks/useUser'
-import api, { Role, UserInfoModel } from '@Api'
+import api, { Role, UserInfoModel, VerifyStatus } from '@Api'
 import tableClasses from '@Styles/Table.module.css'
 
 const ITEM_COUNT_PER_PAGE = 30
+
+/// 学籍审核状态筛选项
+const VERIFY_STATUS_OPTIONS = [
+  { value: VerifyStatus.Pending, label: '待审核' },
+  { value: VerifyStatus.Approved, label: '已通过' },
+  { value: VerifyStatus.Rejected, label: '已驳回' },
+  { value: VerifyStatus.None, label: '未提交' },
+]
 
 const Users: FC = () => {
   const [page, setPage] = useState(1)
@@ -47,12 +57,24 @@ const Users: FC = () => {
   const [activeUser, setActiveUser] = useState<UserInfoModel>({})
   const { data: users, total, setData: setUsers, updateData: updateUsers } = useArrayResponse<UserInfoModel>()
   const [hint, setHint] = useInputState('')
+  const [school, setSchool] = useState<string | null>(null)
+  const [verifyStatus, setVerifyStatus] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const [disabled, setDisabled] = useState(false)
   const [current, setCurrent] = useState(0)
 
   const modals = useModals()
   const { user: currentUser } = useUser()
+  const { config } = useConfig()
+
+  /// 学校下拉选项（来自后台 SSO 配置）
+  const schoolOptions = useMemo(
+    () =>
+      (config.sso?.schools ?? [])
+        .filter((s) => s.name && s.slug)
+        .map((s) => ({ value: s.slug!, label: `${s.name}（${s.slug}）` })),
+    [config.sso]
+  )
   const clipboard = useClipboard()
   const { t } = useTranslation()
   const viewport = useRef<HTMLDivElement>(null)
@@ -67,6 +89,8 @@ const Users: FC = () => {
         const res = await api.admin.adminUsers({
           count: ITEM_COUNT_PER_PAGE,
           skip: (page - 1) * ITEM_COUNT_PER_PAGE,
+          school: school ?? undefined,
+          verifyStatus: (verifyStatus as VerifyStatus | null) ?? undefined,
         })
         setUsers(res.data)
         setCurrent((page - 1) * ITEM_COUNT_PER_PAGE + res.data.length)
@@ -76,7 +100,7 @@ const Users: FC = () => {
     }
 
     fetchData()
-  }, [page, update])
+  }, [page, update, school, verifyStatus])
 
   const onSearch = async () => {
     try {
@@ -84,6 +108,8 @@ const Users: FC = () => {
         const res = await api.admin.adminUsers({
           count: ITEM_COUNT_PER_PAGE,
           skip: (page - 1) * ITEM_COUNT_PER_PAGE,
+          school: school ?? undefined,
+          verifyStatus: (verifyStatus as VerifyStatus | null) ?? undefined,
         })
         setUsers(res.data)
         setCurrent((page - 1) * ITEM_COUNT_PER_PAGE + res.data.length)
@@ -205,6 +231,29 @@ const Users: FC = () => {
               if (!searching && e.key === 'Enter') onSearch()
             }}
             rightSection={<Icon path={mdiAccountOutline} size={1} />}
+          />
+          <Select
+            w="16%"
+            placeholder="全部学校"
+            data={schoolOptions}
+            value={school}
+            clearable
+            searchable
+            onChange={(v) => {
+              setSchool(v)
+              setPage(1)
+            }}
+          />
+          <Select
+            w="14%"
+            placeholder="全部状态"
+            data={VERIFY_STATUS_OPTIONS}
+            value={verifyStatus}
+            clearable
+            onChange={(v) => {
+              setVerifyStatus(v)
+              setPage(1)
+            }}
           />
           <Group justify="right">
             <Text fw="bold" size="sm">

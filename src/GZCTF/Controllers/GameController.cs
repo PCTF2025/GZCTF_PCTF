@@ -226,8 +226,7 @@ public class GameController(
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_InvalidInvitationCode)]));
 
         // =============== 主办赛道报名信息校验 ===============
-        // 主办赛道要求：真实姓名 + 学号 + 已绑定学校，三者缺一不可。
-        // 公开赛道不做限制，仅校验用户自行完善的资料即可。
+        // 主办赛道要求：真实姓名 + 学号 + 年级 + 学校，且学籍信息已通过学校管理员审核。
         if (trackConfig.Value.OfficialGameId > 0 && trackConfig.Value.OfficialGameId == game.Id)
         {
             var missing = new List<string>();
@@ -238,6 +237,9 @@ public class GameController(
             if (string.IsNullOrWhiteSpace(user.StdNumber))
                 missing.Add("学号");
 
+            if (string.IsNullOrWhiteSpace(user.Grade))
+                missing.Add("年级");
+
             if (string.IsNullOrWhiteSpace(user.School))
                 missing.Add("所属学校");
 
@@ -245,6 +247,30 @@ public class GameController(
                 return BadRequest(new RequestResponse(
                     $"报名主办赛道前请先完善个人信息：{string.Join("、", missing)}",
                     ErrorCodes.ProfileIncomplete));
+
+            // 学籍信息需经学校管理员审核通过
+            switch (user.VerifyStatus)
+            {
+                case VerifyStatus.Approved:
+                    break;
+
+                case VerifyStatus.Rejected:
+                    return BadRequest(new RequestResponse(
+                        string.IsNullOrWhiteSpace(user.VerifyNote)
+                            ? "你的学籍信息审核未通过，请修改后重新提交"
+                            : $"你的学籍信息审核未通过：{user.VerifyNote}",
+                        ErrorCodes.ProfilePendingReview));
+
+                case VerifyStatus.Pending:
+                    return BadRequest(new RequestResponse(
+                        "你的学籍信息正在审核中，通过后方可报名主办赛道",
+                        ErrorCodes.ProfilePendingReview));
+
+                default:
+                    return BadRequest(new RequestResponse(
+                        "你的学籍信息尚未提交审核，请完善个人资料后等待学校管理员审核",
+                        ErrorCodes.ProfilePendingReview));
+            }
         }
 
         // =============== Check and handle participation state ===============

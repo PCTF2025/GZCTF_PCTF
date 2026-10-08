@@ -154,6 +154,86 @@ export enum SchoolBindSource {
   Invite = "Invite",
 }
 
+/**
+ * 学籍信息审核状态
+ */
+export enum VerifyStatus {
+  /** 未提交审核 */
+  None = "None",
+  /** 待审核 */
+  Pending = "Pending",
+  /** 审核通过 */
+  Approved = "Approved",
+  /** 审核驳回 */
+  Rejected = "Rejected",
+}
+
+/** 学校选项（审核界面筛选用） */
+export interface VerifySchoolOption {
+  /** 学校短名 */
+  slug: string;
+  /** 学校名称 */
+  name: string;
+}
+
+/** 待审核学生条目 */
+export interface VerifyItemModel {
+  /** @format guid */
+  userId?: string;
+  userName?: string | null;
+  email?: string | null;
+  /** 真实姓名 */
+  realName?: string | null;
+  /** 学号 */
+  stdNumber?: string | null;
+  /** 年级 */
+  grade?: string | null;
+  /** 学校短名 */
+  school?: string | null;
+  /** 学校名称 */
+  schoolName?: string | null;
+  /** 学校绑定来源 */
+  schoolSource?: SchoolBindSource;
+  /** 审核状态 */
+  status?: VerifyStatus;
+  /** 审核备注 */
+  note?: string | null;
+  /** @format date-time */
+  registerTimeUtc?: string;
+  /** @format date-time */
+  verifiedAtUtc?: string | null;
+}
+
+/** 学籍审核列表 */
+export interface VerifyListModel {
+  total?: number;
+  items?: VerifyItemModel[];
+  availableSchools?: VerifySchoolOption[];
+  /** 是否为系统管理员（可审核全部学校） */
+  manageAll?: boolean;
+}
+
+/** 审核操作请求 */
+export interface VerifyActionModel {
+  /** @format guid */
+  userId: string;
+  /** 审核备注 / 驳回原因 */
+  note?: string | null;
+}
+
+/** 批量审核请求 */
+export interface VerifyBatchModel {
+  /** @format guid */
+  userIds?: string[];
+}
+
+/** 当前用户的审核权限 */
+export interface VerifyPermissionModel {
+  canVerify?: boolean;
+  manageAll?: boolean;
+  schools?: VerifySchoolOption[];
+}
+
 /** 学校选项（注册 / 报名时选择学校用） */
 export interface SchoolOptionModel {
   /** 学校名称 */
@@ -233,6 +313,12 @@ export type RegisterModel = ModelWithCaptcha & {
    * 注册时直接绑定该学校，无需邀请码。
    */
   schoolSlug?: string | null;
+  /** 真实姓名 */
+  realName?: string | null;
+  /** 学号 */
+  stdNumber?: string | null;
+  /** 年级 */
+  grade?: string | null;
 };
 
 export interface ModelWithCaptcha {
@@ -330,6 +416,11 @@ export interface ProfileUpdateModel {
    * @maxLength 64
    */
   stdNumber?: string | null;
+  /**
+   * 年级
+   * @maxLength 128
+   */
+  grade?: string | null;
 }
 
 /** Password change */
@@ -394,6 +485,16 @@ export interface ProfileUserInfoModel {
   school?: string | null;
   /** 学校绑定来源 */
   schoolSource?: SchoolBindSource;
+  /** 年级 */
+  grade?: string | null;
+  /** 学籍审核状态 */
+  verifyStatus?: VerifyStatus;
+  /** 审核备注（驳回原因） */
+  verifyNote?: string | null;
+  /** 是否为学校管理员（负责至少一所学校） */
+  isSchoolAdmin?: boolean;
+  /** 负责审核的学校短名列表 */
+  managedSchools?: string[];
   /** Avatar URL */
   avatar?: string | null;
 }
@@ -2806,6 +2907,135 @@ export class Api<
         ...params,
       }),
   };
+  verify = {
+    /**
+     * @description 待审核学籍列表。学校管理员只能看到自己负责学校的学生，
+     * 系统管理员可通过 school 参数筛选任意学校。
+     *
+     * @tags Verify
+     * @name VerifyList
+     * @summary 待审核学籍列表
+     * @request GET:/api/verify/list
+     */
+    verifyList: (
+      query?: {
+        /** 按学校短名筛选 */
+        school?: string;
+        /** 按审核状态筛选 */
+        status?: VerifyStatus;
+        /** 分页数量 */
+        count?: number;
+        /** 跳过条数 */
+        skip?: number;
+        /** 按用户名 / 姓名 / 学号模糊搜索 */
+        hint?: string;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<VerifyListModel, any>({
+        path: `/api/verify/list`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 审核通过
+     * @tags Verify
+     * @name VerifyApprove
+     * @request POST:/api/verify/approve
+     */
+    verifyApprove: (data: VerifyActionModel, params: RequestParams = {}) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/verify/approve`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 审核驳回
+     * @tags Verify
+     * @name VerifyReject
+     * @request POST:/api/verify/reject
+     */
+    verifyReject: (data: VerifyActionModel, params: RequestParams = {}) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/verify/reject`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 批量审核通过
+     * @tags Verify
+     * @name VerifyBatchApprove
+     * @request POST:/api/verify/batchApprove
+     */
+    verifyBatchApprove: (data: VerifyBatchModel, params: RequestParams = {}) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/verify/batchApprove`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 当前用户的审核权限信息
+     * @tags Verify
+     * @name VerifyPermission
+     * @request GET:/api/verify/permission
+     */
+    verifyPermission: (params: RequestParams = {}) =>
+      this.request<VerifyPermissionModel, any>({
+        path: `/api/verify/permission`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 待审核学籍列表
+     * @tags Verify
+     * @name useVerifyList
+     * @request GET:/api/verify/list
+     */
+    useVerifyList: (
+      query?: {
+        school?: string;
+        status?: VerifyStatus;
+        count?: number;
+        skip?: number;
+        hint?: string;
+      },
+      options?: SWRConfiguration,
+      doFetch: boolean = true,
+    ) =>
+      useSWR<VerifyListModel, RequestResponse>(
+        doFetch ? `/api/verify/list` : null,
+        options,
+      ),
+
+    /**
+     * @description 当前用户的审核权限
+     * @tags Verify
+     * @name useVerifyPermission
+     * @request GET:/api/verify/permission
+     */
+    useVerifyPermission: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<VerifyPermissionModel, RequestResponse>(
+        doFetch ? `/api/verify/permission` : null,
+        options,
+      ),
+  };
   admin = {
     /**
      * @description Use this API to add users in batch, requires Admin permission
@@ -3417,6 +3647,12 @@ export class Api<
          * @default 0
          */
         skip?: number;
+        /** 按学校短名筛选 */
+        school?: string;
+        /** 按学籍审核状态筛选 */
+        verifyStatus?: VerifyStatus;
+        /** 按用户名 / 姓名 / 学号 / 邮箱模糊搜索 */
+        hint?: string;
       },
       params: RequestParams = {},
     ) =>

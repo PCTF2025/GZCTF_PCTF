@@ -1,5 +1,7 @@
 import {
+  Alert,
   Avatar,
+  Badge,
   Box,
   Button,
   Center,
@@ -9,6 +11,7 @@ import {
   Image,
   Modal,
   Paper,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -18,11 +21,12 @@ import {
 } from '@mantine/core'
 import { Dropzone } from '@mantine/dropzone'
 import { notifications, showNotification, updateNotification } from '@mantine/notifications'
-import { mdiCheck, mdiClose } from '@mdi/js'
+import { mdiAlertCircleOutline, mdiCheck, mdiClose } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { FC, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { PasswordChangeModal } from '@Components/PasswordChangeModal'
+import { GRADE_OPTIONS } from './Register'
 import { SchoolBinding } from '@Components/SchoolBinding'
 import { WithNavBar } from '@Components/WithNavbar'
 import { showErrorMsg, tryGetErrorMsg } from '@Utils/Shared'
@@ -31,8 +35,16 @@ import { useIsMobile } from '@Utils/ThemeOverride'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
 import { useUser } from '@Hooks/useUser'
-import api, { ProfileUpdateModel } from '@Api'
+import api, { ProfileUpdateModel, VerifyStatus } from '@Api'
 import misc from '@Styles/Misc.module.css'
+
+/// 学籍审核状态展示配置
+const VERIFY_META: Record<VerifyStatus, { label: string; color: string }> = {
+  [VerifyStatus.None]: { label: '未提交', color: 'gray' },
+  [VerifyStatus.Pending]: { label: '待审核', color: 'orange' },
+  [VerifyStatus.Approved]: { label: '已通过', color: 'teal' },
+  [VerifyStatus.Rejected]: { label: '已驳回', color: 'red' },
+}
 
 const Profile: FC = () => {
   const [dropzoneOpened, setDropzoneOpened] = useState(false)
@@ -44,6 +56,7 @@ const Profile: FC = () => {
     stdNumber: user?.stdNumber,
     phone: user?.phone,
     realName: user?.realName,
+    grade: user?.grade,
   })
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
 
@@ -67,6 +80,7 @@ const Profile: FC = () => {
       stdNumber: user?.stdNumber,
       phone: user?.phone,
       realName: user?.realName,
+      grade: user?.grade,
     })
   })
 
@@ -207,6 +221,15 @@ const Profile: FC = () => {
             disabled={disabled}
             onChange={(event) => setProfile({ ...profile, realName: event.target.value })}
           />
+          <Select
+            label="年级"
+            placeholder="请选择年级"
+            data={GRADE_OPTIONS}
+            w="100%"
+            value={profile.grade ?? null}
+            disabled={disabled}
+            onChange={(v) => setProfile({ ...profile, grade: v ?? '' })}
+          />
         </SimpleGrid>
         <Divider
           my="xs"
@@ -214,6 +237,34 @@ const Profile: FC = () => {
           labelPosition="center"
         />
         <SchoolBinding profile={user} onBound={onSchoolBound} />
+
+        {/* 学籍审核状态 */}
+        <Group gap="xs">
+          <Text size="sm" fw={500}>
+            学籍审核
+          </Text>
+          <Badge
+            variant="light"
+            color={VERIFY_META[user?.verifyStatus ?? VerifyStatus.None].color}
+          >
+            {VERIFY_META[user?.verifyStatus ?? VerifyStatus.None].label}
+          </Badge>
+          {user?.grade && (
+            <Text size="xs" c="dimmed">
+              年级：{user.grade}
+            </Text>
+          )}
+        </Group>
+        {user?.verifyStatus === VerifyStatus.Rejected && user?.verifyNote && (
+          <Alert color="red" variant="light" icon={<Icon path={mdiAlertCircleOutline} size={1} />}>
+            <Text size="sm">审核未通过：{user.verifyNote}</Text>
+          </Alert>
+        )}
+        {(user?.verifyStatus === VerifyStatus.None || user?.verifyStatus === VerifyStatus.Rejected) && (
+          <Text size="xs" c="dimmed">
+            填写完整的学校、真实姓名、学号与年级后保存，即提交学校管理员审核。
+          </Text>
+        )}
         <Textarea
           label={t('account.label.bio')}
           value={profile.bio ?? t('account.placeholder.bio')}

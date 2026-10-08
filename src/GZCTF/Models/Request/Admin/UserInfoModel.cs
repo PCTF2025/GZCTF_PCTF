@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 
 namespace GZCTF.Models.Request.Admin;
 
@@ -72,6 +72,36 @@ public class UserInfoModel
     /// </summary>
     public bool? EmailConfirmed { get; set; }
 
+    /// <summary>
+    /// 学校短名
+    /// </summary>
+    public string? School { get; set; }
+
+    /// <summary>
+    /// 学校绑定来源
+    /// </summary>
+    public SchoolBindSource SchoolSource { get; set; }
+
+    /// <summary>
+    /// 年级
+    /// </summary>
+    public string? Grade { get; set; }
+
+    /// <summary>
+    /// 学籍审核状态
+    /// </summary>
+    public VerifyStatus VerifyStatus { get; set; }
+
+    /// <summary>
+    /// 审核备注（驳回原因）
+    /// </summary>
+    public string? VerifyNote { get; set; }
+
+    /// <summary>
+    /// 该用户负责审核的学校短名（逗号分隔），非空即为学校管理员
+    /// </summary>
+    public string? ManagedSchools { get; set; }
+
     internal static UserInfoModel FromUserInfo(UserInfo user) =>
         new()
         {
@@ -87,6 +117,12 @@ public class UserInfoModel
             StdNumber = user.StdNumber,
             LastVisitedUtc = user.LastVisitedUtc,
             RegisterTimeUtc = user.RegisterTimeUtc,
-            EmailConfirmed = user.EmailConfirmed
+            EmailConfirmed = user.EmailConfirmed,
+            School = string.IsNullOrWhiteSpace(user.School) ? null : user.School,
+            SchoolSource = user.SchoolSource,
+            Grade = string.IsNullOrWhiteSpace(user.Grade) ? null : user.Grade,
+            VerifyStatus = user.VerifyStatus,
+            VerifyNote = string.IsNullOrWhiteSpace(user.VerifyNote) ? null : user.VerifyNote,
+            ManagedSchools = string.IsNullOrWhiteSpace(user.ManagedSchools) ? null : user.ManagedSchools
         };
 }

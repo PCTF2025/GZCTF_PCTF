@@ -586,6 +586,11 @@ public static class ErrorCodes
     /// 报名信息不完整（缺真实姓名 / 学号 / 学校绑定）
     /// </summary>
     public const int ProfileIncomplete = 10003;
+
+    /// <summary>
+    /// 学籍信息待审核（审核未通过前不可报名）
+    /// </summary>
+    public const int ProfilePendingReview = 10004;
 }
 
 /// <summary>
@@ -602,4 +607,23 @@ public enum SchoolBindSource : byte
 
     /// <summary>使用邀请码手动绑定</summary>
     Invite = 0b10
+}
+
+/// <summary>
+/// 学籍信息审核状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<VerifyStatus>))]
+public enum VerifyStatus : byte
+{
+    /// <summary>未提交审核（尚未填写完整学籍信息）</summary>
+    None = 0,
+
+    /// <summary>待审核</summary>
+    Pending = 1,
+
+    /// <summary>审核通过，可报名主办赛道</summary>
+    Approved = 2,
+
+    /// <summary>审核驳回，需修改后重新提交</summary>
+    Rejected = 3
 }

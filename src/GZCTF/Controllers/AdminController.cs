@@ -209,11 +209,40 @@ public class AdminController(
     [HttpGet("Users")]
     [ProducesResponseType(typeof(ArrayResponse<UserInfoModel>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Users([FromQuery][Range(0, 500)] int count = 100, [FromQuery] int skip = 0,
-        CancellationToken token = default) =>
-        Ok((await userManager.Users.OrderBy(e => e.Id).Skip(skip).Take(count)
-                .Select(u => UserInfoModel.FromUserInfo(u))
-                .ToArrayAsync(token))
-            .ToResponse(await userManager.Users.CountAsync(token)));
+        [FromQuery] string? school = null, [FromQuery] VerifyStatus? verifyStatus = null,
+        [FromQuery] string? hint = null,
+        CancellationToken token = default)
+    {
+        var query = userManager.Users.AsQueryable();
+
+        // 按学校筛选
+        if (!string.IsNullOrWhiteSpace(school))
+            query = query.Where(u => u.School == school);
+
+        // 按学籍审核状态筛选
+        if (verifyStatus.HasValue)
+            query = query.Where(u => u.VerifyStatus == verifyStatus.Value);
+
+        // 按用户名 / 姓名 / 学号 / 邮箱模糊搜索
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            var h = hint.Trim();
+            query = query.Where(u =>
+                (u.UserName != null && u.UserName.Contains(h)) ||
+                (u.Email != null && u.Email.Contains(h)) ||
+                u.RealName.Contains(h) ||
+                u.StdNumber.Contains(h));
+        }
+
+        var users = await query
+            .OrderBy(e => e.Id)
+            .Skip(skip)
+            .Take(count)
+            .Select(u => UserInfoModel.FromUserInfo(u))
+            .ToArrayAsync(token);
+
+        return Ok(users.ToResponse(await query.CountAsync(token)));
+    }
 
     /// <summary>
     /// Add users in batch

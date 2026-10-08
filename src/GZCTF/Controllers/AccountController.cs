@@ -80,6 +80,22 @@ public class AccountController(
             }
         }
 
+        // 注册时一并提交学籍信息：真实姓名 / 学号 / 年级。
+        // 四项齐全（学校 + 姓名 + 学号 + 年级）时自动进入待审核队列，
+        // 由对应学校的学校管理员审核通过后方可报名主办赛道。
+        if (!string.IsNullOrWhiteSpace(model.RealName))
+            user.RealName = model.RealName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(model.StdNumber))
+            user.StdNumber = model.StdNumber.Trim();
+
+        if (!string.IsNullOrWhiteSpace(model.Grade))
+            user.Grade = model.Grade.Trim();
+
+        user.VerifyStatus = HasCompleteProfile(user)
+            ? VerifyStatus.Pending
+            : VerifyStatus.None;
+
         user.UpdateByHttpContext(HttpContext);
 
         var result = await userManager.CreateAsync(user, password);
@@ -149,6 +165,16 @@ public class AccountController(
                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                    .Any(d => d.Equals(mailDomain, StringComparison.InvariantCulture));
     }
+
+    /// <summary>
+    /// 学籍信息是否填写完整：学校 + 真实姓名 + 学号 + 年级 四项齐全。
+    /// 齐全后方可进入学校管理员审核流程。
+    /// </summary>
+    private static bool HasCompleteProfile(UserInfo user) =>
+        !string.IsNullOrWhiteSpace(user.School) &&
+        !string.IsNullOrWhiteSpace(user.RealName) &&
+        !string.IsNullOrWhiteSpace(user.StdNumber) &&
+        !string.IsNullOrWhiteSpace(user.Grade);
 
     /// <summary>
     /// User password recovery request

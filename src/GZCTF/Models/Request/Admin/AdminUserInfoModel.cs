@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace GZCTF.Models.Request.Admin;
 
@@ -60,4 +60,17 @@ public class AdminUserInfoModel
     /// User role
     /// </summary>
     public Role? Role { get; set; }
+
+    /// <summary>
+    /// 年级
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? Grade { get; set; }
+
+    /// <summary>
+    /// 该用户负责审核的学校短名（逗号分隔）。
+    /// 设置后该用户即成为这些学校的学校管理员。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? ManagedSchools { get; set; }
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace GZCTF.Models.Request.Account;
 
@@ -43,4 +43,10 @@ public class ProfileUpdateModel
     [MaxLength(Limits.MaxStdNumberLength, ErrorMessageResourceName = nameof(Resources.Program.Model_StdNumberTooLong),
         ErrorMessageResourceType = typeof(Resources.Program))]
     public string? StdNumber { get; set; }
+
+    /// <summary>
+    /// 年级（大一 / 大二 / 大三 / 大四 / 研一 / 研二 / 研三）
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? Grade { get; set; }
 }

@@ -56,6 +56,31 @@ public class ProfileUserInfoModel
     public SchoolBindSource SchoolSource { get; set; }
 
     /// <summary>
+    /// 年级
+    /// </summary>
+    public string? Grade { get; set; }
+
+    /// <summary>
+    /// 学籍审核状态
+    /// </summary>
+    public VerifyStatus VerifyStatus { get; set; }
+
+    /// <summary>
+    /// 审核备注（驳回原因）
+    /// </summary>
+    public string? VerifyNote { get; set; }
+
+    /// <summary>
+    /// 该用户是否为学校管理员（负责至少一所学校）
+    /// </summary>
+    public bool IsSchoolAdmin { get; set; }
+
+    /// <summary>
+    /// 该用户负责审核的学校短名列表
+    /// </summary>
+    public List<string> ManagedSchools { get; set; } = [];
+
+    /// <summary>
     /// Avatar URL
     /// </summary>
     public string? Avatar { get; set; }
@@ -73,6 +98,11 @@ public class ProfileUserInfoModel
             StdNumber = user.StdNumber,
             School = string.IsNullOrWhiteSpace(user.School) ? null : user.School,
             SchoolSource = user.SchoolSource,
+            Grade = string.IsNullOrWhiteSpace(user.Grade) ? null : user.Grade,
+            VerifyStatus = user.VerifyStatus,
+            VerifyNote = string.IsNullOrWhiteSpace(user.VerifyNote) ? null : user.VerifyNote,
+            IsSchoolAdmin = user.IsSchoolAdmin,
+            ManagedSchools = user.ManagedSchoolList.ToList(),
             Role = user.Role
         };
 }

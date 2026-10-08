@@ -41,4 +41,22 @@ public class RegisterModel : ModelWithCaptcha
     /// </summary>
     [MaxLength(Limits.MaxUserDataLength)]
     public string? SchoolSlug { get; set; }
+
+    /// <summary>
+    /// 真实姓名（主办赛道报名必需，注册时填写可免二次提交）
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? RealName { get; set; }
+
+    /// <summary>
+    /// 学号
+    /// </summary>
+    [MaxLength(Limits.MaxStdNumberLength)]
+    public string? StdNumber { get; set; }
+
+    /// <summary>
+    /// 年级（大一 / 大二 / 大三 / 大四 / 研一 / 研二 / 研三）
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? Grade { get; set; }
 }
