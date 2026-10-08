@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace GZCTF.Models.Request.Game;
@@ -96,6 +96,11 @@ public class DetailedGameInfoModel
     [JsonPropertyName("end")]
     public DateTimeOffset EndTimeUtc { get; set; } = DateTimeOffset.FromUnixTimeSeconds(0);
 
+    /// <summary>
+    /// Whether challenges are organized and displayed by week
+    /// </summary>
+    public bool WeekModeEnabled { get; set; }
+
     public DetailedGameInfoModel WithParticipation(Participation? part, int teamCount)
     {
         TeamCount = teamCount;
@@ -114,6 +119,7 @@ public class DetailedGameInfoModel
             Summary = game.Summary,
             Content = game.Content,
             PracticeMode = game.PracticeMode,
+            WeekModeEnabled = game.WeekModeEnabled,
             Divisions =
                 game.Divisions?.Select(d => new DivisionInfo
                 {

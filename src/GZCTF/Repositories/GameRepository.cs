@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using GZCTF.Models.Request.Game;
 using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
@@ -358,6 +358,7 @@ public class GameRepository(
                         Score = c.OriginalScore,
                         SolvedCount = 0,
                         DeadlineUtc = c.DeadlineUtc,
+                        Week = c.Week,
                         DisableBloodBonus = c.DisableBloodBonus
                     }
                 ))

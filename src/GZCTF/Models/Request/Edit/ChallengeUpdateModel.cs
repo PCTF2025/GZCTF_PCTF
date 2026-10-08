@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using GZCTF.Extensions;
 
 namespace GZCTF.Models.Request.Edit;
@@ -31,6 +31,12 @@ public class ChallengeUpdateModel
     /// Challenge category
     /// </summary>
     public ChallengeCategory? Category { get; set; }
+
+    /// <summary>
+    /// Recruitment week (1-5 for weeks, 6 for extension, null to keep unchanged)
+    /// </summary>
+    [Range(0, 6)]
+    public int? Week { get; set; }
 
     /// <summary>
     /// Challenge hints

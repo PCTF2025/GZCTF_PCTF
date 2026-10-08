@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace GZCTF.Models.Request.Edit;
 
@@ -56,6 +56,11 @@ public class ChallengeInfoModel
     /// </summary>
     public DateTimeOffset? DeadlineUtc { get; set; }
 
+    /// <summary>
+    /// Recruitment week (1-5 for weeks, 6 for extension, null if not assigned)
+    /// </summary>
+    public int? Week { get; set; }
+
     internal static ChallengeInfoModel FromChallenge(GameChallenge challenge) =>
         new()
         {
@@ -67,6 +72,7 @@ public class ChallengeInfoModel
             MinScore = (int)Math.Floor(challenge.MinScoreRate * challenge.OriginalScore),
             OriginalScore = challenge.OriginalScore,
             IsEnabled = challenge.IsEnabled,
-            DeadlineUtc = challenge.DeadlineUtc
+            DeadlineUtc = challenge.DeadlineUtc,
+            Week = challenge.Week
         };
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using GZCTF.Models.Request.Edit;
@@ -121,6 +121,20 @@ public partial class Game
     public long BloodBonusValue { get; set; } = BloodBonus.DefaultValue;
 
     /// <summary>
+    /// Whether challenges are organized and displayed by week
+    /// </summary>
+    public bool WeekModeEnabled { get; set; }
+
+    /// <summary>
+    /// Duration, in days, for each configured week
+    /// </summary>
+    public int Week1DurationDays { get; set; } = 7;
+    public int Week2DurationDays { get; set; } = 7;
+    public int Week3DurationDays { get; set; } = 7;
+    public int Week4DurationDays { get; set; } = 7;
+    public int Week5DurationDays { get; set; } = 7;
+
+    /// <summary>
     /// Blood bonus
     /// </summary>
     [NotMapped]
@@ -201,6 +215,12 @@ public partial class Game
         WriteupRequired = model.WriteupRequired;
         WriteupDeadline = model.WriteupDeadline;
         BloodBonus = BloodBonus.FromValue(model.BloodBonusValue);
+        WeekModeEnabled = model.WeekModeEnabled;
+        Week1DurationDays = Math.Clamp(model.Week1DurationDays, 1, 365);
+        Week2DurationDays = Math.Clamp(model.Week2DurationDays, 1, 365);
+        Week3DurationDays = Math.Clamp(model.Week3DurationDays, 1, 365);
+        Week4DurationDays = Math.Clamp(model.Week4DurationDays, 1, 365);
+        Week5DurationDays = Math.Clamp(model.Week5DurationDays, 1, 365);
 
         return this;
     }

@@ -981,6 +981,23 @@ export interface GameInfoModel {
    * @format int64
    */
   bloodBonus?: number;
+  /** Whether challenges are organized and displayed by week */
+  weekModeEnabled?: boolean;
+  /**
+   * Duration, in days, for each configured week
+   * @format int32
+   */
+  week1DurationDays?: number;
+  /** @format int32 */
+  week2DurationDays?: number;
+  /** @format int32 */
+  week3DurationDays?: number;
+  /** @format int32 */
+  week4DurationDays?: number;
+  /** @format int32 */
+  week5DurationDays?: number;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  week?: number | null;
 }
 
 /** List response */
@@ -1200,6 +1217,8 @@ export interface ChallengeEditDetailModel {
    * @format double
    */
   difficulty: number;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  week?: number | null;
 }
 
 export interface Attachment {
@@ -1284,6 +1303,8 @@ export interface ChallengeInfoModel {
    * @format uint64
    */
   deadlineUtc?: number | null;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  week?: number | null;
 }
 
 /** Challenge update information (Edit) */
@@ -1371,6 +1392,8 @@ export interface ChallengeUpdateModel {
    * @format double
    */
   difficulty?: number | null;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null to keep unchanged) */
+  week?: number | null;
 }
 
 /** New attachment information (Edit) */
@@ -1493,6 +1516,8 @@ export interface DetailedGameInfoModel {
    * @format uint64
    */
   end?: number;
+  /** Whether challenges are organized and displayed by week */
+  weekModeEnabled?: boolean;
 }
 
 export interface DivisionInfo {
@@ -1733,6 +1758,8 @@ export interface ChallengeInfo {
   bloods: Blood[];
   /** Whether to disable blood bonus */
   disableBloodBonus: boolean;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  week?: number | null;
 }
 
 export interface Blood {
@@ -2002,6 +2029,8 @@ export interface ChallengeDetailModel {
    * @format uint64
    */
   deadline?: number | null;
+  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  week?: number | null;
 }
 
 export interface ClientFlagContext {

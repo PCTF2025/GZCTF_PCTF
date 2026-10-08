@@ -1,4 +1,4 @@
-﻿using GZCTF.Models.Request.Shared;
+using GZCTF.Models.Request.Shared;
 
 namespace GZCTF.Models.Request.Game;
 
@@ -62,6 +62,11 @@ public class ChallengeDetailModel
     /// </summary>
     public DateTimeOffset? Deadline { get; set; }
 
+    /// <summary>
+    /// Recruitment week (1-5 for weeks, 6 for extension, null if not assigned)
+    /// </summary>
+    public int? Week { get; set; }
+
     internal static ChallengeDetailModel FromInstance(GameInstance gameInstance, int attemptCount,
         ChallengeInfo? scoreboardChallenge = null) =>
         new()
@@ -75,6 +80,7 @@ public class ChallengeDetailModel
             Type = gameInstance.Challenge.Type,
             Limit = gameInstance.Challenge.SubmissionLimit,
             Deadline = gameInstance.Challenge.DeadlineUtc,
+            Week = gameInstance.Challenge.Week,
             Attempts = attemptCount,
             Context = new()
             {

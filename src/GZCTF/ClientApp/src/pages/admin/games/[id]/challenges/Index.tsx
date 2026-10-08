@@ -13,6 +13,7 @@ import { WithGameEditTab } from '@Components/admin/WithGameEditTab'
 import { showErrorMsg } from '@Utils/Shared'
 import { ChallengeCategoryItem, ChallengeCategoryList, useChallengeCategoryLabelMap } from '@Utils/Shared'
 import { useEditChallenges } from '@Hooks/useEdit'
+import { useAdminGame } from '@Hooks/useGame'
 import api, { ChallengeInfoModel, ChallengeCategory } from '@Api'
 
 const GameChallengeEdit: FC = () => {
@@ -22,14 +23,22 @@ const GameChallengeEdit: FC = () => {
   const [createOpened, setCreateOpened] = useState(false)
   const [bonusOpened, setBonusOpened] = useState(false)
   const [category, setCategory] = useState<ChallengeCategory | null>(null)
+  const [week, setWeek] = useState<number | null>(null)
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
   const [disabled, setDisabled] = useState(false)
 
   const { t } = useTranslation()
 
   const { challenges, mutate } = useEditChallenges(numId)
+  const { game } = useAdminGame(numId)
 
-  const filteredChallenges = category && challenges ? challenges?.filter((c) => c.category === category) : challenges
+  const filteredChallenges =
+    challenges?.filter(
+      (c) =>
+        (!category || c.category === category) &&
+        // 未启用周次模式时不按周次过滤
+        (!game?.weekModeEnabled || !week || c.week === week)
+    ) ?? challenges
 
   const modals = useModals()
 
@@ -109,6 +118,18 @@ const GameChallengeEdit: FC = () => {
               return { value: cate, label: data?.name, ...data } as ComboboxItem
             })}
           />
+          {game?.weekModeEnabled && (
+            <Select
+              placeholder="全部周次"
+              clearable
+              w="10.5rem"
+              value={week ? String(week) : null}
+              onChange={(value) => setWeek(value ? Number(value) : null)}
+              data={[1, 2, 3, 4, 5]
+                .map((item) => ({ value: String(item), label: `第 ${item} 周` }))
+                .concat({ value: '6', label: '扩展题' })}
+            />
+          )}
           <Group justify="right">
             <Button leftSection={<Icon path={mdiRefresh} size={1} />} disabled={disabled} onClick={onFlushScoreboard}>
               {t('admin.button.challenges.flush_scoreboard')}

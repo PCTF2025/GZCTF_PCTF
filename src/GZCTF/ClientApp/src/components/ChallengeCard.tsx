@@ -1,4 +1,5 @@
 import {
+  Badge,
   Box,
   Card,
   Center,
@@ -32,10 +33,12 @@ interface ChallengeCardProps {
   iconMap: Map<SubmissionType, PartialIconProps | undefined>
   colorMap: Map<SubmissionType, string | undefined>
   teamId?: number
+  /// 是否显示周次徽章（仅在比赛启用周次模式时展示）
+  showWeek?: boolean
 }
 
 export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps) => {
-  const { challenge, solved, onClick, iconMap, teamId, colorMap } = props
+  const { challenge, solved, onClick, iconMap, teamId, colorMap, showWeek } = props
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
   const cateData = challengeCategoryLabelMap.get(challenge.category!)
   const theme = useMantineTheme()
@@ -58,6 +61,11 @@ export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps)
       <Stack gap="xs" pos="relative" style={{ zIndex: 99 }}>
         <Group h="30px" wrap="nowrap" justify="space-between" gap={2}>
           <ScrollingText text={challenge.title || ''} size="lg" />
+          {showWeek && challenge.week && (
+            <Badge size="xs" variant="light" color="violet">
+              {challenge.week === 6 ? '扩展题' : `第 ${challenge.week} 周`}
+            </Badge>
+          )}
         </Group>
         <Divider size="sm" color={cateData?.color} />
         <Group wrap="nowrap" justify="space-between" align="center" gap={2}>

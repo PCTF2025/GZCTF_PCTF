@@ -353,6 +353,11 @@ public partial class ChallengeInfo
     public DateTimeOffset? DeadlineUtc { get; set; }
 
     /// <summary>
+    /// Recruitment week (1-5 for weeks, 6 for extension, null if not assigned)
+    /// </summary>
+    public int? Week { get; set; }
+
+    /// <summary>
     /// Bloods for the challenge
     /// </summary>
     [Required]

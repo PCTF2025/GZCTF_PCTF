@@ -5,6 +5,7 @@ import {
   Divider,
   Group,
   ScrollArea,
+  Select,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -50,9 +51,17 @@ export const ChallengePanel: FC = () => {
 
   const allChallenges = Object.values(challenges ?? {}).flat()
 
+  // 周次筛选：仅在比赛启用周次模式时生效
+  const [week, setWeek] = useState<number | null>(null)
+
+  const matchWeek = (chal: ChallengeInfo) => !game?.weekModeEnabled || !week || chal.week === week
+
   const currentChallenges =
     challenges &&
-    (activeTab !== 'All' ? (challenges[activeTab] ?? []) : allChallenges).filter(
+    (activeTab !== 'All'
+      ? (challenges[activeTab] ?? []).filter(matchWeek)
+      : allChallenges.filter(matchWeek)
+    ).filter(
       (chal) =>
         !hideSolved || (teamInfo && teamInfo.rank?.solvedChallenges?.find((c) => c.id === chal.id)) === undefined
     )
@@ -156,6 +165,18 @@ export const ChallengePanel: FC = () => {
             <Divider />
           </>
         )}
+        {game?.weekModeEnabled && (
+          <Select
+            w="10.5rem"
+            placeholder="全部周次"
+            clearable
+            value={week ? String(week) : null}
+            onChange={(value) => setWeek(value ? Number(value) : null)}
+            data={[1, 2, 3, 4, 5]
+              .map((item) => ({ value: String(item), label: `第 ${item} 周` }))
+              .concat({ value: '6', label: '扩展题' })}
+          />
+        )}
         <Switch
           w="10.5rem"
           checked={hideSolved}
@@ -249,6 +270,7 @@ export const ChallengePanel: FC = () => {
                   }}
                   solved={solved}
                   teamId={teamInfo?.rank?.id}
+                  showWeek={game?.weekModeEnabled}
                 />
               )
             })}

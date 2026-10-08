@@ -314,6 +314,22 @@ const GameChallengeEdit: FC = () => {
               })}
             />
           </Grid.Col>
+          {game?.weekModeEnabled && (
+            <Grid.Col span={1}>
+              <Select
+                label="周次"
+                description="第 1～5 周或扩展题；不属于周次可留空"
+                placeholder="未设置"
+                clearable
+                disabled={disabled}
+                value={challengeInfo.week ? String(challengeInfo.week) : null}
+                data={[1, 2, 3, 4, 5]
+                  .map((week) => ({ value: String(week), label: `第 ${week} 周` }))
+                  .concat({ value: '6', label: '扩展题' })}
+                onChange={(value) => setChallengeInfo({ ...challengeInfo, week: value ? Number(value) : 0 })}
+              />
+            </Grid.Col>
+          )}
           <Grid.Col span={2}>
             <Textarea
               w="100%"

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using GZCTF.Models.Request.Game;
 
 namespace GZCTF.Models.Request.Edit;
@@ -131,6 +131,11 @@ public class ChallengeEditDetailModel
     public DateTimeOffset? DeadlineUtc { get; set; }
 
     /// <summary>
+    /// Recruitment week (1-5 for weeks, 6 for extension, null if not assigned)
+    /// </summary>
+    public int? Week { get; set; }
+
+    /// <summary>
     /// Maximum number of submissions allowed per team (0 = no limit)
     /// </summary>
     [Required]
@@ -181,6 +186,7 @@ public class ChallengeEditDetailModel
             Attachment = chal.Attachment,
             SubmissionLimit = chal.SubmissionLimit,
             DeadlineUtc = chal.DeadlineUtc,
+            Week = chal.Week,
             AcceptedCount = 0, // This field should be set externally
             TestContainer = chal.TestContainer is null ? null : ContainerInfoModel.FromContainer(chal.TestContainer),
             Flags = chal.Flags.Select(FlagInfoModel.FromFlagContext).ToList()

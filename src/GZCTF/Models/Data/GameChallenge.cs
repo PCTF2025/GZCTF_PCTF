@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using GZCTF.Models.Request.Edit;
 
@@ -15,6 +15,12 @@ public class GameChallenge : Challenge
     /// Whether to disable blood bonus
     /// </summary>
     public bool DisableBloodBonus { get; set; }
+
+    /// <summary>
+    /// Recruitment week. Null means the challenge is not assigned to a week.
+    /// </summary>
+    [Range(1, 6)]
+    public int? Week { get; set; }
 
     /// <summary>
     /// Initial score
@@ -62,6 +68,9 @@ public class GameChallenge : Challenge
         Title = model.Title ?? Title;
         Content = model.Content ?? Content;
         Category = model.Category ?? Category;
+        // 周次为 null 表示保持原值，0 表示清空归属，1~6 为有效周次
+        if (model.Week is not null)
+            Week = model.Week is >= 1 and <= 6 ? model.Week : null;
         Hints = model.Hints ?? Hints;
         CPUCount = model.CPUCount ?? CPUCount;
         MemoryLimit = model.MemoryLimit ?? MemoryLimit;

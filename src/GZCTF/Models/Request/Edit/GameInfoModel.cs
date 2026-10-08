@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace GZCTF.Models.Request.Edit;
@@ -108,6 +108,25 @@ public class GameInfoModel
     [JsonPropertyName("bloodBonus")]
     public long BloodBonusValue { get; set; } = BloodBonus.DefaultValue;
 
+    /// <summary>
+    /// Whether challenges are organized and displayed by week
+    /// </summary>
+    public bool WeekModeEnabled { get; set; }
+
+    /// <summary>
+    /// Duration, in days, for each configured week
+    /// </summary>
+    [Range(1, 365)]
+    public int Week1DurationDays { get; set; } = 7;
+    [Range(1, 365)]
+    public int Week2DurationDays { get; set; } = 7;
+    [Range(1, 365)]
+    public int Week3DurationDays { get; set; } = 7;
+    [Range(1, 365)]
+    public int Week4DurationDays { get; set; } = 7;
+    [Range(1, 365)]
+    public int Week5DurationDays { get; set; } = 7;
+
     internal static GameInfoModel FromGame(Data.Game game) =>
         new()
         {
@@ -128,6 +147,12 @@ public class GameInfoModel
             WriteupDeadline = game.WriteupDeadline,
             WriteupNote = game.WriteupNote,
             WriteupRequired = game.WriteupRequired,
-            BloodBonusValue = game.BloodBonus.Val
+            BloodBonusValue = game.BloodBonus.Val,
+            WeekModeEnabled = game.WeekModeEnabled,
+            Week1DurationDays = game.Week1DurationDays,
+            Week2DurationDays = game.Week2DurationDays,
+            Week3DurationDays = game.Week3DurationDays,
+            Week4DurationDays = game.Week4DurationDays,
+            Week5DurationDays = game.Week5DurationDays
         };
 }
