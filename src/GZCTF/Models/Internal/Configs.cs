@@ -396,21 +396,23 @@ public partial class ClientSsoConfig
     /// <summary>学校列表</summary>
     public List<ClientSsoSchool> Schools { get; set; } = [];
 
-    /// <summary>由服务端配置解析而来；已禁用或无有效学校时返回 null</summary>
-    public static ClientSsoConfig? FromConfig(SsoConfig config)
-    {
-        if (!config.Enabled)
-            return null;
+    /// <summary>是否允许用户名 / 邮箱 + 密码登录</summary>
+    public bool LocalLoginEnabled { get; set; } = true;
 
-        var schools = ParseSchools(config.Schools);
-        if (schools.Count == 0)
-            return null;
+    /// <summary>
+    /// 由服务端配置解析而来。始终返回对象（登录页需要读取本地登录开关），
+    /// SSO 关闭或无有效学校时 Schools 为空列表。
+    /// </summary>
+    public static ClientSsoConfig FromConfig(SsoConfig config)
+    {
+        var schools = config.Enabled ? ParseSchools(config.Schools) : [];
 
         return new ClientSsoConfig
         {
             Title = config.Title,
             Description = config.Description,
-            Schools = schools
+            Schools = schools,
+            LocalLoginEnabled = config.LocalLoginEnabled
         };
     }
 
@@ -567,6 +569,9 @@ public class SsoConfig
 {
     /// <summary>是否在登录页展示外部登录区（关闭后登录页只保留左侧账号密码登录）</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>是否允许用户名 / 邮箱 + 密码登录（关闭后登录页左侧表单隐藏，仅可用学校统一身份认证）</summary>
+    public bool LocalLoginEnabled { get; set; } = true;
 
     /// <summary>右侧区域标题，例如「学校统一身份认证」</summary>
     public string Title { get; set; } = "学校统一身份认证";

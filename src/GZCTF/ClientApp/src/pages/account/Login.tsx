@@ -240,9 +240,101 @@ const Login: FC = () => {
     window.location.href = `/api/account/sso/login/${encodeURIComponent(slug)}`
   }
 
+  /// 学校统一身份认证区域：列表模式与邮箱模式
+  /// standalone = 登录页仅展示该区域时使用更大的标题
+  const renderSsoPanel = (standalone = false) => (
+    <Stack align="center" justify="center" gap="md">
+      {ssoMode === 'schools' ? (
+        <>
+          <Title order={standalone ? 3 : 4} ta="center">
+            {sso?.title || '学校统一身份认证'}
+          </Title>
+          {sso?.description && (
+            <Text size="sm" c="dimmed" ta="center">
+              {sso.description}
+            </Text>
+          )}
+          <Stack w="100%" gap="sm" mt="xs">
+            {ssoSchools.map((school) => (
+              <Button
+                key={school.slug ?? school.name}
+                fullWidth
+                variant="light"
+                disabled={disabled}
+                leftSection={
+                  school.icon ? (
+                    <Image src={school.icon} alt={school.name} w={18} h={18} radius="xl" />
+                  ) : (
+                    <Icon path={mdiLoginVariant} size={0.85} />
+                  )
+                }
+                onClick={() => onSchoolClick(school)}
+              >
+                {school.name}
+              </Button>
+            ))}
+          </Stack>
+        </>
+      ) : (
+        <>
+          <Title order={standalone ? 3 : 4} ta="center">
+            {emailSchool?.name} 邮箱登录
+          </Title>
+          <Text size="sm" c="dimmed" ta="center">
+            请使用学校邮箱登录
+            {(emailSchool?.emailSuffixes?.length ?? 0) > 0 &&
+              `（${emailSchool!.emailSuffixes!.map((s) => `@${s}`).join(' / ')}）`}
+          </Text>
+          <TextInput
+            required
+            label="学号 / 邮箱"
+            placeholder="请输入学号或邮箱"
+            w="100%"
+            value={emailAccount}
+            disabled={disabled}
+            onChange={(event) => setEmailAccount(event.currentTarget.value)}
+          />
+          {pickedSuffix && (
+            <Text size="xs" c="dimmed" ta="center" w="100%">
+              登录邮箱：{emailAccount.includes('@') ? emailAccount : `${emailAccount || '学号'}@${pickedSuffix}`}
+            </Text>
+          )}
+          <Group w="100%" grow>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSsoMode('schools')
+                setEmailSchool(null)
+                setEmailAccount('')
+              }}
+            >
+              返回
+            </Button>
+            <Button disabled={disabled} onClick={onEmailLogin}>
+              下一步
+            </Button>
+          </Group>
+        </>
+      )}
+    </Stack>
+  )
+
   // 后台未配置学校时，保持原有单栏布局
+  // 三种布局：左右双栏 / 仅本地登录 / 仅学校认证
+  const localEnabled = sso?.localLoginEnabled ?? true
+
   if (ssoSchools.length === 0) {
-    return <AccountView onSubmit={onLogin}>{localForm}</AccountView>
+    return <AccountView onSubmit={onLogin}>{localEnabled ? localForm : <Text c="dimmed">未开放任何登录方式，请联系管理员</Text>}</AccountView>
+  }
+
+  if (!localEnabled) {
+    return (
+      <Center mih="100vh" p="md">
+        <Paper w="100%" maw={520} p="xl" withBorder radius="md">
+          {renderSsoPanel(true)}
+        </Paper>
+      </Center>
+    )
   }
 
   return (
@@ -272,80 +364,7 @@ const Login: FC = () => {
 
           {/* 右栏：学校统一身份认证（列表由后台维护，支持 CAS / 邮箱两种模式） */}
           <Box flex={stacked ? undefined : 1} maw={stacked ? undefined : 380}>
-            <Stack align="center" justify="center" gap="md">
-              {ssoMode === 'schools' ? (
-                <>
-                  <Title order={4} ta="center">
-                    {sso?.title}
-                  </Title>
-                  {sso?.description && (
-                    <Text size="sm" c="dimmed" ta="center">
-                      {sso.description}
-                    </Text>
-                  )}
-                  <Stack w="100%" gap="sm" mt="xs">
-                    {ssoSchools.map((school) => (
-                      <Button
-                        key={school.slug ?? school.name}
-                        fullWidth
-                        variant="light"
-                        disabled={disabled}
-                        leftSection={
-                          school.icon ? (
-                            <Image src={school.icon} alt={school.name} w={18} h={18} radius="xl" />
-                          ) : (
-                            <Icon path={mdiLoginVariant} size={0.85} />
-                          )
-                        }
-                        onClick={() => onSchoolClick(school)}
-                      >
-                        {school.name}
-                      </Button>
-                    ))}
-                  </Stack>
-                </>
-              ) : (
-                <>
-                  <Title order={4} ta="center">
-                    {emailSchool?.name} 邮箱登录
-                  </Title>
-                  <Text size="sm" c="dimmed" ta="center">
-                    请使用学校邮箱登录
-                    {(emailSchool?.emailSuffixes?.length ?? 0) > 0 &&
-                      `（${emailSchool!.emailSuffixes!.map((s) => `@${s}`).join(' / ')}）`}
-                  </Text>
-                  <TextInput
-                    required
-                    label="学号 / 邮箱"
-                    placeholder="请输入学号或邮箱"
-                    w="100%"
-                    value={emailAccount}
-                    disabled={disabled}
-                    onChange={(event) => setEmailAccount(event.currentTarget.value)}
-                  />
-                  {pickedSuffix && (
-                    <Text size="xs" c="dimmed" ta="center" w="100%">
-                      登录邮箱：{emailAccount.includes('@') ? emailAccount : `${emailAccount || '学号'}@${pickedSuffix}`}
-                    </Text>
-                  )}
-                  <Group w="100%" grow>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setSsoMode('schools')
-                        setEmailSchool(null)
-                        setEmailAccount('')
-                      }}
-                    >
-                      返回
-                    </Button>
-                    <Button disabled={disabled} onClick={onEmailLogin}>
-                      下一步
-                    </Button>
-                  </Group>
-                </>
-              )}
-            </Stack>
+            {renderSsoPanel()}
           </Box>
         </Flex>
       </Paper>

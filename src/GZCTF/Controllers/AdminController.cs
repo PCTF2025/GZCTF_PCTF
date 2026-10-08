@@ -99,6 +99,10 @@ public class AdminController(
             await configService.SaveConfig(prop.PropertyType, value, token);
         }
 
+        // 配置变更后立即失效客户端配置缓存，避免登录页 / 站点设置等下发内容仍为旧值
+        await cacheHelper.RemoveAsync(CacheKey.ClientConfig, token);
+        configService.ReloadConfig();
+
         return Ok();
     }
 

@@ -358,6 +358,29 @@ export interface ConfigEditModel {
   globalConfig?: GlobalConfig | null;
   /** Game policy */
   containerPolicy?: ContainerPolicy | null;
+  /** 学校统一身份认证配置（手动补充，swagger 生成文件） */
+  ssoConfig?: SsoConfigEditModel | null;
+}
+
+/** 学校统一身份认证配置（管理端编辑态） */
+export interface SsoConfigEditModel {
+  /** 是否在登录页展示外部登录区 */
+  enabled?: boolean;
+  /** 是否允许用户名 / 邮箱 + 密码登录 */
+  localLoginEnabled?: boolean;
+  /** 右侧区域标题 */
+  title?: string;
+  /** 右侧区域副标题说明 */
+  description?: string | null;
+  /**
+   * 学校列表，每行字段以 | 分隔：
+   * 学校名称|短名|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
+   */
+  schools?: string;
+  /** 是否允许新用户首次 SSO 登录时自动创建账号 */
+  allowAutoRegister?: boolean;
+  /** SSO 登录成功后跳转路径 */
+  redirectPath?: string;
 }
 
 /** Account policy */
@@ -2149,6 +2172,8 @@ export interface ClientSsoConfig {
   description?: string | null;
   /** 学校列表 */
   schools?: ClientSsoSchool[];
+  /** 是否允许用户名 / 邮箱 + 密码登录 */
+  localLoginEnabled?: boolean;
 }
 
 /** 学校认证模式 */
