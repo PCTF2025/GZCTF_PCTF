@@ -35,10 +35,14 @@ interface ChallengeCardProps {
   teamId?: number
   /// 是否显示周次徽章（仅在比赛启用周次模式时展示）
   showWeek?: boolean
+  /// 周次/分组的显示名称，未传时回退为「第 N 周」
+  weekLabel?: string
+  /// 是否处于不可提交状态（时间窗口外）：置灰但允许点开查看
+  disabled?: boolean
 }
 
 export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps) => {
-  const { challenge, solved, onClick, iconMap, teamId, colorMap, showWeek } = props
+  const { challenge, solved, onClick, iconMap, teamId, colorMap, showWeek, weekLabel, disabled } = props
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
   const cateData = challengeCategoryLabelMap.get(challenge.category!)
   const theme = useMantineTheme()
@@ -55,16 +59,18 @@ export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps)
       onClick={onClick}
       shadow="sm"
       className={cx(misc.hoverCard, classes.root)}
-      data-faded={solved || isFaded || undefined}
+      data-faded={solved || isFaded || disabled || undefined}
       data-no-move
     >
       <Stack gap="xs" pos="relative" style={{ zIndex: 99 }}>
         <Group h="30px" wrap="nowrap" justify="space-between" gap={2}>
           <ScrollingText text={challenge.title || ''} size="lg" />
           {showWeek && challenge.week && (
-            <Badge size="xs" variant="light" color="violet">
-              {challenge.week === 6 ? '扩展题' : `第 ${challenge.week} 周`}
-            </Badge>
+            <Tooltip label={disabled ? '不在开放时间内，暂不可提交' : weekLabel || `第 ${challenge.week} 周`}>
+              <Badge size="xs" variant="light" color={disabled ? 'gray' : 'violet'}>
+                {weekLabel || `第 ${challenge.week} 周`}
+              </Badge>
+            </Tooltip>
           )}
         </Group>
         <Divider size="sm" color={cateData?.color} />

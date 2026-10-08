@@ -35,7 +35,7 @@ public class ChallengeUpdateModel
     /// <summary>
     /// Recruitment week (1-5 for weeks, 6 for extension, null to keep unchanged)
     /// </summary>
-    [Range(0, 6)]
+    [Range(0, 7)]
     public int? Week { get; set; }
 
     /// <summary>

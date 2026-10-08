@@ -1,10 +1,12 @@
 import {
+  Badge,
   Button,
   Card,
   Center,
   Divider,
   Group,
   ScrollArea,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Skeleton,
@@ -18,12 +20,13 @@ import { useLocalStorage } from '@mantine/hooks'
 import { mdiFileUploadOutline, mdiFlagOutline, mdiPuzzle } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
-import { FC, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useParams } from 'react-router'
 import { ChallengeCard } from '@Components/ChallengeCard'
 import { Empty } from '@Components/Empty'
 import { GameChallengeModal } from '@Components/GameChallengeModal'
+import { WeekTimers } from '@Components/WeekTimers'
 import { WriteupSubmitModal } from '@Components/WriteupSubmitModal'
 import { useChallengeCategoryLabelMap, SubmissionTypeIconMap } from '@Utils/Shared'
 import { useGame, useGameTeamInfo } from '@Hooks/useGame'
@@ -51,20 +54,61 @@ export const ChallengePanel: FC = () => {
 
   const allChallenges = Object.values(challenges ?? {}).flat()
 
-  // 周次筛选：仅在比赛启用周次模式时生效
-  const [week, setWeek] = useState<number | null>(null)
+  // 周次模式：筛选维度（周次 / 类型 / 当前是否可做）
+  const weekMode = game?.weekModeEnabled ?? false
 
-  const matchWeek = (chal: ChallengeInfo) => !game?.weekModeEnabled || !week || chal.week === week
+  // 题目所属分桶 -> 是否处于可提交时间窗口
+  const buckets = useMemo(() => game?.weekBuckets ?? [], [game?.weekBuckets])
+  const openMap = useMemo(() => {
+    const map = new Map<number, boolean>()
+    buckets.forEach((b) => {
+      if (b.key != null) map.set(b.key, b.isOpen ?? true)
+    })
+    return map
+  }, [buckets])
+
+  /// 题目是否可提交：未归类 / 分桶未配置时间 → 可提交
+  const isOpen = (chal: ChallengeInfo) => {
+    if (chal.week == null) return true
+    return openMap.get(chal.week) ?? true
+  }
+
+  const bucketName = (key?: number | null) => {
+    if (key == null) return '未归类'
+    return buckets.find((b) => b.key === key)?.name ?? `第 ${key} 周`
+  }
+
+  const [week, setWeek] = useState<number | null>(null)
+  const [onlyOpen, setOnlyOpen] = useState(false)
+
+  /// 默认只看「当前周 + 挑战题 + 其他题」；用户手动切换后按其选择
+  const defaultWeeks = useMemo(() => {
+    if (!weekMode) return []
+    const current = buckets.find((b) => b.key != null && b.key <= 5 && b.isOpen)
+    const keys = [current?.key, 6, 7].filter((k): k is number => typeof k === 'number')
+    return keys
+  }, [weekMode, buckets])
+
+  const [scope, setScope] = useState<'default' | 'all' | number>('default')
+
+  const matchScope = (chal: ChallengeInfo) => {
+    if (!weekMode) return true
+    if (scope === 'all') return true
+    if (scope === 'default') return chal.week == null || defaultWeeks.includes(chal.week)
+    return chal.week === scope
+  }
 
   const currentChallenges =
     challenges &&
     (activeTab !== 'All'
-      ? (challenges[activeTab] ?? []).filter(matchWeek)
-      : allChallenges.filter(matchWeek)
-    ).filter(
-      (chal) =>
-        !hideSolved || (teamInfo && teamInfo.rank?.solvedChallenges?.find((c) => c.id === chal.id)) === undefined
+      ? (challenges[activeTab] ?? []).filter(matchScope)
+      : allChallenges.filter(matchScope)
     )
+      .filter((chal) => !onlyOpen || isOpen(chal))
+      .filter(
+        (chal) =>
+          !hideSolved || (teamInfo && teamInfo.rank?.solvedChallenges?.find((c) => c.id === chal.id)) === undefined
+      )
 
   // challenge referenced by the current location hash, e.g. `#42-title`
   const hashChallengeId = parseInt(hash.slice(1).split('-')[0])
@@ -165,17 +209,44 @@ export const ChallengePanel: FC = () => {
             <Divider />
           </>
         )}
-        {game?.weekModeEnabled && (
-          <Select
-            w="10.5rem"
-            placeholder="全部周次"
-            clearable
-            value={week ? String(week) : null}
-            onChange={(value) => setWeek(value ? Number(value) : null)}
-            data={[1, 2, 3, 4, 5]
-              .map((item) => ({ value: String(item), label: `第 ${item} 周` }))
-              .concat({ value: '6', label: '扩展题' })}
-          />
+        {weekMode && (
+          <Stack gap="xs" w="10.5rem">
+            {/* 顶部双计时：当前周剩余 + 总剩余 */}
+            <WeekTimers buckets={buckets} endTimeUtc={game?.end ? new Date(game.end).toISOString() : null} />
+            <Select
+              size="xs"
+              label="周次"
+              placeholder="默认范围"
+              value={scope === 'all' ? 'all' : scope === 'default' ? 'default' : String(scope)}
+              onChange={(value) => {
+                if (value === 'all') setScope('all')
+                else if (value === 'default' || value === null) setScope('default')
+                else setScope(Number(value))
+              }}
+              data={[
+                { value: 'default', label: '默认（本周+挑战+其他）' },
+                { value: 'all', label: '全部题目' },
+                ...buckets
+                  .filter((b) => b.key != null)
+                  .map((b) => ({ value: String(b.key), label: `${b.name}${b.isOpen ? '' : '（未开放）'}` })),
+              ]}
+            />
+            <Select
+              size="xs"
+              label="类型"
+              placeholder="全部类型"
+              clearable
+              value={activeTab === 'All' ? null : activeTab}
+              onChange={(value) => setActiveTab((value ?? 'All') as ChallengeCategory | 'All')}
+              data={categories.map((c) => ({ value: c, label: c }))}
+            />
+            <Switch
+              size="xs"
+              checked={onlyOpen}
+              onChange={(e) => setOnlyOpen(e.currentTarget.checked)}
+              label="只看当前可做"
+            />
+          </Stack>
         )}
         <Switch
           w="10.5rem"
@@ -270,7 +341,9 @@ export const ChallengePanel: FC = () => {
                   }}
                   solved={solved}
                   teamId={teamInfo?.rank?.id}
-                  showWeek={game?.weekModeEnabled}
+                  showWeek={weekMode}
+                  weekLabel={bucketName(chal.week)}
+                  disabled={!isOpen(chal)}
                 />
               )
             })}
@@ -313,6 +386,7 @@ export const ChallengePanel: FC = () => {
           title={challenge?.title ?? ''}
           score={challenge?.score ?? 0}
           challengeId={challenge.id}
+          challengeWeek={challenge.week ?? null}
         />
       )}
     </>

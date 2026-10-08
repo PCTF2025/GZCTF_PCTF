@@ -17,9 +17,10 @@ public class GameChallenge : Challenge
     public bool DisableBloodBonus { get; set; }
 
     /// <summary>
-    /// Recruitment week. Null means the challenge is not assigned to a week.
+    /// 题目归属分桶：1-5 表示第 N 周，6 表示挑战题，7 表示其他题；
+    /// null 表示未归类（不受周次时间窗口限制）。
     /// </summary>
-    [Range(1, 6)]
+    [Range(1, 7)]
     public int? Week { get; set; }
 
     /// <summary>
@@ -68,9 +69,9 @@ public class GameChallenge : Challenge
         Title = model.Title ?? Title;
         Content = model.Content ?? Content;
         Category = model.Category ?? Category;
-        // 周次为 null 表示保持原值，0 表示清空归属，1~6 为有效周次
+        // Week 为 null 表示保持原值，0 表示清空归属，1~7 为有效分桶
         if (model.Week is not null)
-            Week = model.Week is >= 1 and <= 6 ? model.Week : null;
+            Week = model.Week is >= 1 and <= 7 ? model.Week : null;
         Hints = model.Hints ?? Hints;
         CPUCount = model.CPUCount ?? CPUCount;
         MemoryLimit = model.MemoryLimit ?? MemoryLimit;

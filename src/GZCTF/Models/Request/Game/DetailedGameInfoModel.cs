@@ -101,6 +101,11 @@ public class DetailedGameInfoModel
     /// </summary>
     public bool WeekModeEnabled { get; set; }
 
+    /// <summary>
+    /// 周次与分组配置（含各自时间窗口与名称），供答题页渲染筛选与倒计时
+    /// </summary>
+    public List<WeekBucketInfo> WeekBuckets { get; set; } = [];
+
     public DetailedGameInfoModel WithParticipation(Participation? part, int teamCount)
     {
         TeamCount = teamCount;
@@ -120,6 +125,7 @@ public class DetailedGameInfoModel
             Content = game.Content,
             PracticeMode = game.PracticeMode,
             WeekModeEnabled = game.WeekModeEnabled,
+            WeekBuckets = BuildWeekBuckets(game),
             Divisions =
                 game.Divisions?.Select(d => new DivisionInfo
                 {
@@ -134,6 +140,48 @@ public class DetailedGameInfoModel
             EndTimeUtc = game.EndTimeUtc,
             TeamMemberCountLimit = game.TeamMemberCountLimit
         };
+
+    /// <summary>
+    /// 汇总 1-5 周 + 挑战题 + 其他题共 7 个分桶；周次桶带时间窗口，
+    /// 两个非周次桶不带时间（始终可做）。
+    /// </summary>
+    private static List<WeekBucketInfo> BuildWeekBuckets(Data.Game game)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var list = new List<WeekBucketInfo>();
+
+        for (var week = 1; week <= 5; week++)
+        {
+            var (start, end) = game.GetWeekWindow(week);
+            if (start is null && end is null)
+                continue;
+
+            list.Add(new WeekBucketInfo
+            {
+                Key = week,
+                Name = game.GetWeekName(week),
+                StartUtc = start,
+                EndUtc = end,
+                IsOpen = game.IsChallengeOpen(week, now)
+            });
+        }
+
+        list.Add(new WeekBucketInfo
+        {
+            Key = Data.Game.ChallengeBucket,
+            Name = game.GetBucketName(Data.Game.ChallengeBucket),
+            IsOpen = true
+        });
+
+        list.Add(new WeekBucketInfo
+        {
+            Key = Data.Game.MiscBucket,
+            Name = game.GetBucketName(Data.Game.MiscBucket),
+            IsOpen = true
+        });
+
+        return list;
+    }
 }
 
 public class DivisionInfo
@@ -152,4 +200,26 @@ public class DivisionInfo
     /// Is the division invite code required
     /// </summary>
     public bool InviteCodeRequired { get; set; }
+
+}
+
+/// <summary>
+/// 单个分桶（某周 / 挑战题 / 其他题）的下发信息
+/// </summary>
+public class WeekBucketInfo
+{
+    /// <summary>1-5 为周次，6 为挑战题，7 为其他题</summary>
+    public int Key { get; set; }
+
+    /// <summary>显示名称</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>开始时间（UTC），仅周次桶有值</summary>
+    public DateTimeOffset? StartUtc { get; set; }
+
+    /// <summary>结束时间（UTC），仅周次桶有值</summary>
+    public DateTimeOffset? EndUtc { get; set; }
+
+    /// <summary>当前时刻是否可提交</summary>
+    public bool IsOpen { get; set; }
 }

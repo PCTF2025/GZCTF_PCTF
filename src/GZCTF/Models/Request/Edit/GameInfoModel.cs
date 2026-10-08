@@ -114,18 +114,38 @@ public class GameInfoModel
     public bool WeekModeEnabled { get; set; }
 
     /// <summary>
-    /// Duration, in days, for each configured week
+    /// 每周的起止时间（UTC）。任一端留空表示该端不限制；两端都留空表示该周未配置。
     /// </summary>
-    [Range(1, 365)]
-    public int Week1DurationDays { get; set; } = 7;
-    [Range(1, 365)]
-    public int Week2DurationDays { get; set; } = 7;
-    [Range(1, 365)]
-    public int Week3DurationDays { get; set; } = 7;
-    [Range(1, 365)]
-    public int Week4DurationDays { get; set; } = 7;
-    [Range(1, 365)]
-    public int Week5DurationDays { get; set; } = 7;
+    public DateTimeOffset? Week1StartUtc { get; set; }
+    public DateTimeOffset? Week1EndUtc { get; set; }
+    public DateTimeOffset? Week2StartUtc { get; set; }
+    public DateTimeOffset? Week2EndUtc { get; set; }
+    public DateTimeOffset? Week3StartUtc { get; set; }
+    public DateTimeOffset? Week3EndUtc { get; set; }
+    public DateTimeOffset? Week4StartUtc { get; set; }
+    public DateTimeOffset? Week4EndUtc { get; set; }
+    public DateTimeOffset? Week5StartUtc { get; set; }
+    public DateTimeOffset? Week5EndUtc { get; set; }
+
+    /// <summary>每周自定义名称，留空显示「第 N 周」</summary>
+    [MaxLength(64)]
+    public string? Week1Name { get; set; }
+    [MaxLength(64)]
+    public string? Week2Name { get; set; }
+    [MaxLength(64)]
+    public string? Week3Name { get; set; }
+    [MaxLength(64)]
+    public string? Week4Name { get; set; }
+    [MaxLength(64)]
+    public string? Week5Name { get; set; }
+
+    /// <summary>挑战题分组名称，留空显示「挑战题」</summary>
+    [MaxLength(64)]
+    public string? ChallengeBucketName { get; set; }
+
+    /// <summary>其他题分组名称，留空显示「其他题」</summary>
+    [MaxLength(64)]
+    public string? MiscBucketName { get; set; }
 
     internal static GameInfoModel FromGame(Data.Game game) =>
         new()
@@ -149,10 +169,22 @@ public class GameInfoModel
             WriteupRequired = game.WriteupRequired,
             BloodBonusValue = game.BloodBonus.Val,
             WeekModeEnabled = game.WeekModeEnabled,
-            Week1DurationDays = game.Week1DurationDays,
-            Week2DurationDays = game.Week2DurationDays,
-            Week3DurationDays = game.Week3DurationDays,
-            Week4DurationDays = game.Week4DurationDays,
-            Week5DurationDays = game.Week5DurationDays
+            Week1StartUtc = game.Week1StartUtc,
+            Week1EndUtc = game.Week1EndUtc,
+            Week2StartUtc = game.Week2StartUtc,
+            Week2EndUtc = game.Week2EndUtc,
+            Week3StartUtc = game.Week3StartUtc,
+            Week3EndUtc = game.Week3EndUtc,
+            Week4StartUtc = game.Week4StartUtc,
+            Week4EndUtc = game.Week4EndUtc,
+            Week5StartUtc = game.Week5StartUtc,
+            Week5EndUtc = game.Week5EndUtc,
+            Week1Name = game.Week1Name,
+            Week2Name = game.Week2Name,
+            Week3Name = game.Week3Name,
+            Week4Name = game.Week4Name,
+            Week5Name = game.Week5Name,
+            ChallengeBucketName = game.ChallengeBucketName,
+            MiscBucketName = game.MiscBucketName
         };
 }

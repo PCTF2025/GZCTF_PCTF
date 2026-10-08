@@ -126,13 +126,43 @@ public partial class Game
     public bool WeekModeEnabled { get; set; }
 
     /// <summary>
-    /// Duration, in days, for each configured week
+    /// Per-week time window. Each week has an explicit start / end, so gaps
+    /// and overlaps between weeks are allowed. Null start means "not configured".
+    /// 采用扁平字段存储：GZCTF 配置机制不支持数组与集合类型。
     /// </summary>
-    public int Week1DurationDays { get; set; } = 7;
-    public int Week2DurationDays { get; set; } = 7;
-    public int Week3DurationDays { get; set; } = 7;
-    public int Week4DurationDays { get; set; } = 7;
-    public int Week5DurationDays { get; set; } = 7;
+    public DateTimeOffset? Week1StartUtc { get; set; }
+    public DateTimeOffset? Week1EndUtc { get; set; }
+    public DateTimeOffset? Week2StartUtc { get; set; }
+    public DateTimeOffset? Week2EndUtc { get; set; }
+    public DateTimeOffset? Week3StartUtc { get; set; }
+    public DateTimeOffset? Week3EndUtc { get; set; }
+    public DateTimeOffset? Week4StartUtc { get; set; }
+    public DateTimeOffset? Week4EndUtc { get; set; }
+    public DateTimeOffset? Week5StartUtc { get; set; }
+    public DateTimeOffset? Week5EndUtc { get; set; }
+
+    /// <summary>
+    /// Display name of each week, e.g. "第一周：基础入门". Falls back to
+    /// "第 N 周" when null or empty.
+    /// </summary>
+    [MaxLength(64)]
+    public string? Week1Name { get; set; }
+    [MaxLength(64)]
+    public string? Week2Name { get; set; }
+    [MaxLength(64)]
+    public string? Week3Name { get; set; }
+    [MaxLength(64)]
+    public string? Week4Name { get; set; }
+    [MaxLength(64)]
+    public string? Week5Name { get; set; }
+
+    /// <summary>
+    /// Display names of the two non-week buckets. Challenge = 挑战题, Misc = 其他题.
+    /// </summary>
+    [MaxLength(64)]
+    public string? ChallengeBucketName { get; set; }
+    [MaxLength(64)]
+    public string? MiscBucketName { get; set; }
 
     /// <summary>
     /// Blood bonus
@@ -216,13 +246,120 @@ public partial class Game
         WriteupDeadline = model.WriteupDeadline;
         BloodBonus = BloodBonus.FromValue(model.BloodBonusValue);
         WeekModeEnabled = model.WeekModeEnabled;
-        Week1DurationDays = Math.Clamp(model.Week1DurationDays, 1, 365);
-        Week2DurationDays = Math.Clamp(model.Week2DurationDays, 1, 365);
-        Week3DurationDays = Math.Clamp(model.Week3DurationDays, 1, 365);
-        Week4DurationDays = Math.Clamp(model.Week4DurationDays, 1, 365);
-        Week5DurationDays = Math.Clamp(model.Week5DurationDays, 1, 365);
+        Week1StartUtc = model.Week1StartUtc;
+        Week1EndUtc = model.Week1EndUtc;
+        Week2StartUtc = model.Week2StartUtc;
+        Week2EndUtc = model.Week2EndUtc;
+        Week3StartUtc = model.Week3StartUtc;
+        Week3EndUtc = model.Week3EndUtc;
+        Week4StartUtc = model.Week4StartUtc;
+        Week4EndUtc = model.Week4EndUtc;
+        Week5StartUtc = model.Week5StartUtc;
+        Week5EndUtc = model.Week5EndUtc;
+        Week1Name = Trim(model.Week1Name);
+        Week2Name = Trim(model.Week2Name);
+        Week3Name = Trim(model.Week3Name);
+        Week4Name = Trim(model.Week4Name);
+        Week5Name = Trim(model.Week5Name);
+        ChallengeBucketName = Trim(model.ChallengeBucketName);
+        MiscBucketName = Trim(model.MiscBucketName);
 
         return this;
+    }
+
+    private static string? Trim(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// 题目归属分桶：1-5 为周次，<see cref="ChallengeBucket"/> 为挑战题，
+    /// <see cref="MiscBucket"/> 为其他题，null 表示未归类。
+    /// </summary>
+    public const int ChallengeBucket = 6;
+    public const int MiscBucket = 7;
+
+    /// <summary>取指定周次（1-5）的时间窗口，未配置时返回 null</summary>
+    public (DateTimeOffset? Start, DateTimeOffset? End) GetWeekWindow(int week) =>
+        week switch
+        {
+            1 => (Week1StartUtc, Week1EndUtc),
+            2 => (Week2StartUtc, Week2EndUtc),
+            3 => (Week3StartUtc, Week3EndUtc),
+            4 => (Week4StartUtc, Week4EndUtc),
+            5 => (Week5StartUtc, Week5EndUtc),
+            _ => (null, null)
+        };
+
+    /// <summary>取指定周次的自定义名称，未设置时返回「第 N 周」</summary>
+    public string GetWeekName(int week)
+    {
+        var custom = week switch
+        {
+            1 => Week1Name,
+            2 => Week2Name,
+            3 => Week3Name,
+            4 => Week4Name,
+            5 => Week5Name,
+            _ => null
+        };
+
+        return string.IsNullOrWhiteSpace(custom) ? $"第 {week} 周" : custom;
+    }
+
+    /// <summary>取非周次分桶的名称</summary>
+    public string GetBucketName(int bucket) => bucket switch
+    {
+        ChallengeBucket => string.IsNullOrWhiteSpace(ChallengeBucketName) ? "挑战题" : ChallengeBucketName,
+        MiscBucket => string.IsNullOrWhiteSpace(MiscBucketName) ? "其他题" : MiscBucketName,
+        _ => GetWeekName(bucket)
+    };
+
+    /// <summary>
+    /// 判断某题目在当前时刻是否处于可提交状态。
+    /// 规则：未归类 / 周次未配置时间窗口 → 始终可提交（不限制）；
+    /// 配置了窗口则要求 now 落在 [Start, End] 内（任一端为 null 视为该端不限制）。
+    /// </summary>
+    public bool IsChallengeOpen(int? challengeWeek, DateTimeOffset now)
+    {
+        if (!WeekModeEnabled || challengeWeek is null)
+            return true;
+
+        // 挑战题 / 其他题两个分桶不受时间窗口约束
+        if (challengeWeek is ChallengeBucket or MiscBucket)
+            return true;
+
+        var (start, end) = GetWeekWindow(challengeWeek.Value);
+        if (start is null && end is null)
+            return true;
+
+        if (start is not null && now < start.Value)
+            return false;
+
+        if (end is not null && now > end.Value)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>返回当前时刻所处的周次（1-5），不在任何已配置窗口内时返回 null</summary>
+    public int? GetCurrentWeek(DateTimeOffset now)
+    {
+        if (!WeekModeEnabled)
+            return null;
+
+        for (var week = 1; week <= 5; week++)
+        {
+            var (start, end) = GetWeekWindow(week);
+            if (start is null && end is null)
+                continue;
+
+            var afterStart = start is null || now >= start.Value;
+            var beforeEnd = end is null || now <= end.Value;
+
+            if (afterStart && beforeEnd)
+                return week;
+        }
+
+        return null;
     }
 
     #region Db Relationship

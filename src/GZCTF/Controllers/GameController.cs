@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Mime;
@@ -998,6 +998,14 @@ public class GameController(
             var hasExceededDeadline = instance.Challenge.DeadlineUtc is { } deadline && submitTime > deadline;
             if (hasExceededDeadline && !context.Game!.PracticeMode)
                 return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Challenge_DeadlinePassed)]));
+
+            // 周次模式：题目所属周次未到开始时间或已过结束时间时禁止提交
+            if (!context.Game!.PracticeMode &&
+                !context.Game.IsChallengeOpen(instance.Challenge.Week, submitTime))
+            {
+                return BadRequest(
+                    new RequestResponse(localizer[nameof(Resources.Program.Challenge_WeekNotOpen)]));
+            }
 
             var permission =
                 await divisionRepository.GetPermission(context.Participation?.DivisionId, challengeId, token);

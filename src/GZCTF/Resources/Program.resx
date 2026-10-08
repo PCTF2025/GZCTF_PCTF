@@ -1088,4 +1088,7 @@
   <data name="Challenge_DeadlinePassed" xml:space="preserve">
     <value>The deadline for this challenge has passed</value>
   </data>
+  <data name="Challenge_WeekNotOpen" xml:space="preserve">
+    <value>This challenge is not open yet, or its week has already ended</value>
+  </data>
 </root>

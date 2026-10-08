@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Divider,
   Group,
@@ -12,7 +13,7 @@ import {
   ScrollAreaAutosize,
   Input,
 } from '@mantine/core'
-import { mdiLightbulbOnOutline, mdiOpenInNew, mdiPackageVariantClosed } from '@mdi/js'
+import {mdiLightbulbOnOutline, mdiOpenInNew, mdiPackageVariantClosed, mdiClockOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
@@ -268,6 +269,11 @@ export const ChallengeModal: FC<ChallengeModalProps> = (props) => {
         </>
       )}
       <Divider label={attemptsInfo} my={attemptsInfo ? '-0.4rem' : undefined} />
+      {disabled && !solved && (
+        <Alert color="gray" variant="light" icon={<Icon path={mdiClockOutline} size={1} />}>
+          该题目不在开放时间内，暂不可提交 flag
+        </Alert>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault()

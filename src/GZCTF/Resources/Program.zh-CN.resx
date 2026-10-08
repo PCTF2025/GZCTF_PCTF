@@ -1088,4 +1088,7 @@
   <data name="Challenge_DeadlinePassed" xml:space="preserve">
     <value>该题目的截止时间已过</value>
   </data>
+  <data name="Challenge_WeekNotOpen" xml:space="preserve">
+    <value>该题目尚未开放，或所属周次已结束</value>
+  </data>
 </root>

@@ -3,13 +3,15 @@ import { useInputState } from '@mantine/hooks'
 import { notifications, showNotification, updateNotification } from '@mantine/notifications'
 import { mdiCheck, mdiClose, mdiLoading } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import React, { FC, useEffect, useState } from 'react'
+import dayjs from 'dayjs'
+import React, { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChallengeModal } from '@Components/ChallengeModal'
 import { encryptApiData } from '@Utils/Crypto'
 import { showErrorMsg } from '@Utils/Shared'
 import { ChallengeCategoryItemProps } from '@Utils/Shared'
 import { useConfig } from '@Hooks/useConfig'
+import { useGame } from '@Hooks/useGame'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
 import api, { AnswerResult, ChallengeType, SubmissionType } from '@Api'
 
@@ -23,11 +25,24 @@ interface GameChallengeModalProps extends ModalProps {
   score: number
   challengeId: number
   status?: SubmissionType
+  /// 题目所属分桶（来自列表数据，比详情接口更早可用）
+  challengeWeek?: number | null
 }
 
 export const GameChallengeModal: FC<GameChallengeModalProps> = (props) => {
-  const { gameId, gameTitle, gameEnded, practiceMode, challengeId, cateData, status, title, score, ...modalProps } =
-    props
+  const {
+    gameId,
+    gameTitle,
+    gameEnded,
+    practiceMode,
+    challengeId,
+    cateData,
+    status,
+    title,
+    score,
+    challengeWeek,
+    ...modalProps
+  } = props
 
   const { data: challenge, mutate } = api.game.useGameGetChallenge(gameId, challengeId, {
     refreshInterval: 120 * 1000,
@@ -49,6 +64,23 @@ export const GameChallengeModal: FC<GameChallengeModalProps> = (props) => {
   const [solvedChallengeId, setSolvedChallengeId] = useState<number | null>(null)
 
   const isLimitReached = (challenge?.limit && (challenge.attempts ?? 0) >= challenge.limit) || false
+
+  // 周次模式：题目所属周次不在开放时间窗口内时禁止提交
+  const { game } = useGame(gameId)
+  const effectiveWeek = challengeWeek ?? challenge?.week ?? null
+  const weekClosed = useMemo(() => {
+    if (!game?.weekModeEnabled || effectiveWeek == null) return false
+
+    const bucket = game.weekBuckets?.find((b) => b.key === effectiveWeek)
+    // 未配置时间的分桶（挑战题 / 其他题）始终开放
+    if (!bucket || (bucket.startUtc == null && bucket.endUtc == null)) return false
+
+    const now = dayjs()
+    if (bucket.startUtc && now.isBefore(dayjs(bucket.startUtc))) return true
+    if (bucket.endUtc && now.isAfter(dayjs(bucket.endUtc))) return true
+
+    return false
+  }, [game?.weekModeEnabled, game?.weekBuckets, effectiveWeek])
 
   const onCreate = async () => {
     if (!challengeId || disabled) return
@@ -259,7 +291,7 @@ export const GameChallengeModal: FC<GameChallengeModalProps> = (props) => {
       onCreate={onCreate}
       onDestroy={onDestroy}
       onSubmitFlag={onSubmit}
-      disabled={disabled || isLimitReached}
+      disabled={disabled || isLimitReached || weekClosed}
       onExtend={onExtend}
       gameEnded={gameEnded}
       practiceMode={practiceMode}

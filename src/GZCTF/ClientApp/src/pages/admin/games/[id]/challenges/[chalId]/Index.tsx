@@ -317,15 +317,26 @@ const GameChallengeEdit: FC = () => {
           {game?.weekModeEnabled && (
             <Grid.Col span={1}>
               <Select
-                label="周次"
-                description="第 1～5 周或扩展题；不属于周次可留空"
-                placeholder="未设置"
+                label="所属周次"
+                description="1-5 周受时间限制，挑战题/其他题不受限"
+                placeholder="未归类"
                 clearable
                 disabled={disabled}
                 value={challengeInfo.week ? String(challengeInfo.week) : null}
-                data={[1, 2, 3, 4, 5]
-                  .map((week) => ({ value: String(week), label: `第 ${week} 周` }))
-                  .concat({ value: '6', label: '扩展题' })}
+                data={[
+                  ...[1, 2, 3, 4, 5].map((week) => ({
+                    value: String(week),
+                    label: game?.weekBuckets?.find((b) => b.key === week)?.name || `第 ${week} 周`,
+                  })),
+                  {
+                    value: '6',
+                    label: game?.weekBuckets?.find((b) => b.key === 6)?.name || '挑战题',
+                  },
+                  {
+                    value: '7',
+                    label: game?.weekBuckets?.find((b) => b.key === 7)?.name || '其他题',
+                  },
+                ]}
                 onChange={(value) => setChallengeInfo({ ...challengeInfo, week: value ? Number(value) : 0 })}
               />
             </Grid.Col>

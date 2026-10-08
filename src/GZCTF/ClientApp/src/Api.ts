@@ -1016,20 +1016,29 @@ export interface GameInfoModel {
   bloodBonus?: number;
   /** Whether challenges are organized and displayed by week */
   weekModeEnabled?: boolean;
-  /**
-   * Duration, in days, for each configured week
-   * @format int32
-   */
-  week1DurationDays?: number;
-  /** @format int32 */
-  week2DurationDays?: number;
-  /** @format int32 */
-  week3DurationDays?: number;
-  /** @format int32 */
-  week4DurationDays?: number;
-  /** @format int32 */
-  week5DurationDays?: number;
-  /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
+  /** 第 N 周开始时间（UTC），null 表示不限制 */
+  week1StartUtc?: string | null;
+  /** 第 N 周结束时间（UTC） */
+  week1EndUtc?: string | null;
+  week2StartUtc?: string | null;
+  week2EndUtc?: string | null;
+  week3StartUtc?: string | null;
+  week3EndUtc?: string | null;
+  week4StartUtc?: string | null;
+  week4EndUtc?: string | null;
+  week5StartUtc?: string | null;
+  week5EndUtc?: string | null;
+  /** 第 N 周自定义名称，留空显示「第 N 周」 */
+  week1Name?: string | null;
+  week2Name?: string | null;
+  week3Name?: string | null;
+  week4Name?: string | null;
+  week5Name?: string | null;
+  /** 挑战题分组名称 */
+  challengeBucketName?: string | null;
+  /** 其他题分组名称 */
+  miscBucketName?: string | null;
+  /** 题目归属分桶：1-5 周 / 6 挑战题 / 7 其他题，null 未归类 */
   week?: number | null;
 }
 
@@ -1551,6 +1560,8 @@ export interface DetailedGameInfoModel {
   end?: number;
   /** Whether challenges are organized and displayed by week */
   weekModeEnabled?: boolean;
+  /** 周次与分组配置（含时间窗口与名称） */
+  weekBuckets?: WeekBucketInfo[];
 }
 
 export interface DivisionInfo {
@@ -2178,6 +2189,20 @@ export interface ClientConfig {
 
 /** 学校统一身份认证（SSO）区配置 */
 /** 首页赛道入口绑定的赛事 */
+/** 单个分桶（某周 / 挑战题 / 其他题） */
+export interface WeekBucketInfo {
+  /** 1-5 为周次，6 为挑战题，7 为其他题 */
+  key?: number;
+  /** 显示名称 */
+  name?: string;
+  /** 开始时间（UTC），仅周次桶有值 */
+  startUtc?: string | null;
+  /** 结束时间（UTC），仅周次桶有值 */
+  endUtc?: string | null;
+  /** 当前时刻是否可提交 */
+  isOpen?: boolean;
+}
+
 export interface ClientTrackConfig {
   /** 主办赛道绑定的赛事 Id，0 表示未绑定 */
   officialGameId?: number;
