@@ -1,12 +1,26 @@
-import { Badge, Box, Button, Card, Center, Group, Image, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Center,
+  Group,
+  Image,
+  SimpleGrid,
+  Stack,
+  Text,
+  ThemeIcon,
+  Title,
+} from '@mantine/core'
 import { Carousel } from '@mantine/carousel'
 import Autoplay from 'embla-carousel-autoplay'
-import { mdiChevronRight, mdiFlagCheckered, mdiShieldCrownOutline } from '@mdi/js'
+import { mdiBookOpenPageVariantOutline, mdiChevronRight, mdiFlagCheckered, mdiShieldCrownOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { WithNavBar } from '@Components/WithNavbar'
 import { usePageTitle } from '@Hooks/usePageTitle'
+import { SITE_LINKS } from '@Utils/SiteLinks'
 import '@mantine/carousel/styles.css'
 
 interface HomeBanner {
@@ -171,6 +185,35 @@ const Home: FC = () => {
               </Card>
             ))}
           </SimpleGrid>
+
+          {/* PCTF Wiki 文档入口 */}
+          <Card withBorder radius="md" p="lg">
+            <Group justify="space-between" wrap="nowrap" align="center">
+              <Group gap="md" wrap="nowrap" align="center">
+                <ThemeIcon size={48} radius="md" variant="light" color="grape">
+                  <Icon path={mdiBookOpenPageVariantOutline} size={1.4} />
+                </ThemeIcon>
+                <Box>
+                  <Title order={4}>PCTF Wiki</Title>
+                  <Text size="sm" c="dimmed">
+                    赛事规则、平台使用说明与题目知识点文档
+                  </Text>
+                </Box>
+              </Group>
+              <Button
+                component="a"
+                href={SITE_LINKS.wiki}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="light"
+                color="grape"
+                rightSection={<Icon path={mdiChevronRight} size={0.8} />}
+                w="fit-content"
+              >
+                前往 Wiki
+              </Button>
+            </Group>
+          </Card>
         </Stack>
       </Stack>
     </WithNavBar>

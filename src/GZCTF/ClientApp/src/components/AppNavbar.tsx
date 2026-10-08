@@ -12,6 +12,7 @@ import {
 import {
   mdiAccountCircleOutline,
   mdiAccountGroupOutline,
+  mdiBookOpenPageVariantOutline,
   mdiCached,
   mdiFlagOutline,
   mdiHomeVariantOutline,
@@ -34,6 +35,7 @@ import { AppControlProps } from '@Components/WithNavbar'
 import { WsrxManager } from '@Components/WsrxManager'
 import { clearLocalCache } from '@Utils/Cache'
 import { LanguageMap, SupportedLanguages, useLanguage } from '@Utils/I18n'
+import { SITE_LINKS } from '@Utils/SiteLinks'
 import { useConfig } from '@Hooks/useConfig'
 import { useLogOut, useUser } from '@Hooks/useUser'
 import { ContainerPortMappingType, Role } from '@Api'
@@ -45,6 +47,8 @@ interface NavbarItem {
   label: string
   link: string
   admin?: boolean
+  /// 外部链接：新窗口打开，不参与路由高亮
+  external?: boolean
 }
 
 export interface NavbarLinkProps {
@@ -53,22 +57,38 @@ export interface NavbarLinkProps {
   link?: string
   onClick?: () => void
   isActive?: boolean
+  /// 外部链接：在新窗口打开，且不参与前端路由高亮
+  external?: boolean
 }
 
 const NavbarLink: FC<NavbarLinkProps> = (props: NavbarLinkProps) => {
   const { t } = useTranslation()
 
+  const icon = <Icon path={props.icon} size={1} />
+
   return (
     <Tooltip label={t(props.label)} classNames={classes} position="right">
-      <ActionIcon
-        onClick={props.onClick}
-        component={Link}
-        to={props.link ?? '#'}
-        data-active={props.isActive || undefined}
-        className={classes.link}
-      >
-        <Icon path={props.icon} size={1} />
-      </ActionIcon>
+      {props.external ? (
+        <ActionIcon
+          component="a"
+          href={props.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={classes.link}
+        >
+          {icon}
+        </ActionIcon>
+      ) : (
+        <ActionIcon
+          onClick={props.onClick}
+          component={Link}
+          to={props.link ?? '#'}
+          data-active={props.isActive || undefined}
+          className={classes.link}
+        >
+          {icon}
+        </ActionIcon>
+      )}
     </Tooltip>
   )
 }
@@ -83,11 +103,12 @@ export const AppNavbar: FC<AppControlProps> = ({ openColorModal }) => {
   const { t } = useTranslation()
   const { setLanguage, supportedLanguages } = useLanguage()
 
-  // 仅保留：主页、赛事、战队、管理（管理员可见）
+  // 仅保留：主页、赛事、战队、Wiki、管理（管理员可见）
   const items: NavbarItem[] = [
     { icon: mdiHomeVariantOutline, label: 'common.tab.home', link: '/' },
     { icon: mdiFlagOutline, label: 'common.tab.game', link: '/games' },
     { icon: mdiAccountGroupOutline, label: 'common.tab.team', link: '/teams' },
+    { icon: mdiBookOpenPageVariantOutline, label: 'PCTF Wiki', link: SITE_LINKS.wiki, external: true },
     { icon: mdiWrenchOutline, label: 'common.tab.admin', link: '/admin/games', admin: true },
   ]
 
