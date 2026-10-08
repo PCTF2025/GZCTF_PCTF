@@ -1,4 +1,4 @@
-﻿using GZCTF.Models.Internal;
+using GZCTF.Models.Internal;
 
 namespace GZCTF.Models.Request.Admin;
 
@@ -21,4 +21,9 @@ public class ConfigEditModel
     /// Game policy
     /// </summary>
     public ContainerPolicy? ContainerPolicy { get; set; }
+
+    /// <summary>
+    /// 外部单点登录（登录页右侧区域）配置
+    /// </summary>
+    public SsoConfig? SsoConfig { get; set; }
 }

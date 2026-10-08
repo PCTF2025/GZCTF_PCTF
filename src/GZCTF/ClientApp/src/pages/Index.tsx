@@ -1,93 +1,176 @@
-import { Group, Stack, Title, useMantineTheme } from '@mantine/core'
-import { useViewportSize } from '@mantine/hooks'
-import { mdiFlagCheckered } from '@mdi/js'
+import { Badge, Box, Button, Card, Center, Group, Image, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import { Carousel } from '@mantine/carousel'
+import Autoplay from 'embla-carousel-autoplay'
+import { mdiChevronRight, mdiFlagCheckered, mdiShieldCrownOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC } from 'react'
-import { useTranslation } from 'react-i18next'
-import { PostCard } from '@Components/PostCard'
-import { RecentGame } from '@Components/RecentGame'
+import { FC, useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { WithNavBar } from '@Components/WithNavbar'
-import { MobilePostCard } from '@Components/mobile/PostCard'
-import { RecentGameCarousel } from '@Components/mobile/RecentGameCarousel'
-import { showErrorMsg } from '@Utils/Shared'
-import { useIsMobile } from '@Utils/ThemeOverride'
-import { useRecentGames } from '@Hooks/useGame'
 import { usePageTitle } from '@Hooks/usePageTitle'
-import api, { PostInfoModel } from '@Api'
-import classes from '@Styles/Index.module.css'
+import '@mantine/carousel/styles.css'
+
+interface HomeBanner {
+  id: string
+  title?: string | null
+  imageUrl?: string | null
+  linkUrl?: string | null
+  enabled: boolean
+  sortOrder: number
+}
+
+interface BannerResponse {
+  intervalMs: number
+  banners: HomeBanner[]
+}
+
+/// 赛道入口：主办赛道 / 公开赛道
+interface TrackEntry {
+  key: string
+  title: string
+  description: string
+  link: string
+  color: string
+  icon: string
+}
+
+const TRACKS: TrackEntry[] = [
+  {
+    key: 'official',
+    title: '主办赛道',
+    description: '由赛事主办方统一命题，面向受邀队伍开放。',
+    link: '/games?track=official',
+    color: 'teal',
+    icon: mdiShieldCrownOutline,
+  },
+  {
+    key: 'public',
+    title: '公开赛道',
+    description: '面向所有注册选手开放，可自由报名参与。',
+    link: '/games?track=public',
+    color: 'blue',
+    icon: mdiFlagCheckered,
+  },
+]
 
 const Home: FC = () => {
-  const { t } = useTranslation()
-
-  const { data: posts, mutate } = api.info.useInfoGetLatestPosts({
-    refreshInterval: 5 * 60 * 1000,
-  })
-
-  const { recentGames } = useRecentGames()
-
-  const onTogglePinned = async (post: PostInfoModel, setDisabled: (value: boolean) => void) => {
-    setDisabled(true)
-
-    try {
-      const res = await api.edit.editUpdatePost(post.id, {
-        isPinned: !post.isPinned,
-      })
-      if (post.isPinned) {
-        mutate([
-          ...(posts?.filter((p) => p.id !== post.id && p.isPinned) ?? []),
-          { ...res.data },
-          ...(posts?.filter((p) => p.id !== post.id && !p.isPinned) ?? []),
-        ])
-      } else {
-        mutate([
-          { ...res.data },
-          ...(posts?.filter((p) => p.id !== post.id && p.isPinned) ?? []),
-          ...(posts?.filter((p) => p.id !== post.id && !p.isPinned) ?? []),
-        ])
-      }
-      api.info.mutateInfoGetPosts()
-    } catch (e) {
-      showErrorMsg(e, t)
-    } finally {
-      setDisabled(false)
-    }
-  }
-
-  const theme = useMantineTheme()
-  const isMobile = useIsMobile(900)
-  const { height } = useViewportSize()
-
-  const showGames = isMobile ? recentGames : recentGames?.slice(0, Math.ceil((height - 300) / 240))
+  const [banners, setBanners] = useState<HomeBanner[]>([])
+  const [intervalMs, setIntervalMs] = useState(5000)
+  const [autoplay, setAutoplay] = useState(Autoplay({ delay: 5000, stopOnInteraction: false, playOnInit: true }))
 
   usePageTitle()
 
+  const loadBanners = useCallback(async () => {
+    try {
+      const res = await fetch('/api/banner')
+      if (!res.ok) return
+
+      const data = (await res.json()) as BannerResponse
+      setBanners(data.banners ?? [])
+      if (data.intervalMs > 0) setIntervalMs(data.intervalMs)
+    } catch {
+      /* 拉取失败时退化为无 Banner 展示 */
+    }
+  }, [])
+
+  useEffect(() => {
+    loadBanners()
+  }, [loadBanners])
+
+  useEffect(() => {
+    setAutoplay(Autoplay({ delay: intervalMs, stopOnInteraction: false, playOnInit: true }))
+  }, [intervalMs])
+
+  const visibleBanners = banners.filter((b) => b.enabled && b.imageUrl)
+
   return (
     <WithNavBar minWidth={0} withFooter withHeader stickyHeader>
-      <Stack justify="flex-start">
-        {isMobile && showGames && showGames.length > 0 && <RecentGameCarousel games={showGames} />}
-        <Stack align="center">
-          <Group wrap="nowrap" gap={4} justify="space-between" align="flex-start" w="100%">
-            <Stack className={classes.posts}>
-              {isMobile
-                ? posts?.map((post) => <MobilePostCard key={post.id} post={post} onTogglePinned={onTogglePinned} />)
-                : posts?.map((post) => <PostCard key={post.id} post={post} onTogglePinned={onTogglePinned} />)}
-            </Stack>
-            {!isMobile && (
-              <nav className={classes.wrapper}>
-                <div className={classes.inner}>
-                  <Stack>
-                    <Group wrap="nowrap">
-                      <Icon path={mdiFlagCheckered} size={1.5} color={theme.colors[theme.primaryColor][4]} />
-                      <Title order={3}>{t('common.content.home.recent_games')}</Title>
+      <Stack gap="xl" py="md">
+        {/* Banner 轮播：后台未配置时回退为一块占位横幅 */}
+        {visibleBanners.length > 0 ? (
+          <Carousel
+            withIndicators
+            withControls={visibleBanners.length > 1}
+            height={320}
+            plugins={[autoplay]}
+            emblaOptions={{ loop: visibleBanners.length > 1 }}
+          >
+            {visibleBanners.map((b) => {
+              const inner = (
+                <Box pos="relative" h="100%" w="100%">
+                  <Image src={b.imageUrl ?? ''} alt={b.title ?? ''} h={320} fit="cover" radius="md" />
+                </Box>
+              )
+
+              return (
+                <Carousel.Slide key={b.id}>
+                  {b.linkUrl ? (
+                    <Box
+                      component="a"
+                      href={b.linkUrl}
+                      target={b.linkUrl.startsWith('http') ? '_blank' : undefined}
+                      rel="noopener noreferrer"
+                      style={{ display: 'block', height: '100%', textDecoration: 'none' }}
+                    >
+                      {inner}
+                    </Box>
+                  ) : (
+                    inner
+                  )}
+                </Carousel.Slide>
+              )
+            })}
+          </Carousel>
+        ) : (
+          <Card withBorder radius="md" h={220} p={0}>
+            <Center h="100%">
+              <Stack align="center" gap="xs">
+                <Icon path={mdiFlagCheckered} size={2} />
+                <Text c="dimmed">暂无轮播内容</Text>
+              </Stack>
+            </Center>
+          </Card>
+        )}
+
+        {/* 两个赛道入口 */}
+        <Stack gap="md">
+          <Title order={3}>选择赛道</Title>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+            {TRACKS.map((track) => (
+              <Card
+                key={track.key}
+                withBorder
+                radius="md"
+                padding="xl"
+                component={Link}
+                to={track.link}
+                style={{ textDecoration: 'none' }}
+              >
+                <Stack gap="sm">
+                  <Group justify="space-between" align="flex-start">
+                    <Group gap="sm">
+                      <Icon path={track.icon} size={1.6} />
+                      <Title order={4}>{track.title}</Title>
                     </Group>
-                    {showGames?.map((game) => (
-                      <RecentGame key={game.id} game={game} />
-                    ))}
-                  </Stack>
-                </div>
-              </nav>
-            )}
-          </Group>
+                    <Badge color={track.color} variant="light">
+                      进入
+                    </Badge>
+                  </Group>
+                  <Text size="sm" c="dimmed">
+                    {track.description}
+                  </Text>
+                  <Button
+                    variant="light"
+                    color={track.color}
+                    rightSection={<Icon path={mdiChevronRight} size={0.8} />}
+                    w="fit-content"
+                    mt="xs"
+                  >
+                    查看赛事
+                  </Button>
+                </Stack>
+              </Card>
+            ))}
+          </SimpleGrid>
         </Stack>
       </Stack>
     </WithNavBar>

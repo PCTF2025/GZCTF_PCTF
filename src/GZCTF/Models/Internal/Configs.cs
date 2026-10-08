@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -347,6 +347,11 @@ public partial class ClientConfig
     /// </summary>
     public int RenewalWindow { get; set; } = 10;
 
+    /// <summary>
+    /// 登录页外部登录（SSO）区配置，未启用时为 null
+    /// </summary>
+    public ClientSsoConfig? Sso { get; set; }
+
     [JsonIgnore]
     public DateTimeOffset UpdateTimeUtc { get; set; } = DateTimeOffset.UtcNow;
 
@@ -355,10 +360,11 @@ public partial class ClientConfig
             serviceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerPolicy>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerProvider>>().Value,
-            serviceProvider.GetRequiredService<IOptionsSnapshot<ManagedConfig>>().Value);
+            serviceProvider.GetRequiredService<IOptionsSnapshot<ManagedConfig>>().Value,
+            serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value);
 
     private static ClientConfig FromConfigs(GlobalConfig globalConfig, ContainerPolicy containerPolicy,
-        ContainerProvider containerProvider, ManagedConfig managedConfig) =>
+        ContainerProvider containerProvider, ManagedConfig managedConfig, SsoConfig ssoConfig) =>
         new()
         {
             Title = globalConfig.Title,
@@ -370,8 +376,126 @@ public partial class ClientConfig
             PortMapping = containerProvider.PortMappingType,
             DefaultLifetime = containerPolicy.DefaultLifetime,
             ExtensionDuration = containerPolicy.ExtensionDuration,
-            RenewalWindow = containerPolicy.RenewalWindow
+            RenewalWindow = containerPolicy.RenewalWindow,
+            Sso = ClientSsoConfig.FromConfig(ssoConfig)
         };
+}
+
+/// <summary>
+/// 下发给前端登录页的外部登录（SSO）区配置
+/// </summary>
+[MemoryPackable]
+public partial class ClientSsoConfig
+{
+    /// <summary>区域标题</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>区域说明</summary>
+    public string? Description { get; set; }
+
+    /// <summary>登录入口列表</summary>
+    public List<ClientSsoProvider> Providers { get; set; } = [];
+
+    /// <summary>由服务端配置解析而来；已禁用或无有效入口时返回 null</summary>
+    public static ClientSsoConfig? FromConfig(SsoConfig config)
+    {
+        if (!config.Enabled)
+            return null;
+
+        var providers = ParseProviders(config.Providers);
+        if (providers.Count == 0)
+            return null;
+
+        return new ClientSsoConfig
+        {
+            Title = config.Title,
+            Description = config.Description,
+            Providers = providers
+        };
+    }
+
+    /// <summary>
+    /// 解析 CSV 形式的入口列表，每行字段以 | 分隔：
+    /// 标题|短名|链接|图标URL|新窗口(0/1)|校验地址|换token地址|clientId|clientSecret
+    /// </summary>
+    internal static List<ClientSsoProvider> ParseProviders(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return [];
+
+        var result = new List<ClientSsoProvider>();
+
+        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split('|', StringSplitOptions.TrimEntries);
+            if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
+                continue;
+
+            var title = parts[0];
+            var provider = Field(parts, 1);
+
+            // 短名留空时用标题兜底，保证每个入口都有可路由的标识
+            if (string.IsNullOrWhiteSpace(provider))
+                provider = title;
+
+            result.Add(new ClientSsoProvider
+            {
+                Title = title,
+                Provider = provider,
+                Link = Field(parts, 2),
+                Icon = NullIfEmpty(Field(parts, 3)),
+                NewWindow = Field(parts, 4) is "1" or "true" or "True",
+                ValidateUrl = Field(parts, 5),
+                TokenUrl = Field(parts, 6),
+                ClientId = Field(parts, 7),
+                ClientSecret = Field(parts, 8)
+            });
+        }
+
+        return result;
+    }
+
+    static string Field(string[] parts, int index) =>
+        parts.Length > index ? parts[index] : string.Empty;
+
+    static string? NullIfEmpty(string value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
+}
+
+/// <summary>
+/// 单个外部登录入口
+/// </summary>
+[MemoryPackable]
+public partial class ClientSsoProvider
+{
+    /// <summary>按钮显示文案</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>提供方短名，用于路由 /api/account/sso/login/{provider}</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>登录跳转地址（站内相对路径或外部绝对地址）</summary>
+    public string Link { get; set; } = string.Empty;
+
+    /// <summary>图标 URL，可为空</summary>
+    public string? Icon { get; set; }
+
+    /// <summary>是否在新窗口打开</summary>
+    public bool NewWindow { get; set; }
+
+    /// <summary>CAS serviceValidate 地址，仅 CAS 流程需要</summary>
+    [JsonIgnore]
+    public string ValidateUrl { get; set; } = string.Empty;
+
+    /// <summary>OAuth 换 token 地址，仅 OAuth 流程需要</summary>
+    [JsonIgnore]
+    public string TokenUrl { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public string ClientId { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public string ClientSecret { get; set; } = string.Empty;
 }
 
 #region Mail Config
@@ -390,6 +514,42 @@ public class EmailConfig
     public string? SenderAddress { get; set; } = string.Empty;
     public string? SenderName { get; set; } = string.Empty;
     public SmtpConfig? Smtp { get; set; } = new();
+}
+
+#endregion
+
+#region SSO Config
+
+/// <summary>
+/// 外部单点登录（SSO）配置。
+/// 右侧登录区展示若干可自定义的登录入口（OA / 学校邮箱等）。
+/// 注：GZCTF 配置机制不支持数组类型，故列表项以 CSV 字符串存储。
+/// </summary>
+public class SsoConfig
+{
+    /// <summary>是否在登录页展示外部登录区（关闭后登录页只保留左侧账号密码登录）</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>右侧区域标题，例如「统一身份认证」</summary>
+    public string Title { get; set; } = "统一身份认证登录";
+
+    /// <summary>右侧区域副标题说明（可为空）</summary>
+    public string? Description { get; set; } = "使用学校统一认证或校园邮箱登录";
+
+    /// <summary>
+    /// 登录入口列表，每项一行，字段以 | 分隔：
+    /// 标题|短名|链接|图标URL|新窗口(0/1)|校验地址|换token地址|clientId|clientSecret
+    /// 后四项可留空。示例：
+    /// OA 统一认证|oa|/api/account/sso/login/oa||0|https://sso.example.edu/cas/serviceValidate|||
+    /// 学校邮箱登录|mail|https://mail.example.edu/login||1||||
+    /// </summary>
+    public string Providers { get; set; } = string.Empty;
+
+    /// <summary>是否允许新用户通过 SSO 首次登录时自动注册账号</summary>
+    public bool AllowAutoRegister { get; set; } = true;
+
+    /// <summary>SSO 登录成功后跳转路径</summary>
+    public string RedirectPath { get; set; } = "/";
 }
 
 #endregion

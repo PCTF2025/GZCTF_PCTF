@@ -33,6 +33,7 @@ internal static class ServicesExtension
             builder.AddConfig<ManagedConfig>();
             builder.AddConfig<ContainerPolicy>();
             builder.AddConfig<ContainerProvider>();
+            builder.AddConfig<SsoConfig>();
 
             builder.Services.Configure<RegistrySet<RegistryConfig>>(builder.Configuration.GetSection("Registries"));
 

@@ -1,7 +1,23 @@
-import { Anchor, Button, Grid, PasswordInput, TextInput } from '@mantine/core'
-import { useInputState } from '@mantine/hooks'
+import {
+  Anchor,
+  Box,
+  Button,
+  Center,
+  Divider,
+  Flex,
+  Grid,
+  Group,
+  Image,
+  Paper,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core'
+import { useInputState, useViewportSize } from '@mantine/hooks'
 import { showNotification, updateNotification } from '@mantine/notifications'
-import { mdiCheck, mdiClose } from '@mdi/js'
+import { mdiCheck, mdiClose, mdiLoginVariant, mdiOpenInNew } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +29,7 @@ import { tryGetClientError } from '@Utils/Shared'
 import { useConfig } from '@Hooks/useConfig'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import { useUser } from '@Hooks/useUser'
-import api from '@Api'
+import api, { ClientSsoProvider } from '@Api'
 import misc from '@Styles/Misc.module.css'
 
 const Login: FC = () => {
@@ -32,8 +48,16 @@ const Login: FC = () => {
   const { config } = useConfig()
 
   const { t } = useTranslation()
+  const { width } = useViewportSize()
 
   usePageTitle(t('account.title.login'))
+
+  // 窄屏下分隔线改为横向，两栏上下堆叠
+  const stacked = width < 900
+
+  // 后台配置的外部登录入口；未配置时不显示右栏
+  const sso = config.sso
+  const ssoProviders = (sso?.providers ?? []).filter((p) => p.title && p.link)
 
   useEffect(() => {
     if (needRedirect && user && !redirecting.current) {
@@ -117,8 +141,8 @@ const Login: FC = () => {
     }
   }
 
-  return (
-    <AccountView onSubmit={onLogin}>
+  const localForm = (
+    <>
       <TextInput
         required
         label={t('account.label.username_or_email')}
@@ -155,7 +179,83 @@ const Login: FC = () => {
           </Button>
         </Grid.Col>
       </Grid>
-    </AccountView>
+    </>
+  )
+
+  const onSsoClick = (provider: ClientSsoProvider) => {
+    const link = provider.link ?? ''
+    if (!link) return
+
+    if (provider.newWindow) window.open(link, '_blank', 'noopener,noreferrer')
+    else window.location.href = link
+  }
+
+  // 后台未配置外部登录入口时，保持原有单栏布局
+  if (ssoProviders.length === 0) {
+    return <AccountView onSubmit={onLogin}>{localForm}</AccountView>
+  }
+
+  return (
+    <Center mih="100vh" p="md">
+      <Paper w="100%" maw={920} p="xl" withBorder radius="md">
+        <Flex
+          direction={stacked ? 'column' : 'row'}
+          gap="xl"
+          align={stacked ? 'stretch' : 'center'}
+          justify="center"
+        >
+          {/* 左栏：账号密码登录 */}
+          <Box flex={stacked ? undefined : 1} maw={stacked ? undefined : 380}>
+            <form className={misc.accountForm} onSubmit={onLogin} style={{ width: '100%' }}>
+              <Stack gap="xs" align="center" justify="center">
+                {localForm}
+              </Stack>
+            </form>
+          </Box>
+
+          {/* 中间分隔线：宽屏竖线，窄屏横线 */}
+          <Divider
+            orientation={stacked ? 'horizontal' : 'vertical'}
+            size="sm"
+            style={stacked ? { width: '100%' } : { alignSelf: 'stretch', height: 'auto' }}
+          />
+
+          {/* 右栏：外部登录（OA / 学校邮箱），内容由后台配置 */}
+          <Box flex={stacked ? undefined : 1} maw={stacked ? undefined : 380}>
+            <Stack align="center" justify="center" gap="md">
+              <Title order={4} ta="center">
+                {sso?.title}
+              </Title>
+              {sso?.description && (
+                <Text size="sm" c="dimmed" ta="center">
+                  {sso.description}
+                </Text>
+              )}
+              <Stack w="100%" gap="sm" mt="xs">
+                {ssoProviders.map((p) => (
+                  <Button
+                    key={p.provider ?? p.title}
+                    fullWidth
+                    variant="light"
+                    disabled={disabled}
+                    leftSection={
+                      p.icon ? (
+                        <Image src={p.icon} alt={p.title} w={18} h={18} radius="xl" />
+                      ) : (
+                        <Icon path={p.newWindow ? mdiOpenInNew : mdiLoginVariant} size={0.85} />
+                      )
+                    }
+                    onClick={() => onSsoClick(p)}
+                  >
+                    {p.title}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+          </Box>
+        </Flex>
+      </Paper>
+    </Center>
   )
 }
 

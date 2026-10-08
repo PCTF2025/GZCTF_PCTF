@@ -2108,6 +2108,32 @@ export interface ClientConfig {
    * @format int32
    */
   renewalWindow?: number;
+  /** 登录页外部登录（SSO）区配置，未启用时为 null */
+  sso?: ClientSsoConfig | null;
+}
+
+/** 登录页外部登录（SSO）区配置 */
+export interface ClientSsoConfig {
+  /** 区域标题 */
+  title?: string;
+  /** 区域说明 */
+  description?: string | null;
+  /** 登录入口列表 */
+  providers?: ClientSsoProvider[];
+}
+
+/** 单个外部登录入口 */
+export interface ClientSsoProvider {
+  /** 按钮显示文案 */
+  title?: string;
+  /** 提供方短名 */
+  provider?: string;
+  /** 登录跳转地址 */
+  link?: string;
+  /** 图标 URL */
+  icon?: string | null;
+  /** 是否在新窗口打开 */
+  newWindow?: boolean;
 }
 
 /** Client CAPTCHA information */
