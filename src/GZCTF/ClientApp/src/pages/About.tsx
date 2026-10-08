@@ -10,7 +10,6 @@ import { useIsMobile } from '@Utils/ThemeOverride'
 import { ValidatedRepoMeta } from '@Hooks/useConfig'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import classes from '@Styles/About.module.css'
-import logoClasses from '@Styles/LogoHeader.module.css'
 
 interface ResourceLinkProps {
   icon: string
@@ -57,7 +56,7 @@ const About: FC = () => {
               <MainIcon size="5rem" className={classes.mainIcon} />
             </Box>
             <Title order={1} size="3.5rem" fw={800} ta="center" className={classes.mainTitle}>
-              GZ<span className={logoClasses.brand}>::</span>CTF
+              PCTF 2026
             </Title>
             <Text size="xl" fw={500} ta="center" c="dimmed" ff="monospace" mt="xs" className={classes.slogan}>
               &gt;&nbsp;{t('common.content.about.slogan')}
