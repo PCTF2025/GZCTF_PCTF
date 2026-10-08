@@ -1,41 +1,12 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Center,
-  Group,
-  Image,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from '@mantine/core'
-import { Carousel } from '@mantine/carousel'
-import Autoplay from 'embla-carousel-autoplay'
+import { Badge, Box, Button, Card, Center, Group, Image, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { mdiBookOpenPageVariantOutline, mdiChevronRight, mdiFlagCheckered, mdiShieldCrownOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC } from 'react'
 import { Link } from 'react-router'
 import { WithNavBar } from '@Components/WithNavbar'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import { SITE_LINKS } from '@Utils/SiteLinks'
-import '@mantine/carousel/styles.css'
-
-interface HomeBanner {
-  id: string
-  title?: string | null
-  imageUrl?: string | null
-  linkUrl?: string | null
-  enabled: boolean
-  sortOrder: number
-}
-
-interface BannerResponse {
-  intervalMs: number
-  banners: HomeBanner[]
-}
+import logoImage from '@Resources/pctf-logo.png'
 
 /// 赛道入口：主办赛道 / 公开赛道
 interface TrackEntry {
@@ -67,83 +38,23 @@ const TRACKS: TrackEntry[] = [
 ]
 
 const Home: FC = () => {
-  const [banners, setBanners] = useState<HomeBanner[]>([])
-  const [intervalMs, setIntervalMs] = useState(5000)
-  const [autoplay, setAutoplay] = useState(Autoplay({ delay: 5000, stopOnInteraction: false, playOnInit: true }))
-
   usePageTitle()
-
-  const loadBanners = useCallback(async () => {
-    try {
-      const res = await fetch('/api/banner')
-      if (!res.ok) return
-
-      const data = (await res.json()) as BannerResponse
-      setBanners(data.banners ?? [])
-      if (data.intervalMs > 0) setIntervalMs(data.intervalMs)
-    } catch {
-      /* 拉取失败时退化为无 Banner 展示 */
-    }
-  }, [])
-
-  useEffect(() => {
-    loadBanners()
-  }, [loadBanners])
-
-  useEffect(() => {
-    setAutoplay(Autoplay({ delay: intervalMs, stopOnInteraction: false, playOnInit: true }))
-  }, [intervalMs])
-
-  const visibleBanners = banners.filter((b) => b.enabled && b.imageUrl)
 
   return (
     <WithNavBar minWidth={0} withFooter withHeader stickyHeader>
       <Stack gap="xl" py="md">
-        {/* Banner 轮播：后台未配置时回退为一块占位横幅 */}
-        {visibleBanners.length > 0 ? (
-          <Carousel
-            withIndicators
-            withControls={visibleBanners.length > 1}
-            height={320}
-            plugins={[autoplay]}
-            emblaOptions={{ loop: visibleBanners.length > 1 }}
-          >
-            {visibleBanners.map((b) => {
-              const inner = (
-                <Box pos="relative" h="100%" w="100%">
-                  <Image src={b.imageUrl ?? ''} alt={b.title ?? ''} h={320} fit="cover" radius="md" />
-                </Box>
-              )
-
-              return (
-                <Carousel.Slide key={b.id}>
-                  {b.linkUrl ? (
-                    <Box
-                      component="a"
-                      href={b.linkUrl}
-                      target={b.linkUrl.startsWith('http') ? '_blank' : undefined}
-                      rel="noopener noreferrer"
-                      style={{ display: 'block', height: '100%', textDecoration: 'none' }}
-                    >
-                      {inner}
-                    </Box>
-                  ) : (
-                    inner
-                  )}
-                </Carousel.Slide>
-              )
-            })}
-          </Carousel>
-        ) : (
-          <Card withBorder radius="md" h={220} p={0}>
-            <Center h="100%">
-              <Stack align="center" gap="xs">
-                <Icon path={mdiFlagCheckered} size={2} />
-                <Text c="dimmed">暂无轮播内容</Text>
-              </Stack>
-            </Center>
-          </Card>
-        )}
+        {/* 固定 Logo：居中限宽，下方两行赛事信息 */}
+        <Stack align="center" gap="sm" mt="xs">
+          <Image src={logoImage} alt="PCTF" maw={520} w="100%" h="auto" fit="contain" />
+          <Stack gap={4} align="center">
+            <Title order={3} ta="center">
+              第三届 PCTF 2026
+            </Title>
+            <Text size="lg" c="dimmed" ta="center" ff="monospace">
+              Date: 2026.11.01 - 2026.12.01
+            </Text>
+          </Stack>
+        </Stack>
 
         {/* 两个赛道入口 */}
         <Stack gap="md">

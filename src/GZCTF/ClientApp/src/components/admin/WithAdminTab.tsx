@@ -7,7 +7,6 @@ import {
   mdiPackageVariantClosed,
   mdiSitemapOutline,
   mdiShieldAccountOutline,
-  mdiViewCarouselOutline,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import React, { FC, useEffect, useState } from 'react'
@@ -40,7 +39,6 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     },
     { icon: mdiFileDocumentOutline, title: t('admin.tab.logs'), path: 'logs' },
     { icon: mdiSitemapOutline, title: t('admin.tab.settings'), path: 'settings' },
-    { icon: mdiViewCarouselOutline, title: '站点设置', path: 'site' },
     { icon: mdiShieldAccountOutline, title: '登录设置', path: 'login' },
   ]
   const getTab = (path: string) => pages.findIndex((page) => path.startsWith(`/admin/${page.path}`))

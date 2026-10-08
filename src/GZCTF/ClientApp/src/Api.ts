@@ -2198,36 +2198,6 @@ export interface ClientSsoSchool {
   emailSuffixes?: string[];
 }
 
-/** 首页 Banner 配置 */
-export interface HomeBannerConfigModel {
-  /**
-   * 自动播放间隔（毫秒）
-   * @format int32
-   * @min 1000
-   * @max 60000
-   */
-  intervalMs?: number;
-  banners?: HomeBannerModel[] | null;
-}
-
-/** 单条首页 Banner */
-export interface HomeBannerModel {
-  /** 唯一标识 */
-  id?: string;
-  /** 标题（管理端识别用） */
-  title?: string | null;
-  /** 图片地址 */
-  imageUrl?: string | null;
-  /** 点击跳转地址 */
-  linkUrl?: string | null;
-  /** 是否启用 */
-  enabled?: boolean;
-  /**
-   * 排序权重，越小越靠前
-   * @format int32
-   */
-  sortOrder?: number;
-}
 
 /** Client CAPTCHA information */
 export interface ClientCaptchaInfoModel {
@@ -3560,56 +3530,6 @@ export class Api<
       }),
   };
 
-  /**
-   * 首页 Banner（轮播图）配置，不参与 swagger 自动生成，手动维护
-   */
-  banner = {
-    /**
-     * @description 获取已启用的首页 Banner，公开接口
-     *
-     * @name BannerGet
-     * @summary Get enabled home banners
-     * @request GET:/api/banner
-     */
-    bannerGet: (params: RequestParams = {}) =>
-      this.request<HomeBannerConfigModel, RequestResponse>({
-        path: `/api/banner`,
-        method: "GET",
-        format: "json",
-        ...params,
-      }),
-
-    /**
-     * @description 获取全部首页 Banner（含未启用），需要管理员权限
-     *
-     * @name BannerGetAdmin
-     * @summary Get all home banners for admin
-     * @request GET:/api/banner/Admin
-     */
-    bannerGetAdmin: (params: RequestParams = {}) =>
-      this.request<HomeBannerConfigModel, RequestResponse>({
-        path: `/api/banner/Admin`,
-        method: "GET",
-        format: "json",
-        ...params,
-      }),
-
-    /**
-     * @description 保存首页 Banner 配置，需要管理员权限
-     *
-     * @name BannerSaveAdmin
-     * @summary Save home banners for admin
-     * @request PUT:/api/banner/Admin
-     */
-    bannerSaveAdmin: (data: HomeBannerConfigModel, params: RequestParams = {}) =>
-      this.request<void, RequestResponse>({
-        path: `/api/banner/Admin`,
-        method: "PUT",
-        body: data,
-        type: ContentType.Json,
-        ...params,
-      }),
-  };
   edit = {
     /**
      * @description Adding a game challenge flag requires administrator privileges
