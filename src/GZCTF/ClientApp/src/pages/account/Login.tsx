@@ -1,4 +1,5 @@
 import {
+  Alert,
   Anchor,
   Box,
   Button,
@@ -16,9 +17,9 @@ import {
 } from '@mantine/core'
 import { useInputState, useViewportSize } from '@mantine/hooks'
 import { showNotification, updateNotification } from '@mantine/notifications'
-import { mdiCheck, mdiClose, mdiLoginVariant, mdiOpenInNew } from '@mdi/js'
+import { mdiCheck, mdiClose, mdiLoginVariant, mdiOpenInNew, mdiSchoolOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import logoImage from '@Resources/pctf-logo.png'
@@ -63,6 +64,37 @@ const Login: FC = () => {
   const [emailSchool, setEmailSchool] = useState<ClientSsoSchool | null>(null)
   const [emailAccount, setEmailAccount] = useState('')
   const [pickedSuffix, setPickedSuffix] = useState('')
+
+  // 来自学校邮箱认证的待绑定学校：优先取 URL 参数，其次取本地暂存
+  const pendingSchool = useMemo(() => {
+    const fromQuery = params.get('school')
+    if (fromQuery) return fromQuery
+    try {
+      return window.localStorage.getItem('pctf.sso.pendingSchool') ?? ''
+    } catch {
+      return ''
+    }
+  }, [params])
+
+  // 携带邮箱进入登录页时自动预填账号，减少一次输入
+  useEffect(() => {
+    const email = params.get('email')
+    const stored = (() => {
+      try {
+        return window.localStorage.getItem('pctf.sso.pendingEmail') ?? ''
+      } catch {
+        return ''
+      }
+    })()
+
+    const target = email || stored
+    if (target && !uname) setUname(target)
+  }, [params])
+
+  const pendingSchoolName = useMemo(() => {
+    if (!pendingSchool) return ''
+    return ssoSchools.find((s) => s.slug === pendingSchool)?.name ?? ''
+  }, [pendingSchool, ssoSchools])
 
   useEffect(() => {
     if (needRedirect && user && !redirecting.current) {
@@ -115,6 +147,8 @@ const Login: FC = () => {
         userName: uname,
         password: await encryptApiData(t, pwd, config.apiPublicKey),
         challenge: token,
+        // 学校邮箱认证（快速登录）进入时携带学校短名，登录成功后由后端自动绑定学校
+        schoolSlug: pendingSchool || undefined,
       })
 
       updateNotification({
@@ -129,6 +163,14 @@ const Login: FC = () => {
       cleanUp(true)
       setNeedRedirect(true)
       mutate()
+
+      // 登录成功，清理待绑定学校暂存，避免影响下次登录
+      try {
+        window.localStorage.removeItem('pctf.sso.pendingSchool')
+        window.localStorage.removeItem('pctf.sso.pendingEmail')
+      } catch {
+        /* 忽略 */
+      }
     } catch (err: any) {
       const { title, message } = tryGetClientError(err, t)
       updateNotification({
@@ -148,6 +190,13 @@ const Login: FC = () => {
 
   const localForm = (
     <>
+      {pendingSchool && (
+        <Alert color="teal" variant="light" icon={<Icon path={mdiSchoolOutline} size={1} />}>
+          <Text size="sm">
+            登录成功后将自动绑定 <b>{pendingSchoolName || pendingSchool}</b>。
+          </Text>
+        </Alert>
+      )}
       <TextInput
         required
         label={t('account.label.username_or_email')}
@@ -187,7 +236,8 @@ const Login: FC = () => {
     </>
   )
 
-  // 邮箱模式：先把学号拼成学校邮箱并校验归属，通过后跳注册页带邮箱预填
+  // 邮箱模式：先把学号拼成学校邮箱并校验归属，通过后跳登录 / 注册页（带邮箱与学校预填）。
+  // 该学校会在登录成功（或注册完成）后自动绑定到账号。
   const onEmailLogin = () => {
     if (!emailSchool) return
 
@@ -222,7 +272,16 @@ const Login: FC = () => {
       return
     }
 
-    navigate(`/account/recovery?email=${encodeURIComponent(email)}`)
+    // 记录待绑定的学校，登录 / 注册成功后由后端自动绑定
+    const slug = emailSchool.slug ?? ''
+    try {
+      window.localStorage.setItem('pctf.sso.pendingSchool', slug)
+      window.localStorage.setItem('pctf.sso.pendingEmail', email)
+    } catch {
+      /* 隐私模式下 localStorage 不可用时忽略，登录后仍可手动绑定 */
+    }
+
+    navigate(`/account/login?school=${encodeURIComponent(slug)}&email=${encodeURIComponent(email)}`)
   }
 
   // 点击学校：CAS 模式跳转统一认证；邮箱模式就地切换到邮箱登录

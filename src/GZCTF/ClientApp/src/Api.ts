@@ -228,6 +228,11 @@ export type RegisterModel = ModelWithCaptcha & {
    * @minLength 1
    */
   email: string;
+  /**
+   * 学校短名（可选）。来自学校邮箱认证入口，
+   * 注册时直接绑定该学校，无需邀请码。
+   */
+  schoolSlug?: string | null;
 };
 
 export interface ModelWithCaptcha {
@@ -290,6 +295,11 @@ export type LoginModel = ModelWithCaptcha & {
    * @minLength 1
    */
   password: string;
+  /**
+   * 学校短名（可选）。来自学校邮箱认证入口，
+   * 登录成功后平台据此自动为该账号绑定学校。
+   */
+  schoolSlug?: string | null;
 };
 
 /** Basic account information update */

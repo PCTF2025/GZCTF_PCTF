@@ -1,11 +1,11 @@
-import { Anchor, Button, PasswordInput, TextInput } from '@mantine/core'
+import { Alert, Anchor, Button, PasswordInput, Text, TextInput } from '@mantine/core'
 import { useInputState } from '@mantine/hooks'
 import { showNotification, updateNotification } from '@mantine/notifications'
-import { mdiCheck, mdiClose } from '@mdi/js'
+import { mdiCheck, mdiClose, mdiSchoolOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AccountView } from '@Components/AccountView'
 import { Captcha, useCaptchaRef } from '@Components/Captcha'
 import { StrengthPasswordInput } from '@Components/StrengthPasswordInput'
@@ -26,8 +26,30 @@ const Register: FC = () => {
 
   const navigate = useNavigate()
   const { captchaRef, getToken, cleanUp } = useCaptchaRef()
+  const params = useSearchParams()[0]
 
   const { t } = useTranslation()
+
+  // 来自学校邮箱认证的待绑定学校与预填邮箱
+  const schoolSlug = useMemo(() => {
+    const fromQuery = params.get('school')
+    if (fromQuery) return fromQuery
+    try {
+      return window.localStorage.getItem('pctf.sso.pendingSchool') ?? ''
+    } catch {
+      return ''
+    }
+  }, [params])
+
+  const boundSchoolName = useMemo(() => {
+    if (!schoolSlug) return ''
+    return (config.sso?.schools ?? []).find((s) => s.slug === schoolSlug)?.name ?? ''
+  }, [schoolSlug, config.sso])
+
+  useEffect(() => {
+    const preset = params.get('email')
+    if (preset && !email) setEmail(preset)
+  }, [params])
 
   const RegisterStatusMap = new Map([
     [
@@ -97,6 +119,8 @@ const Register: FC = () => {
         password: await encryptApiData(t, pwd, config.apiPublicKey),
         email: email,
         challenge: token,
+        // 学校邮箱认证入口进入时携带学校，注册即完成学校绑定
+        schoolSlug: schoolSlug || undefined,
       })
       const data = RegisterStatusMap.get(res.data.data)
       if (data) {
@@ -110,6 +134,13 @@ const Register: FC = () => {
           autoClose: true,
         })
         cleanUp(true)
+
+        try {
+          window.localStorage.removeItem('pctf.sso.pendingSchool')
+          window.localStorage.removeItem('pctf.sso.pendingEmail')
+        } catch {
+          /* 忽略 */
+        }
 
         if (res.data.data === RegisterStatus.LoggedIn) navigate('/')
         else if (res.data.data === RegisterStatus.EmailConfirmationRequired)
@@ -136,6 +167,13 @@ const Register: FC = () => {
 
   return (
     <AccountView onSubmit={onRegister}>
+      {schoolSlug && (
+        <Alert color="teal" variant="light" icon={<Icon path={mdiSchoolOutline} size={1} />}>
+          <Text size="sm">
+            正在通过 <b>{boundSchoolName || schoolSlug}</b> 邮箱认证注册，注册后将自动绑定该学校。
+          </Text>
+        </Alert>
+      )}
       <TextInput
         required
         label={t('account.label.email')}

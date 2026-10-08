@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using GZCTF.Services;
 
 namespace GZCTF.Models.Request.Account;
@@ -34,4 +34,11 @@ public class RegisterModel : ModelWithCaptcha
     [EmailAddress(ErrorMessageResourceName = nameof(Resources.Program.Model_EmailMalformed),
         ErrorMessageResourceType = typeof(Resources.Program))]
     public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 学校短名（可选）。来自学校邮箱认证（快速登录）入口，
+    /// 注册时直接绑定该学校，无需邀请码。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? SchoolSlug { get; set; }
 }

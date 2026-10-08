@@ -1,4 +1,4 @@
-﻿using System.Net.Mime;
+using System.Net.Mime;
 using GZCTF.Middlewares;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
@@ -28,6 +28,7 @@ public class AccountController(
     IConfigService configService,
     IOptionsSnapshot<AccountPolicy> accountPolicy,
     IOptionsSnapshot<GlobalConfig> globalConfig,
+    IOptionsSnapshot<SsoConfig> ssoConfig,
     UserManager<UserInfo> userManager,
     SignInManager<UserInfo> signInManager,
     ILogger<AccountController> logger,
@@ -64,6 +65,20 @@ public class AccountController(
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Model_PasswordRequired)]));
 
         var user = new UserInfo { UserName = model.UserName, Email = model.Email, Role = Role.User };
+
+        // 来自学校邮箱认证（快速登录）的注册：直接绑定学校，
+        // 省去注册后再手动绑定的一步，且无需邀请码（邮箱域名已校验归属）。
+        if (!string.IsNullOrWhiteSpace(model.SchoolSlug))
+        {
+            var school = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+                .FirstOrDefault(s => string.Equals(s.Slug, model.SchoolSlug.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (school is not null)
+            {
+                user.School = school.Slug;
+                user.SchoolSource = SchoolBindSource.Sso;
+            }
+        }
 
         user.UpdateByHttpContext(HttpContext);
 
@@ -314,6 +329,27 @@ public class AccountController(
                 StatusCodes.Status401Unauthorized));
 
         logger.Log(StaticLocalizer[nameof(Resources.Program.Account_UserLogined)], user, TaskStatus.Success);
+
+        // 学校邮箱认证（快速登录）进入的登录请求：登录成功后自动绑定学校。
+        // 仅在用户尚未通过邀请码绑定学校时写入，避免覆盖管理员已核实的信息。
+        if (!string.IsNullOrWhiteSpace(model.SchoolSlug) &&
+            user.SchoolSource != SchoolBindSource.Invite)
+        {
+            var schoolSlug = model.SchoolSlug.Trim();
+
+            // 校验该学校确实存在于已启用列表中，避免任意字符串写入
+            var school = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+                .FirstOrDefault(s => string.Equals(s.Slug, schoolSlug, StringComparison.OrdinalIgnoreCase));
+
+            if (school is not null && !string.Equals(user.School, school.Slug, StringComparison.Ordinal))
+            {
+                user.School = school.Slug;
+                user.SchoolSource = SchoolBindSource.Sso;
+                await userManager.UpdateAsync(user);
+
+                logger.LogInformation("登录时自动绑定学校：school={School} user={User}", school.Slug, user.UserName);
+            }
+        }
 
         return Ok();
     }
