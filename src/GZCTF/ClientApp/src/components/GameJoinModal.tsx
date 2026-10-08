@@ -1,6 +1,6 @@
-import { Button, Modal, ModalProps, Select, Stack, TextInput } from '@mantine/core'
+import { Alert, Button, Modal, ModalProps, Select, Stack, Text, TextInput } from '@mantine/core'
 import { showNotification } from '@mantine/notifications'
-import { mdiClose } from '@mdi/js'
+import { mdiAlertCircleOutline, mdiClose } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import { useParams } from 'react-router'
 import { OnceSWRConfig } from '@Hooks/useConfig'
 import { useGame } from '@Hooks/useGame'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
-import { useTeams } from '@Hooks/useUser'
+import { useTeams, useUser } from '@Hooks/useUser'
 import api, { GameJoinModel, DetailedGameInfoModel } from '@Api'
 
 const defaultTeam = (teams?: { id?: number | null }[]) => (teams && teams.length >= 1 ? teams[0].id!.toString() : null)
@@ -29,6 +29,7 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
   const { onSubmitJoin, ...modalProps } = props
 
   const { teams } = useTeams()
+  const { user } = useUser()
   const { game } = useGame(numId)
 
   const { data: checkInfo } = api.game.useGameGetGameJoinCheckInfo(numId, OnceSWRConfig, props.opened && numId > 0)
@@ -91,6 +92,15 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
     }
   })
 
+  // 主办赛道要求真实姓名 + 学号 + 学校绑定，缺项在报名前提示
+  const profileIncomplete = useMemo(() => {
+    const missing: string[] = []
+    if (!user?.realName?.trim()) missing.push('真实姓名')
+    if (!user?.stdNumber?.trim()) missing.push('学号')
+    if (!user?.school?.trim()) missing.push('所属学校')
+    return missing
+  }, [user])
+
   const onJoinGame = async () => {
     setDisabled(true)
 
@@ -99,6 +109,19 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
         color: 'orange',
         message: t('game.notification.no_team'),
         icon: <Icon path={mdiClose} size={1} />,
+      })
+      setDisabled(false)
+      return
+    }
+
+    // 主办赛道报名前需完善个人信息：真实姓名 + 学号 + 学校绑定
+    if (profileIncomplete.length > 0) {
+      showNotification({
+        color: 'orange',
+        title: '报名信息不完整',
+        message: `报名主办赛道前请先完善：${profileIncomplete.join('、')}。可前往「个人资料」页面填写。`,
+        icon: <Icon path={mdiClose} size={1} />,
+        autoClose: 8000,
       })
       setDisabled(false)
       return
@@ -146,6 +169,13 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
   return (
     <Modal {...modalProps}>
       <Stack>
+        {profileIncomplete.length > 0 && (
+          <Alert color="orange" icon={<Icon path={mdiAlertCircleOutline} size={1} />} title="报名主办赛道需先完善资料">
+            <Text size="sm">
+              缺少：{profileIncomplete.join('、')}。请前往「个人资料」页面填写真实姓名、学号并绑定学校。
+            </Text>
+          </Alert>
+        )}
         <Select
           required
           label={t('game.content.join.team.label')}

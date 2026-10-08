@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Net;
 using GZCTF.Models.Request.Account;
@@ -63,6 +63,18 @@ public partial class UserInfo : IdentityUser<Guid>
     [MaxLength(Limits.MaxStdNumberLength)]
     [ProtectedPersonalData]
     public string StdNumber { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 已绑定的学校短名（对应 SsoConfig.Schools 中的 slug）
+    /// 学校统一身份认证（快速登录）时自动写入；普通注册时通过邀请码绑定。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string School { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 学校绑定来源：None = 未绑定；Sso = 快速登录自动绑定；Invite = 邀请码绑定
+    /// </summary>
+    public SchoolBindSource SchoolSource { get; set; } = SchoolBindSource.None;
 
     /// <summary>
     /// Hide in exercise scoreboard

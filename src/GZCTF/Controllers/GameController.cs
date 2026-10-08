@@ -52,6 +52,7 @@ public class GameController(
     IGameInstanceRepository gameInstanceRepository,
     IParticipationRepository participationRepository,
     IOptionsSnapshot<ContainerPolicy> containerPolicy,
+    IOptionsSnapshot<TrackConfig> trackConfig,
     IStringLocalizer<Program> localizer) : ControllerBase
 {
     /// <summary>
@@ -223,6 +224,28 @@ public class GameController(
 
         if (requiredInviteCode is not null && requiredInviteCode != model.InviteCode)
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_InvalidInvitationCode)]));
+
+        // =============== 主办赛道报名信息校验 ===============
+        // 主办赛道要求：真实姓名 + 学号 + 已绑定学校，三者缺一不可。
+        // 公开赛道不做限制，仅校验用户自行完善的资料即可。
+        if (trackConfig.Value.OfficialGameId > 0 && trackConfig.Value.OfficialGameId == game.Id)
+        {
+            var missing = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(user!.RealName))
+                missing.Add("真实姓名");
+
+            if (string.IsNullOrWhiteSpace(user.StdNumber))
+                missing.Add("学号");
+
+            if (string.IsNullOrWhiteSpace(user.School))
+                missing.Add("所属学校");
+
+            if (missing.Count > 0)
+                return BadRequest(new RequestResponse(
+                    $"报名主办赛道前请先完善个人信息：{string.Join("、", missing)}",
+                    ErrorCodes.ProfileIncomplete));
+        }
 
         // =============== Check and handle participation state ===============
 

@@ -502,6 +502,23 @@ public partial class ClientSsoConfig
     }
 
     /// <summary>
+    /// 解析学校邀请码 CSV：`学校短名:邀请码`，多项以逗号或换行分隔。
+    /// 例：cppu:PCTF2026CPPU,demo:PCTF2026DEMO
+    /// </summary>
+    internal static List<(string Slug, string Code)> ParseInviteCodes(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return [];
+
+        return raw
+            .Split([',', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => item.Split(':', 2, StringSplitOptions.TrimEntries))
+            .Where(pair => pair.Length == 2 && !string.IsNullOrWhiteSpace(pair[0]) && !string.IsNullOrWhiteSpace(pair[1]))
+            .Select(pair => (Slug: pair[0], Code: pair[1]))
+            .ToList();
+    }
+
+    /// <summary>
     /// 由学校名称生成路由短名：保留字母数字，中文等按名称哈希兜底
     /// </summary>
     static string Slugify(string name)
@@ -627,6 +644,15 @@ public class SsoConfig
 
     /// <summary>SSO 登录成功后跳转路径</summary>
     public string RedirectPath { get; set; } = "/";
+
+    /// <summary>
+    /// 各学校的报名邀请码，用于非快速登录用户手动绑定学校。
+    /// 格式为 CSV：`学校短名:邀请码`，多项用逗号分隔。
+    /// 例：cppu:PCTF2026CPPU,demo:PCTF2026DEMO
+    /// 未列出的学校不校验邀请码（留空即免邀请码绑定）。
+    /// 注：GZCTF 配置机制不支持数组类型，故用 CSV 字符串存储。
+    /// </summary>
+    public string SchoolInviteCodes { get; set; } = string.Empty;
 }
 
 #endregion

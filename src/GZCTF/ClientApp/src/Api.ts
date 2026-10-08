@@ -144,6 +144,38 @@ export enum Role {
   Admin = "Admin",
 }
 
+/**
+ * 学校绑定来源
+ * None = 未绑定；Sso = 快速登录自动绑定；Invite = 邀请码绑定
+ */
+export enum SchoolBindSource {
+  None = "None",
+  Sso = "Sso",
+  Invite = "Invite",
+}
+
+/** 学校选项（注册 / 报名时选择学校用） */
+export interface SchoolOptionModel {
+  /** 学校名称 */
+  name: string;
+  /** 学校短名 */
+  slug: string;
+  /** 认证模式：cas / email */
+  mode: string;
+  /** 允许的邮箱后缀 */
+  emailSuffixes: string[];
+}
+
+/** 使用邀请码绑定学校的请求 */
+export interface SchoolBindModel {
+  /** 目标学校短名 */
+  schoolSlug: string;
+  /** 学校邀请码 */
+  inviteCode?: string | null;
+  /** 学号 */
+  stdNumber?: string | null;
+}
+
 /** Login response status */
 export enum RegisterStatus {
   LoggedIn = "LoggedIn",
@@ -346,6 +378,10 @@ export interface ProfileUserInfoModel {
   realName?: string | null;
   /** Student ID */
   stdNumber?: string | null;
+  /** 已绑定的学校短名（未绑定时为空） */
+  school?: string | null;
+  /** 学校绑定来源 */
+  schoolSource?: SchoolBindSource;
   /** Avatar URL */
   avatar?: string | null;
 }
@@ -2715,6 +2751,40 @@ export class Api<
         method: "POST",
         body: data,
         type: ContentType.Json,
+        ...params,
+      }),
+
+    /**
+     * @description 获取可选学校列表（注册 / 报名时选择学校）
+     *
+     * @tags Sso
+     * @name SsoSchools
+     * @summary 学校列表
+     * @request GET:/api/account/sso/schools
+     */
+    ssoSchools: (params: RequestParams = {}) =>
+      this.request<SchoolOptionModel[], any>({
+        path: `/api/account/sso/schools`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 未使用快速登录的用户，可用邀请码绑定学校
+     *
+     * @tags Sso
+     * @name SsoBind
+     * @summary 邀请码绑定学校
+     * @request POST:/api/account/sso/bind
+     */
+    ssoBind: (data: SchoolBindModel, params: RequestParams = {}) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/account/sso/bind`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
         ...params,
       }),
   };

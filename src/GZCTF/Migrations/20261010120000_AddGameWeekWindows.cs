@@ -15,15 +15,27 @@ public partial class AddGameWeekWindows : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        // WeekModeEnabled 由更早的迁移创建，此处不再重复添加
+        // 兼容两种历史：
+        //  - 已执行过 20261008120000_AddGameWeekSettings 的库（本地增量升级）
+        //  - 全新数据库（列不存在，直接建）
+        // 因此所有“废弃列”的删除都必须是幂等的。
+        migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    -- 旧版按天数记录的周次时长列，存在才删
+    FOR i IN 1..5 LOOP
+        EXECUTE format('ALTER TABLE ""Games"" DROP COLUMN IF EXISTS ""Week%1$sDurationDays""', i);
+    END LOOP;
 
-        // 旧版按「天数」记录周次时长的列已废弃，改为精确起止时间
-        for (var stale = 1; stale <= 5; stale++)
-        {
-            migrationBuilder.DropColumn(
-                name: $"Week{stale}DurationDays",
-                table: "Games");
-        }
+    -- 周次模式开关：仅在缺失时补建
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Games' AND column_name = 'WeekModeEnabled'
+    ) THEN
+        ALTER TABLE ""Games"" ADD COLUMN ""WeekModeEnabled"" boolean NOT NULL DEFAULT false;
+    END IF;
+END $$;
+");
 
         // 每周独立的起止时间窗口（null 表示该端不限制）
         for (var week = 1; week <= 5; week++)
@@ -78,14 +90,14 @@ public partial class AddGameWeekWindows : Migration
         migrationBuilder.DropColumn(name: "ChallengeBucketName", table: "Games");
         migrationBuilder.DropColumn(name: "MiscBucketName", table: "Games");
 
+        // 回滚时同样保持幂等：只删本次新增的列，不碰 WeekModeEnabled
+        // （WeekModeEnabled 的归属由更早的迁移决定）
         for (var week = 1; week <= 5; week++)
         {
             migrationBuilder.DropColumn(name: $"Week{week}StartUtc", table: "Games");
             migrationBuilder.DropColumn(name: $"Week{week}EndUtc", table: "Games");
             migrationBuilder.DropColumn(name: $"Week{week}Name", table: "Games");
         }
-
-        // WeekModeEnabled 保留给更早的迁移负责
 
         for (var stale = 1; stale <= 5; stale++)
         {

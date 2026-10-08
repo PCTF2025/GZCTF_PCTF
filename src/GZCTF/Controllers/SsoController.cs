@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using GZCTF.Models.Internal;
+using GZCTF.Models.Request.Account;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -96,6 +97,18 @@ public class SsoController(
         user.LastSignedInUtc = DateTimeOffset.UtcNow;
         user.LastVisitedUtc = DateTimeOffset.UtcNow;
         user.UpdateByHttpContext(HttpContext);
+
+        // 快速登录自动绑定学校：未绑定过学校时写入，并记录来源为 Sso；
+        // 已有邀请码绑定的学校不覆盖（邀请码绑定优先级更高，避免误改）
+        if (string.IsNullOrWhiteSpace(user.School) || user.SchoolSource != SchoolBindSource.Invite)
+        {
+            user.School = school.Slug;
+            user.SchoolSource = SchoolBindSource.Sso;
+        }
+
+        // CAS 模式下如返回的是学号，同时补全学号（用户未填时）
+        if (school.Mode == SsoAuthMode.Cas && string.IsNullOrWhiteSpace(user.StdNumber))
+            user.StdNumber = identifier;
 
         await signInManager.SignOutAsync();
         await signInManager.SignInAsync(user, true);
@@ -221,6 +234,89 @@ public class SsoController(
 
         return await userManager.FindByNameAsync(identifier)
                ?? await userManager.FindByEmailAsync(identifier);
+    }
+
+    /// <summary>
+    /// 获取可选学校列表（用于注册时选择学校 / 邀请码绑定）
+    /// </summary>
+    /// <remarks>
+    /// 只返回已启用的学校，且不暴露登录与校验地址等内部信息。
+    /// </remarks>
+    [HttpGet("schools")]
+    [ProducesResponseType(typeof(SchoolOptionModel[]), StatusCodes.Status200OK)]
+    public IActionResult GetSchools()
+    {
+        var schools = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+            .Select(s => new SchoolOptionModel(s.Name, s.Slug, s.Mode == SsoAuthMode.Cas ? "cas" : "email",
+                s.EmailSuffixes))
+            .ToArray();
+
+        return Ok(schools);
+    }
+
+    /// <summary>
+    /// 使用邀请码绑定学校
+    /// </summary>
+    /// <remarks>
+    /// 未使用快速登录的用户，可用管理员下发的邀请码绑定学校。
+    /// 邀请码格式为 `学校短名:邀请码`，或直接用全局邀请码。
+    /// </remarks>
+    /// <param name="model">绑定请求</param>
+    /// <param name="token"></param>
+    [HttpPost("bind")]
+    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BindSchool([FromBody] SchoolBindModel model, CancellationToken token)
+    {
+        if (User.Identity?.IsAuthenticated != true)
+            return Unauthorized(new RequestResponse("请先登录"));
+
+        var user = await userManager.GetUserAsync(User);
+        if (user is null)
+            return Unauthorized(new RequestResponse("请先登录"));
+
+        var school = FindSchool(model.SchoolSlug);
+        if (school is null)
+            return BadRequest(new RequestResponse("所选学校不存在或未启用"));
+
+        // 邀请码校验：学校级邀请码，未配置则该校不需要邀请码
+        var expected = ssoConfig.Value.SchoolInviteCodes is { Length: > 0 }
+            ? ClientSsoConfig.ParseInviteCodes(ssoConfig.Value.SchoolInviteCodes)
+                .FirstOrDefault(pair => string.Equals(pair.Slug, school.Slug, StringComparison.OrdinalIgnoreCase))
+                .Code
+            : null;
+
+        if (!string.IsNullOrWhiteSpace(expected) &&
+            !string.Equals(expected, model.InviteCode?.Trim(), StringComparison.Ordinal))
+        {
+            logger.LogWarning("学校邀请码校验失败：school={School} user={User}", school.Slug, user.UserName);
+            return BadRequest(new RequestResponse("邀请码不正确，请联系赛事管理员获取"));
+        }
+
+        // 已有快速登录绑定的学校时不允许随意更换，避免绕过学校身份校验
+        if (user.SchoolSource == SchoolBindSource.Sso &&
+            !string.Equals(user.School, school.Slug, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new RequestResponse(
+                $"你已通过学校统一认证绑定 {user.School}，如需更换请联系赛事管理员"));
+        }
+
+        user.School = school.Slug;
+        user.SchoolSource = SchoolBindSource.Invite;
+
+        if (!string.IsNullOrWhiteSpace(model.StdNumber))
+            user.StdNumber = model.StdNumber.Trim();
+
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            var first = result.Errors.FirstOrDefault();
+            return BadRequest(new RequestResponse(first?.Description ?? "绑定失败，请稍后重试"));
+        }
+
+        logger.LogInformation("邀请码绑定学校成功：school={School} user={User}", school.Slug, user.UserName);
+
+        return Ok(new RequestResponse($"已绑定 {school.Name}", StatusCodes.Status200OK));
     }
 
     /// <summary>

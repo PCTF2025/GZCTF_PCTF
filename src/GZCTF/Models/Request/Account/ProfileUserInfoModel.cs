@@ -1,4 +1,4 @@
-﻿namespace GZCTF.Models.Request.Account;
+namespace GZCTF.Models.Request.Account;
 
 /// <summary>
 /// Basic account information
@@ -46,6 +46,16 @@ public class ProfileUserInfoModel
     public string? StdNumber { get; set; }
 
     /// <summary>
+    /// 已绑定的学校短名（未绑定时为 null）
+    /// </summary>
+    public string? School { get; set; }
+
+    /// <summary>
+    /// 学校绑定来源：None / Sso / Invite
+    /// </summary>
+    public SchoolBindSource SchoolSource { get; set; }
+
+    /// <summary>
     /// Avatar URL
     /// </summary>
     public string? Avatar { get; set; }
@@ -61,6 +71,8 @@ public class ProfileUserInfoModel
             Phone = user.PhoneNumber,
             Avatar = user.AvatarUrl,
             StdNumber = user.StdNumber,
+            School = string.IsNullOrWhiteSpace(user.School) ? null : user.School,
+            SchoolSource = user.SchoolSource,
             Role = user.Role
         };
 }

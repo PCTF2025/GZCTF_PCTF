@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Localization;
 
 namespace GZCTF.Utils;
@@ -581,4 +581,25 @@ public static class ErrorCodes
     /// Game ended
     /// </summary>
     public const int GameEnded = 10002;
+
+    /// <summary>
+    /// 报名信息不完整（缺真实姓名 / 学号 / 学校绑定）
+    /// </summary>
+    public const int ProfileIncomplete = 10003;
+}
+
+/// <summary>
+/// 学校绑定来源
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SchoolBindSource>))]
+public enum SchoolBindSource : byte
+{
+    /// <summary>未绑定学校</summary>
+    None = 0b00,
+
+    /// <summary>学校统一身份认证（快速登录）自动绑定</summary>
+    Sso = 0b01,
+
+    /// <summary>使用邀请码手动绑定</summary>
+    Invite = 0b10
 }

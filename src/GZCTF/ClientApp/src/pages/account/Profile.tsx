@@ -23,6 +23,7 @@ import { Icon } from '@mdi/react'
 import { FC, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { PasswordChangeModal } from '@Components/PasswordChangeModal'
+import { SchoolBinding } from '@Components/SchoolBinding'
 import { WithNavBar } from '@Components/WithNavbar'
 import { showErrorMsg, tryGetErrorMsg } from '@Utils/Shared'
 import { IMAGE_MIME_TYPES } from '@Utils/Shared'
@@ -68,6 +69,11 @@ const Profile: FC = () => {
       realName: user?.realName,
     })
   })
+
+  // 学校绑定成功后刷新用户资料，使绑定状态与学号立即同步到页面
+  const onSchoolBound = () => {
+    void mutate()
+  }
 
   const onChangeAvatar = async () => {
     if (!avatarFile) return
@@ -202,6 +208,12 @@ const Profile: FC = () => {
             onChange={(event) => setProfile({ ...profile, realName: event.target.value })}
           />
         </SimpleGrid>
+        <Divider
+          my="xs"
+          label="学校绑定（主办赛道报名必需）"
+          labelPosition="center"
+        />
+        <SchoolBinding profile={user} onBound={onSchoolBound} />
         <Textarea
           label={t('account.label.bio')}
           value={profile.bio ?? t('account.placeholder.bio')}
