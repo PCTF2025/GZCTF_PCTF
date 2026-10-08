@@ -430,6 +430,11 @@ public class AccountController(
         }
 
         user!.UpdateUserInfo(model);
+
+        // 资料被修改且已填写完整时，自动重新提交学校管理员审核；
+        // 信息仍不完整则退回到未提交状态。
+        user.SubmitForVerification();
+
         var result = await userManager.UpdateAsync(user);
 
         if (!result.Succeeded)
