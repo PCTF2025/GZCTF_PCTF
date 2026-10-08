@@ -21,8 +21,7 @@ import { Icon } from '@mdi/react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { AccountView } from '@Components/AccountView'
-import { LogoHeader } from '@Components/LogoHeader'
+import logoImage from '@Resources/pctf-logo.png'
 import { Captcha, useCaptchaRef } from '@Components/Captcha'
 import { encryptApiData } from '@Utils/Crypto'
 import { tryGetClientError } from '@Utils/Shared'
@@ -323,8 +322,24 @@ const Login: FC = () => {
   // 三种布局：左右双栏 / 仅本地登录 / 仅学校认证
   const localEnabled = sso?.localLoginEnabled ?? true
 
+  // 未配置学校：单栏布局，同样使用图片 Logo
   if (ssoSchools.length === 0) {
-    return <AccountView onSubmit={onLogin}>{localEnabled ? localForm : <Text c="dimmed">未开放任何登录方式，请联系管理员</Text>}</AccountView>
+    return (
+      <Center mih="100vh" p="md">
+        <Stack align="center" gap="xl" w="100%" maw={380}>
+          <Image src={logoImage} alt="PCTF" maw={280} w="100%" h="auto" fit="contain" />
+          {localEnabled ? (
+            <form className={misc.accountForm} onSubmit={onLogin} style={{ width: '100%' }}>
+              <Stack gap="xs" align="center" justify="center">
+                {localForm}
+              </Stack>
+            </form>
+          ) : (
+            <Text c="dimmed">未开放任何登录方式，请联系管理员</Text>
+          )}
+        </Stack>
+      </Center>
+    )
   }
 
   // 仅学校认证：单栏居中
@@ -332,7 +347,8 @@ const Login: FC = () => {
     return (
       <Center mih="100vh" p="md">
         <Stack align="center" gap="xl" w="100%" maw={520}>
-          <LogoHeader onClick={() => navigate('/')} />
+          {/* 登录页 Logo：与首页同一张品牌图 */}
+          <Image src={logoImage} alt="PCTF" maw={280} w="100%" h="auto" fit="contain" />
           {renderSsoPanel(true)}
         </Stack>
       </Center>
@@ -342,8 +358,8 @@ const Login: FC = () => {
   return (
     <Center mih="100vh" p="md">
       <Stack align="center" gap="xl" w="100%" maw={920}>
-        {/* 登录页顶部 Logo：与主页保持一致的品牌标识 */}
-        <LogoHeader onClick={() => navigate('/')} />
+        {/* 登录页顶部 Logo：与首页同一张品牌图 */}
+        <Image src={logoImage} alt="PCTF" maw={280} w="100%" h="auto" fit="contain" />
 
         <Flex
           direction={stacked ? 'column' : 'row'}
