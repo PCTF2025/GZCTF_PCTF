@@ -8,7 +8,6 @@ import {
   Grid,
   Group,
   Image,
-  Paper,
   PasswordInput,
   Stack,
   Text,
@@ -23,6 +22,7 @@ import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AccountView } from '@Components/AccountView'
+import { LogoHeader } from '@Components/LogoHeader'
 import { Captcha, useCaptchaRef } from '@Components/Captcha'
 import { encryptApiData } from '@Utils/Crypto'
 import { tryGetClientError } from '@Utils/Shared'
@@ -327,27 +327,33 @@ const Login: FC = () => {
     return <AccountView onSubmit={onLogin}>{localEnabled ? localForm : <Text c="dimmed">未开放任何登录方式，请联系管理员</Text>}</AccountView>
   }
 
+  // 仅学校认证：单栏居中
   if (!localEnabled) {
     return (
       <Center mih="100vh" p="md">
-        <Paper w="100%" maw={520} p="xl" withBorder radius="md">
+        <Stack align="center" gap="xl" w="100%" maw={520}>
+          <LogoHeader onClick={() => navigate('/')} />
           {renderSsoPanel(true)}
-        </Paper>
+        </Stack>
       </Center>
     )
   }
 
   return (
     <Center mih="100vh" p="md">
-      <Paper w="100%" maw={920} p="xl" withBorder radius="md">
+      <Stack align="center" gap="xl" w="100%" maw={920}>
+        {/* 登录页顶部 Logo：与主页保持一致的品牌标识 */}
+        <LogoHeader onClick={() => navigate('/')} />
+
         <Flex
           direction={stacked ? 'column' : 'row'}
-          gap="xl"
-          align={stacked ? 'stretch' : 'center'}
+          gap={stacked ? 'lg' : 'xl'}
+          align="center"
           justify="center"
+          w="100%"
         >
-          {/* 左栏：账号密码登录 */}
-          <Box flex={stacked ? undefined : 1} maw={stacked ? undefined : 380}>
+          {/* 左栏：账号密码登录（窄屏时整体居中） */}
+          <Box flex={stacked ? undefined : 1} w={stacked ? '100%' : undefined} maw={stacked ? 380 : undefined}>
             <form className={misc.accountForm} onSubmit={onLogin} style={{ width: '100%' }}>
               <Stack gap="xs" align="center" justify="center">
                 {localForm}
@@ -363,11 +369,11 @@ const Login: FC = () => {
           />
 
           {/* 右栏：学校统一身份认证（列表由后台维护，支持 CAS / 邮箱两种模式） */}
-          <Box flex={stacked ? undefined : 1} maw={stacked ? undefined : 380}>
+          <Box flex={stacked ? undefined : 1} w={stacked ? '100%' : undefined} maw={stacked ? 380 : undefined}>
             {renderSsoPanel()}
           </Box>
         </Flex>
-      </Paper>
+      </Stack>
     </Center>
   )
 }
