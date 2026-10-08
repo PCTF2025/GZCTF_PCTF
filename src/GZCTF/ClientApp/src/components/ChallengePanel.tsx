@@ -26,7 +26,6 @@ import { useLocation, useParams } from 'react-router'
 import { ChallengeCard } from '@Components/ChallengeCard'
 import { Empty } from '@Components/Empty'
 import { GameChallengeModal } from '@Components/GameChallengeModal'
-import { WeekTimers } from '@Components/WeekTimers'
 import { WriteupSubmitModal } from '@Components/WriteupSubmitModal'
 import { useChallengeCategoryLabelMap, SubmissionTypeIconMap } from '@Utils/Shared'
 import { useGame, useGameTeamInfo } from '@Hooks/useGame'
@@ -211,8 +210,6 @@ export const ChallengePanel: FC = () => {
         )}
         {weekMode && (
           <Stack gap="xs" w="10.5rem">
-            {/* 顶部双计时：当前周剩余 + 总剩余 */}
-            <WeekTimers buckets={buckets} endTimeUtc={game?.end ? new Date(game.end).toISOString() : null} />
             <Select
               size="xs"
               label="周次"

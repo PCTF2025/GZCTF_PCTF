@@ -19,6 +19,21 @@ import misc from '@Styles/Misc.module.css'
 
 dayjs.extend(duration)
 
+/// 把毫秒差格式化为紧凑倒计时文案
+const formatRemain = (ms: number) => {
+  if (ms <= 0) return '已结束'
+
+  const total = Math.floor(ms / 1000)
+  const days = Math.floor(total / 86400)
+  const hours = Math.floor((total % 86400) / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+
+  if (days > 0) return `${days}天${hours}小时${minutes}分`
+  if (hours > 0) return `${hours}小时${minutes}分${seconds}秒`
+  return `${minutes}分${seconds}秒`
+}
+
 const GameCountdown: FC<{ game?: DetailedGameInfoModel }> = ({ game }) => {
   const { endTime, progress } = getGameStatus(game)
 
@@ -34,6 +49,24 @@ const GameCountdown: FC<{ game?: DetailedGameInfoModel }> = ({ game }) => {
 
   const countdown = dayjs.duration(endTime.diff(now))
 
+  // 周次模式：当前周剩余时间（与总倒计时同一区块展示）
+  const buckets = game?.weekBuckets ?? []
+  const currentWeek = buckets.find((b) => b.key != null && b.key <= 5 && b.isOpen)
+
+  let weekRemain = ''
+  if (game?.weekModeEnabled) {
+    if (currentWeek) {
+      weekRemain = currentWeek.endUtc ? formatRemain(dayjs(currentWeek.endUtc).diff(now)) : '不限时'
+    } else if (buckets.some((b) => b.key != null && b.key <= 5 && b.startUtc)) {
+      const upcoming = buckets
+        .filter((b) => b.key != null && b.key <= 5 && b.startUtc && dayjs(b.startUtc).isAfter(now))
+        .sort((a, b) => dayjs(a.startUtc!).valueOf() - dayjs(b.startUtc!).valueOf())[0]
+      weekRemain = upcoming ? `${formatRemain(dayjs(upcoming.startUtc!).diff(now))}后开始` : '已全部结束'
+    } else {
+      weekRemain = '—'
+    }
+  }
+
   return (
     <Card miw="9rem" ta="center" pt={4} className={misc.overflowVisible}>
       <Text fw="bold" lineClamp={1}>
@@ -43,6 +76,11 @@ const GameCountdown: FC<{ game?: DetailedGameInfoModel }> = ({ game }) => {
             ? `${Math.floor(countdown.asHours())} : ${countdown.format('mm : ss')}`
             : t('game.content.game_ended')}
       </Text>
+      {game?.weekModeEnabled && (
+        <Text size="xs" c="dimmed" lineClamp={1} mt={2} title={currentWeek?.name ?? '本周'}>
+          {weekRemain}
+        </Text>
+      )}
       <Card.Section mt={4}>
         <GameProgress percentage={progress} py={0} />
       </Card.Section>
