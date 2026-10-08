@@ -9,9 +9,9 @@ using Microsoft.Extensions.Options;
 namespace GZCTF.Controllers;
 
 /// <summary>
-/// 外部单点登录（SSO）入口控制器。
-/// 登录页右侧的每个入口对应此处一个 provider 短名，实际跳转地址与显示文案
-/// 由管理后台的 SsoConfig.Providers 配置项决定。
+/// 学校统一身份认证（SSO）入口控制器。
+/// 支持多所学校，每所学校可选 CAS 或邮箱后缀两种认证模式，
+/// 学校列表由管理后台的 SsoConfig.Schools 配置项维护。
 /// </summary>
 [ApiController]
 [Route("api/account/[controller]")]
@@ -22,78 +22,74 @@ public class SsoController(
     ILogger<SsoController> logger) : ControllerBase
 {
     /// <summary>
-    /// 发起 SSO 登录：重定向到对应身份提供方的登录页
+    /// 发起学校 SSO 登录
     /// </summary>
-    /// <param name="provider">提供方短名，如 oa / mail / cas</param>
-    [HttpGet("login/{provider}")]
-    public IActionResult Login(string provider)
+    /// <remarks>
+    /// CAS 模式：重定向到该学校的统一认证登录页。
+    /// 邮箱模式：直接返回引导信息，前端就地切换到邮箱登录表单。
+    /// </remarks>
+    /// <param name="slug">学校短名</param>
+    [HttpGet("login/{slug}")]
+    public IActionResult Login(string slug)
     {
-        var config = ssoConfig.Value;
+        var school = FindSchool(slug);
 
-        var entry = ClientSsoConfig
-            .ParseProviders(config.Providers)
-            .FirstOrDefault(p => string.Equals(p.Provider, provider, StringComparison.OrdinalIgnoreCase));
+        if (school is null)
+            return NotFound(new RequestResponse($"未配置的学校：{slug}"));
 
-        if (entry is null || string.IsNullOrWhiteSpace(entry.Link))
-            return NotFound(new RequestResponse($"未配置的登录方式：{provider}"));
+        // 邮箱模式不跳转外部，交由前端处理
+        if (school.Mode == SsoAuthMode.Email)
+            return Ok(new RequestResponse($"请使用 {school.Name} 邮箱登录", StatusCodes.Status200OK));
 
-        // 相对路径直接跳转（保留前端路由），绝对地址则附加回调参数
-        var callbackUrl = Url.Action(nameof(Callback), "Sso", new { provider },
+        if (string.IsNullOrWhiteSpace(school.LoginUrl))
+            return BadRequest(new RequestResponse($"{school.Name} 未配置统一认证登录地址"));
+
+        var callbackUrl = Url.Action(nameof(Callback), "Sso", new { slug = school.Slug },
             Request.Scheme, Request.Host.Value);
 
-        var target = entry.Link.Contains("://")
-            ? $"{entry.Link}{(entry.Link.Contains('?') ? '&' : '?')}redirect_uri={Uri.EscapeDataString(callbackUrl ?? string.Empty)}"
-            : entry.Link;
+        var target = $"{school.LoginUrl}{(school.LoginUrl.Contains('?') ? '&' : '?')}" +
+                     $"service={Uri.EscapeDataString(callbackUrl ?? string.Empty)}";
 
         return Redirect(target);
     }
 
     /// <summary>
-    /// SSO 回调：接收票据并完成登录
+    /// CAS 回调：校验票据并完成登录
     /// </summary>
-    /// <param name="provider">提供方短名</param>
+    /// <param name="slug">学校短名</param>
     /// <param name="ticket">CAS 票据</param>
-    /// <param name="code">OAuth code（与 ticket 二选一）</param>
-    /// <param name="state">OAuth state</param>
     [HttpGet("callback")]
     public async Task<IActionResult> Callback(
-        [FromQuery] string? provider,
+        [FromQuery] string? slug,
         [FromQuery] string? ticket,
-        [FromQuery] string? code,
-        [FromQuery] string? state,
         CancellationToken token)
     {
-        var config = ssoConfig.Value;
+        var school = FindSchool(slug);
 
-        var entry = ClientSsoConfig
-            .ParseProviders(config.Providers)
-            .FirstOrDefault(p => string.Equals(p.Provider, provider, StringComparison.OrdinalIgnoreCase));
+        if (school is null)
+            return BadRequest(new RequestResponse("未配置的学校"));
 
-        if (entry is null)
-            return BadRequest(new RequestResponse("未配置的登录方式"));
+        if (school.Mode != SsoAuthMode.Cas)
+            return BadRequest(new RequestResponse($"{school.Name} 未启用统一认证登录"));
 
-        // 取用户标识：CAS 用 ticket 校验，OAuth 用 code 换 token
-        string? identifier = null;
+        if (string.IsNullOrWhiteSpace(ticket))
+            return BadRequest(new RequestResponse("缺少认证票据（ticket）"));
 
-        if (!string.IsNullOrWhiteSpace(ticket))
-            identifier = await ValidateCasTicketAsync(entry, ticket, token);
-        else if (!string.IsNullOrWhiteSpace(code))
-            identifier = await ExchangeOAuthCodeAsync(entry, code, token);
+        var identifier = await ValidateCasTicketAsync(school, ticket, token);
 
         if (string.IsNullOrWhiteSpace(identifier))
         {
-            logger.LogWarning("SSO 认证失败：provider={Provider} 未获取到用户标识", provider);
-            return BadRequest(new RequestResponse("SSO 认证失败，未获取到用户信息"));
+            logger.LogWarning("CAS 认证失败：school={School} 未获取到用户标识", school.Name);
+            return BadRequest(new RequestResponse("认证失败，未获取到用户信息"));
         }
 
-        // 优先按学号匹配，其次按邮箱匹配
-        var user = await FindUserAsync(identifier, token);
+        var user = await FindUserAsync(identifier, school, token);
 
         if (user is null)
         {
-            // 未绑定账号：带上学号跳回登录页引导绑定 / 注册
+            // 未绑定账号：带学号跳回登录页引导绑定或注册
             var frontendUrl =
-                $"{Request.Scheme}://{Request.Host}/account/login?sso_bind=1&std={Uri.EscapeDataString(identifier)}";
+                $"{Request.Scheme}://{Request.Host}/account/login?sso_bind=1&school={Uri.EscapeDataString(school.Slug)}&std={Uri.EscapeDataString(identifier)}";
             return Redirect(frontendUrl);
         }
 
@@ -111,22 +107,67 @@ public class SsoController(
             return BadRequest(new RequestResponse(first?.Description ?? "用户操作失败"));
         }
 
-        logger.LogInformation("SSO 登录成功：provider={Provider} user={UserName} id={Identifier}",
-            provider, user.UserName, identifier);
+        logger.LogInformation("学校 SSO 登录成功：school={School} user={UserName} id={Identifier}",
+            school.Name, user.UserName, identifier);
 
-        return Redirect($"{Request.Scheme}://{Request.Host}{config.RedirectPath}");
+        return Redirect($"{Request.Scheme}://{Request.Host}{ssoConfig.Value.RedirectPath}");
+    }
+
+    /// <summary>
+    /// 校验邮箱 / 账号是否属于指定学校（邮箱模式使用）
+    /// </summary>
+    /// <param name="slug">学校短名</param>
+    /// <param name="account">邮箱或学号</param>
+    [HttpGet("verify")]
+    public IActionResult Verify([FromQuery] string? slug, [FromQuery] string? account)
+    {
+        var school = FindSchool(slug);
+
+        if (school is null)
+            return NotFound(new RequestResponse($"未配置的学校：{slug}"));
+
+        if (string.IsNullOrWhiteSpace(account))
+            return BadRequest(new RequestResponse("请输入邮箱或学号"));
+
+        var ok = IsEmailBelongsToSchool(account, school);
+
+        return ok
+            ? Ok(new RequestResponse($"{school.Name} 邮箱校验通过", StatusCodes.Status200OK))
+            : BadRequest(new RequestResponse($"该邮箱不属于 {school.Name}，请检查后重试"));
+    }
+
+    /// <summary>
+    /// 判断邮箱是否归属该校。
+    /// 传入纯学号（不含 @）时无法判断域归属，交由后续账密校验处理，此处放行。
+    /// </summary>
+    internal static bool IsEmailBelongsToSchool(string account, ClientSsoSchool school)
+    {
+        if (school.EmailSuffixes.Count == 0)
+            return true; // 未限制后缀时不做归属校验
+
+        var value = account.Trim();
+
+        // 纯学号：不含域信息，放行由登录流程校验
+        if (!value.Contains('@'))
+            return true;
+
+        var domain = value[(value.IndexOf('@') + 1)..];
+
+        return school.EmailSuffixes.Any(suffix =>
+            domain.Equals(suffix, StringComparison.OrdinalIgnoreCase) ||
+            domain.EndsWith($".{suffix}", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
     /// 校验 CAS ticket，返回学号
     /// </summary>
-    async Task<string?> ValidateCasTicketAsync(ClientSsoProvider entry, string ticket, CancellationToken token)
+    async Task<string?> ValidateCasTicketAsync(ClientSsoSchool school, string ticket, CancellationToken token)
     {
-        var callbackUrl = Url.Action(nameof(Callback), "Sso", new { provider = entry.Provider },
+        var callbackUrl = Url.Action(nameof(Callback), "Sso", new { slug = school.Slug },
             Request.Scheme, Request.Host.Value);
 
         var validateUrl =
-            $"{entry.ValidateUrl}?service={Uri.EscapeDataString(callbackUrl ?? string.Empty)}&ticket={Uri.EscapeDataString(ticket)}";
+            $"{school.ValidateUrl}?service={Uri.EscapeDataString(callbackUrl ?? string.Empty)}&ticket={Uri.EscapeDataString(ticket)}";
 
         try
         {
@@ -136,55 +177,7 @@ public class SsoController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "CAS ticket 校验失败：{Ticket}", ticket);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 用 OAuth code 换取用户标识
-    /// </summary>
-    async Task<string?> ExchangeOAuthCodeAsync(ClientSsoProvider entry, string code, CancellationToken token)
-    {
-        if (string.IsNullOrWhiteSpace(entry.TokenUrl))
-            return null;
-
-        try
-        {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var payload = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "authorization_code",
-                ["code"] = code,
-                ["client_id"] = entry.ClientId,
-                ["client_secret"] = entry.ClientSecret,
-                ["redirect_uri"] = Url.Action(nameof(Callback), "Sso", new { provider = entry.Provider },
-                    Request.Scheme, Request.Host.Value) ?? string.Empty
-            });
-
-            var response = await httpClient.PostAsync(entry.TokenUrl, payload, token);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("OAuth 换取 token 失败：{Status}", response.StatusCode);
-                return null;
-            }
-
-            var body = await response.Content.ReadAsStringAsync(token);
-
-            // 容忍常见返回结构：直接返回用户标识或包在 JSON 字段中
-            using var doc = System.Text.Json.JsonDocument.Parse(body);
-            var root = doc.RootElement;
-
-            foreach (var key in new[] { "user", "username", "userName", "sub", "email", "id" })
-                if (root.TryGetProperty(key, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String)
-                    return value.GetString();
-
-            logger.LogWarning("OAuth 响应中未找到用户标识字段");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "OAuth code 换取用户标识异常");
+            logger.LogError(ex, "CAS ticket 校验失败：school={School} ticket={Ticket}", school.Name, ticket);
             return null;
         }
     }
@@ -210,7 +203,7 @@ public class SsoController(
     /// <summary>
     /// 按学号或邮箱查找用户
     /// </summary>
-    async Task<UserInfo?> FindUserAsync(string identifier, CancellationToken token)
+    async Task<UserInfo?> FindUserAsync(string identifier, ClientSsoSchool school, CancellationToken token)
     {
         var byStd = await userManager.Users.FirstOrDefaultAsync(
             u => u.StdNumber != null && u.StdNumber == identifier, token);
@@ -218,7 +211,24 @@ public class SsoController(
         if (byStd is not null)
             return byStd;
 
+        // CAS 返回的可能是纯学号，尝试拼成学校邮箱再查
+        foreach (var suffix in school.EmailSuffixes)
+        {
+            var byMail = await userManager.FindByEmailAsync($"{identifier}@{suffix}");
+            if (byMail is not null)
+                return byMail;
+        }
+
         return await userManager.FindByNameAsync(identifier)
                ?? await userManager.FindByEmailAsync(identifier);
     }
+
+    /// <summary>
+    /// 按短名查找已启用学校
+    /// </summary>
+    ClientSsoSchool? FindSchool(string? slug) =>
+        string.IsNullOrWhiteSpace(slug)
+            ? null
+            : ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+                .FirstOrDefault(s => string.Equals(s.Slug, slug, StringComparison.OrdinalIgnoreCase));
 }

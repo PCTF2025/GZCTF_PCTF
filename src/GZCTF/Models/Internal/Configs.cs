@@ -393,37 +393,38 @@ public partial class ClientSsoConfig
     /// <summary>区域说明</summary>
     public string? Description { get; set; }
 
-    /// <summary>登录入口列表</summary>
-    public List<ClientSsoProvider> Providers { get; set; } = [];
+    /// <summary>学校列表</summary>
+    public List<ClientSsoSchool> Schools { get; set; } = [];
 
-    /// <summary>由服务端配置解析而来；已禁用或无有效入口时返回 null</summary>
+    /// <summary>由服务端配置解析而来；已禁用或无有效学校时返回 null</summary>
     public static ClientSsoConfig? FromConfig(SsoConfig config)
     {
         if (!config.Enabled)
             return null;
 
-        var providers = ParseProviders(config.Providers);
-        if (providers.Count == 0)
+        var schools = ParseSchools(config.Schools);
+        if (schools.Count == 0)
             return null;
 
         return new ClientSsoConfig
         {
             Title = config.Title,
             Description = config.Description,
-            Providers = providers
+            Schools = schools
         };
     }
 
     /// <summary>
-    /// 解析 CSV 形式的入口列表，每行字段以 | 分隔：
-    /// 标题|短名|链接|图标URL|新窗口(0/1)|校验地址|换token地址|clientId|clientSecret
+    /// 解析 CSV 形式的学校列表，每行字段以 | 分隔：
+    /// 学校名称|短名|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
     /// </summary>
-    internal static List<ClientSsoProvider> ParseProviders(string? raw)
+    internal static List<ClientSsoSchool> ParseSchools(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
             return [];
 
-        var result = new List<ClientSsoProvider>();
+        var result = new List<ClientSsoSchool>();
+        var usedSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -431,28 +432,57 @@ public partial class ClientSsoConfig
             if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
                 continue;
 
-            var title = parts[0];
-            var provider = Field(parts, 1);
+            // 未显式标记启用时默认启用，便于管理员只填关键字段
+            var enabledField = Field(parts, 7);
+            var enabled = string.IsNullOrWhiteSpace(enabledField) || enabledField is "1" or "true" or "True";
 
-            // 短名留空时用标题兜底，保证每个入口都有可路由的标识
-            if (string.IsNullOrWhiteSpace(provider))
-                provider = title;
+            if (!enabled)
+                continue;
 
-            result.Add(new ClientSsoProvider
+            var name = parts[0];
+            var slug = Field(parts, 1);
+            if (string.IsNullOrWhiteSpace(slug))
+                slug = Slugify(name);
+
+            // 短名去重，避免多所学校路由冲突
+            var unique = slug;
+            var idx = 2;
+            while (!usedSlugs.Add(unique))
+                unique = $"{slug}-{idx++}";
+
+            var mode = Field(parts, 2).ToLowerInvariant();
+
+            result.Add(new ClientSsoSchool
             {
-                Title = title,
-                Provider = provider,
-                Link = Field(parts, 2),
-                Icon = NullIfEmpty(Field(parts, 3)),
-                NewWindow = Field(parts, 4) is "1" or "true" or "True",
-                ValidateUrl = Field(parts, 5),
-                TokenUrl = Field(parts, 6),
-                ClientId = Field(parts, 7),
-                ClientSecret = Field(parts, 8)
+                Name = name,
+                Slug = unique,
+                Mode = mode == "email" ? SsoAuthMode.Email : SsoAuthMode.Cas,
+                LoginUrl = Field(parts, 3),
+                ValidateUrl = Field(parts, 4),
+                Icon = NullIfEmpty(Field(parts, 5)),
+                EmailSuffixes = Field(parts, 6)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(s => s.TrimStart('@'))
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList()
             });
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 由学校名称生成路由短名：保留字母数字，中文等按名称哈希兜底
+    /// </summary>
+    static string Slugify(string name)
+    {
+        var ascii = new string(name.Where(char.IsAsciiLetterOrDigit).ToArray()).ToLowerInvariant();
+        if (ascii.Length > 0)
+            return ascii;
+
+        // 纯中文名无法直转 ASCII，用短哈希保证稳定且唯一
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name));
+        return $"sch{Convert.ToHexString(hash)[..8].ToLowerInvariant()}";
     }
 
     static string Field(string[] parts, int index) =>
@@ -463,39 +493,45 @@ public partial class ClientSsoConfig
 }
 
 /// <summary>
-/// 单个外部登录入口
+/// 学校认证模式
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SsoAuthMode>))]
+public enum SsoAuthMode
+{
+    /// <summary>CAS 协议跳转学校统一认证</summary>
+    Cas,
+
+    /// <summary>按邮箱后缀归属校验，仅允许本校邮箱登录</summary>
+    Email
+}
+
+/// <summary>
+/// 单所学校（下发给前端）
 /// </summary>
 [MemoryPackable]
-public partial class ClientSsoProvider
+public partial class ClientSsoSchool
 {
-    /// <summary>按钮显示文案</summary>
-    public string Title { get; set; } = string.Empty;
+    /// <summary>学校名称（展示用）</summary>
+    public string Name { get; set; } = string.Empty;
 
-    /// <summary>提供方短名，用于路由 /api/account/sso/login/{provider}</summary>
-    public string Provider { get; set; } = string.Empty;
+    /// <summary>路由短名，用于 /api/account/sso/login/{slug}</summary>
+    public string Slug { get; set; } = string.Empty;
 
-    /// <summary>登录跳转地址（站内相对路径或外部绝对地址）</summary>
-    public string Link { get; set; } = string.Empty;
+    /// <summary>认证模式</summary>
+    public SsoAuthMode Mode { get; set; }
 
-    /// <summary>图标 URL，可为空</summary>
-    public string? Icon { get; set; }
+    /// <summary>CAS 登录页地址（Email 模式为空）</summary>
+    public string LoginUrl { get; set; } = string.Empty;
 
-    /// <summary>是否在新窗口打开</summary>
-    public bool NewWindow { get; set; }
-
-    /// <summary>CAS serviceValidate 地址，仅 CAS 流程需要</summary>
+    /// <summary>CAS serviceValidate 地址（不下发前端）</summary>
     [JsonIgnore]
     public string ValidateUrl { get; set; } = string.Empty;
 
-    /// <summary>OAuth 换 token 地址，仅 OAuth 流程需要</summary>
-    [JsonIgnore]
-    public string TokenUrl { get; set; } = string.Empty;
+    /// <summary>校徽 / 图标 URL</summary>
+    public string? Icon { get; set; }
 
-    [JsonIgnore]
-    public string ClientId { get; set; } = string.Empty;
-
-    [JsonIgnore]
-    public string ClientSecret { get; set; } = string.Empty;
+    /// <summary>允许的邮箱后缀，如 cppu.edu.cn（Email 模式使用）</summary>
+    public List<string> EmailSuffixes { get; set; } = [];
 }
 
 #region Mail Config
@@ -521,31 +557,39 @@ public class EmailConfig
 #region SSO Config
 
 /// <summary>
-/// 外部单点登录（SSO）配置。
-/// 右侧登录区展示若干可自定义的登录入口（OA / 学校邮箱等）。
-/// 注：GZCTF 配置机制不支持数组类型，故列表项以 CSV 字符串存储。
+/// 学校统一身份认证（SSO）配置。
+/// 支持多所学校，每所学校可自行选择认证模式：
+///   - Cas    ：CAS 协议跳转学校统一认证，回跳票据校验
+///   - Email  ：按邮箱后缀 / 学号归属判断，仅允许本校邮箱登录
+/// 注：GZCTF 配置机制不支持数组类型，故学校列表以 CSV 字符串存储。
 /// </summary>
 public class SsoConfig
 {
     /// <summary>是否在登录页展示外部登录区（关闭后登录页只保留左侧账号密码登录）</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>右侧区域标题，例如「统一身份认证」</summary>
-    public string Title { get; set; } = "统一身份认证登录";
+    /// <summary>右侧区域标题，例如「学校统一身份认证」</summary>
+    public string Title { get; set; } = "学校统一身份认证";
 
     /// <summary>右侧区域副标题说明（可为空）</summary>
-    public string? Description { get; set; } = "使用学校统一认证或校园邮箱登录";
+    public string? Description { get; set; } = "选择所在学校，使用学校账号登录";
 
     /// <summary>
-    /// 登录入口列表，每项一行，字段以 | 分隔：
-    /// 标题|短名|链接|图标URL|新窗口(0/1)|校验地址|换token地址|clientId|clientSecret
-    /// 后四项可留空。示例：
-    /// OA 统一认证|oa|/api/account/sso/login/oa||0|https://sso.example.edu/cas/serviceValidate|||
-    /// 学校邮箱登录|mail|https://mail.example.edu/login||1||||
+    /// 学校列表，每所学校一行，字段以 | 分隔：
+    /// 学校名称|短名|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
+    ///
+    /// 说明：
+    ///   - 认证模式 cas   ：登录地址 = CAS 登录页；校验地址 = CAS serviceValidate 接口
+    ///   - 认证模式 email ：登录地址留空时走站内邮箱登录；邮箱后缀用于归属校验，如 cppu.edu.cn,stu.cppu.edu.cn
+    ///   - 短名留空时自动由学校名称生成，用于路由 /api/account/sso/login/{短名}
+    ///
+    /// 示例：
+    /// 中国人民警察大学|cppu|cas|https://sso.cppu.edu.cn/tpass/login|https://sso.cppu.edu.cn/tpass/serviceValidate||cppu.edu.cn|1
+    /// 某某大学|demo|email||||demo.edu.cn|1
     /// </summary>
-    public string Providers { get; set; } = string.Empty;
+    public string Schools { get; set; } = string.Empty;
 
-    /// <summary>是否允许新用户通过 SSO 首次登录时自动注册账号</summary>
+    /// <summary>是否允许新用户首次 SSO 登录时自动创建账号（关闭时需先注册并绑定学号）</summary>
     public bool AllowAutoRegister { get; set; } = true;
 
     /// <summary>SSO 登录成功后跳转路径</summary>
