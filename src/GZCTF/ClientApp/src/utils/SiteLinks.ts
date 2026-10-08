@@ -2,4 +2,6 @@
 export const SITE_LINKS = {
   /// PCTF Wiki 文档站
   wiki: 'https://wiki.pctf.top/',
+  /// 赞助商：林枫云 / DK盾
+  dkdun: 'https://www.dkdun.cn/',
 } as const

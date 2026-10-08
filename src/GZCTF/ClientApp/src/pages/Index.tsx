@@ -8,6 +8,7 @@ import { useConfig } from '@Hooks/useConfig'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import { SITE_LINKS } from '@Utils/SiteLinks'
 import logoImage from '@Resources/pctf-logo.png'
+import dkdunLogo from '@Resources/dkdun-logo.png'
 
 /// 赛道入口：主办赛道 / 公开赛道
 interface TrackEntry {
@@ -133,6 +134,51 @@ const Home: FC = () => {
               >
                 前往 Wiki
               </Button>
+            </Group>
+          </Card>
+
+          {/* 赞助商广告：林枫云 */}
+          <Card withBorder radius="md" p="lg">
+            <Group justify="space-between" wrap="nowrap" align="flex-start" gap="lg">
+              <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
+                <Group gap="md" wrap="nowrap" align="center">
+                  <Box
+                    p={6}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 8,
+                      lineHeight: 0,
+                    }}
+                  >
+                    <Image src={dkdunLogo} alt="林枫云" h={34} w="auto" fit="contain" />
+                  </Box>
+                  <Badge variant="light" color="blue" size="sm">
+                    赞助商
+                  </Badge>
+                </Group>
+
+                <Title order={4}>林枫云（四川）网络科技有限公司</Title>
+
+                <Text size="sm" c="dimmed" style={{ lineHeight: 1.8 }}>
+                  林枫云（四川）网络科技有限公司（简称“林枫云”）成立于2024年，是一家专注于云计算、高频算力的创新型科技公司。林枫云秉承“技术驱动未来，创新引领发展”的理念，致力于为全球客户提供稳定、安全、智能的云计算解决方案。公司正自主研发云平台和AI技术，自成立以来，林枫云核心团队一直深耕云计算和大数据领域，专注于云服务的优化、数据安全与AI算法的创新。通过不断创新和提升技术实力，林枫云为多个行业定制上云方案和数据解决方案，接受自托管与全托管。
+                </Text>
+                <Text size="sm" c="dimmed" style={{ lineHeight: 1.8 }}>
+                  林枫云提供多元化的云服务，涵盖云服务器、高频物理机、内容分发等服务，结合8年行业经验，为客户提供高效、智能的服务支持。同时，林枫云还提供7*16小时技术支持，确保客户在使用过程中得到实时的帮助与服务。公司在全球范围内的数据中心租用多个机柜，资源覆盖中国大陆、中国香港、美国等地，并提供BGP多线接入、国际高速带宽以及自有硬件基础设施，保障服务的高效性与稳定性。
+                </Text>
+
+                <Button
+                  component="a"
+                  href={SITE_LINKS.dkdun}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="light"
+                  color="blue"
+                  rightSection={<Icon path={mdiChevronRight} size={0.8} />}
+                  w="fit-content"
+                >
+                  访问 www.dkdun.cn
+                </Button>
+              </Stack>
             </Group>
           </Card>
         </Stack>
