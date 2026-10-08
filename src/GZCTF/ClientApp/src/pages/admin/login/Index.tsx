@@ -16,6 +16,7 @@ import {
   Switch,
   TagsInput,
   Text,
+  Textarea,
   TextInput,
   Title,
   Tooltip,
@@ -127,6 +128,7 @@ const LoginSettings: FC = () => {
   const [redirectPath, setRedirectPath] = useState('/')
   const [allowAutoRegister, setAllowAutoRegister] = useState(true)
   const [schools, setSchools] = useState<SchoolRow[]>([])
+  const [schoolInviteCodes, setSchoolInviteCodes] = useState('')
   const [saving, setSaving] = useState(false)
 
   useSyncOnChange([configs], () => {
@@ -139,6 +141,7 @@ const LoginSettings: FC = () => {
     setRedirectPath(sso.redirectPath ?? '/')
     setAllowAutoRegister(sso.allowAutoRegister ?? true)
     setSchools(parseSchools(sso.schools))
+    setSchoolInviteCodes(sso.schoolInviteCodes ?? '')
   })
 
   useEffect(() => {
@@ -151,6 +154,7 @@ const LoginSettings: FC = () => {
     setRedirectPath(sso.redirectPath ?? '/')
     setAllowAutoRegister(sso.allowAutoRegister ?? true)
     setSchools(parseSchools(sso.schools))
+    setSchoolInviteCodes(sso.schoolInviteCodes ?? '')
   }, [configs])
 
   const update = (key: string, patch: Partial<SchoolRow>) =>
@@ -173,6 +177,7 @@ const LoginSettings: FC = () => {
           redirectPath: redirectPath.trim() || '/',
           allowAutoRegister,
           schools: serializeSchools(schools),
+          schoolInviteCodes: schoolInviteCodes.trim(),
         },
       }
       await api.admin.adminUpdateConfigs(conf)
@@ -404,6 +409,57 @@ const LoginSettings: FC = () => {
                     </Stack>
                   </Card>
                 ))}
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+
+        {/* 学校报名邀请码 */}
+        <Paper withBorder p="md">
+          <Stack>
+            <Box>
+              <Title order={4}>学校报名邀请码</Title>
+              <Text size="sm" c="dimmed">
+                未使用快速登录（学校统一身份认证）的参赛者，需凭邀请码绑定学校后方可报名主办赛道。
+                每所学校一行，格式为「学校短名:邀请码」；未列出的学校不校验邀请码。
+              </Text>
+            </Box>
+
+            <Textarea
+              label="邀请码列表"
+              description="每行一条，例如：cppu:PCTF2026CPPU"
+              placeholder={'cppu:PCTF2026CPPU\ndemo:PCTF2026DEMO'}
+              value={schoolInviteCodes}
+              disabled={!enabled}
+              autosize
+              minRows={3}
+              maxRows={10}
+              onChange={(e) => setSchoolInviteCodes(e.currentTarget.value)}
+            />
+
+            {validSchools.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  已配置学校对应邀请码状态：
+                </Text>
+                {validSchools.map((s) => {
+                  const matched = schoolInviteCodes
+                    .split(/[,\n;]/)
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .find((item) => item.split(':')[0]?.trim().toLowerCase() === s.slug.trim().toLowerCase())
+
+                  return (
+                    <Group key={s.key} gap="xs">
+                      <Badge size="sm" variant="light">
+                        {s.slug || '(无短名)'}
+                      </Badge>
+                      <Text size="xs" c={matched ? 'teal' : 'dimmed'}>
+                        {matched ? `已设邀请码：${matched.split(':')[1] ?? ''}` : '未设邀请码（该校可免邀请码绑定）'}
+                      </Text>
+                    </Group>
+                  )
+                })}
               </Stack>
             )}
           </Stack>

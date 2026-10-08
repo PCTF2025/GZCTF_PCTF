@@ -9,11 +9,13 @@ namespace GZCTF.Models.Request.Account;
 /// <param name="Slug">学校短名，绑定与展示用</param>
 /// <param name="Mode">认证模式：cas / email</param>
 /// <param name="EmailSuffixes">允许的邮箱后缀，邮箱模式下用于前端提示</param>
+/// <param name="InviteCodeRequired">该校绑定是否需要邀请码（供前端提示必填）</param>
 public record SchoolOptionModel(
     string Name,
     string Slug,
     string Mode,
-    List<string> EmailSuffixes);
+    List<string> EmailSuffixes,
+    bool InviteCodeRequired);
 
 /// <summary>
 /// 使用邀请码绑定学校的请求

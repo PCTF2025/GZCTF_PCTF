@@ -164,6 +164,8 @@ export interface SchoolOptionModel {
   mode: string;
   /** 允许的邮箱后缀 */
   emailSuffixes: string[];
+  /** 该校绑定是否需要邀请码 */
+  inviteCodeRequired?: boolean;
 }
 
 /** 使用邀请码绑定学校的请求 */
@@ -427,6 +429,12 @@ export interface SsoConfigEditModel {
   allowAutoRegister?: boolean;
   /** SSO 登录成功后跳转路径 */
   redirectPath?: string;
+  /**
+   * 各学校的报名邀请码，用于非快速登录用户手动绑定学校。
+   * CSV 格式：`学校短名:邀请码`，多项逗号分隔，如 cppu:PCTF2026CPPU,demo:PCTF2026DEMO
+   * 未列出的学校不校验邀请码。
+   */
+  schoolInviteCodes?: string;
 }
 
 /** Account policy */

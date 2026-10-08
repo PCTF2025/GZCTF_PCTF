@@ -246,9 +246,18 @@ public class SsoController(
     [ProducesResponseType(typeof(SchoolOptionModel[]), StatusCodes.Status200OK)]
     public IActionResult GetSchools()
     {
+        var inviteCodes = ClientSsoConfig.ParseInviteCodes(ssoConfig.Value.SchoolInviteCodes);
+
         var schools = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-            .Select(s => new SchoolOptionModel(s.Name, s.Slug, s.Mode == SsoAuthMode.Cas ? "cas" : "email",
-                s.EmailSuffixes))
+            .Select(s => new SchoolOptionModel(
+                s.Name,
+                s.Slug,
+                s.Mode == SsoAuthMode.Cas ? "cas" : "email",
+                s.EmailSuffixes,
+                // 该校在邀请码表中且邀请码非空时，前端应提示邀请码必填
+                inviteCodes.Any(pair =>
+                    string.Equals(pair.Slug, s.Slug, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(pair.Code))))
             .ToArray();
 
         return Ok(schools);

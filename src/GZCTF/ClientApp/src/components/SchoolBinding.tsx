@@ -157,8 +157,13 @@ export const SchoolBinding: FC<SchoolBindingProps> = ({ profile, readOnly = fals
         onChange={setSlug}
       />
       <TextInput
+        required={Boolean(selectedSchool?.inviteCodeRequired)}
         label="邀请码"
-        description="向赛事管理员获取；学校未启用邀请码时可留空"
+        description={
+          selectedSchool?.inviteCodeRequired
+            ? '该校需要邀请码，请向赛事管理员获取'
+            : '向赛事管理员获取；学校未启用邀请码时可留空'
+        }
         placeholder="由管理员下发"
         value={inviteCode}
         disabled={disabled}
