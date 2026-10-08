@@ -360,6 +360,16 @@ export interface ConfigEditModel {
   containerPolicy?: ContainerPolicy | null;
   /** 学校统一身份认证配置（手动补充，swagger 生成文件） */
   ssoConfig?: SsoConfigEditModel | null;
+  /** 首页赛道入口绑定配置 */
+  trackConfig?: TrackConfigEditModel | null;
+}
+
+/** 首页赛道入口绑定配置（管理端编辑态） */
+export interface TrackConfigEditModel {
+  /** 主办赛道绑定的赛事 Id，0 表示未绑定 */
+  officialGameId?: number;
+  /** 公开赛道绑定的赛事 Id，0 表示未绑定 */
+  publicGameId?: number;
 }
 
 /** 学校统一身份认证配置（管理端编辑态） */
@@ -2143,6 +2153,8 @@ export interface ClientConfig {
   apiPublicKey?: string | null;
   /** Platform logo URL */
   logoUrl?: string | null;
+  /** 首页赛道入口绑定的赛事 */
+  tracks?: ClientTrackConfig | null;
   /** Container port mapping type */
   portMapping?: ContainerPortMappingType;
   /**
@@ -2165,6 +2177,14 @@ export interface ClientConfig {
 }
 
 /** 学校统一身份认证（SSO）区配置 */
+/** 首页赛道入口绑定的赛事 */
+export interface ClientTrackConfig {
+  /** 主办赛道绑定的赛事 Id，0 表示未绑定 */
+  officialGameId?: number;
+  /** 公开赛道绑定的赛事 Id，0 表示未绑定 */
+  publicGameId?: number;
+}
+
 export interface ClientSsoConfig {
   /** 区域标题 */
   title?: string;

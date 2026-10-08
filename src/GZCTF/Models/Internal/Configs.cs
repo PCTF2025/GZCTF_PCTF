@@ -352,6 +352,11 @@ public partial class ClientConfig
     /// </summary>
     public ClientSsoConfig? Sso { get; set; }
 
+    /// <summary>
+    /// 首页赛道入口绑定的赛事 Id（未绑定时为 null）
+    /// </summary>
+    public ClientTrackConfig? Tracks { get; set; }
+
     [JsonIgnore]
     public DateTimeOffset UpdateTimeUtc { get; set; } = DateTimeOffset.UtcNow;
 
@@ -361,10 +366,12 @@ public partial class ClientConfig
             serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerPolicy>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerProvider>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<ManagedConfig>>().Value,
-            serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value);
+            serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value,
+            serviceProvider.GetRequiredService<IOptionsSnapshot<TrackConfig>>().Value);
 
     private static ClientConfig FromConfigs(GlobalConfig globalConfig, ContainerPolicy containerPolicy,
-        ContainerProvider containerProvider, ManagedConfig managedConfig, SsoConfig ssoConfig) =>
+        ContainerProvider containerProvider, ManagedConfig managedConfig, SsoConfig ssoConfig,
+        TrackConfig trackConfig) =>
         new()
         {
             Title = globalConfig.Title,
@@ -377,7 +384,28 @@ public partial class ClientConfig
             DefaultLifetime = containerPolicy.DefaultLifetime,
             ExtensionDuration = containerPolicy.ExtensionDuration,
             RenewalWindow = containerPolicy.RenewalWindow,
-            Sso = ClientSsoConfig.FromConfig(ssoConfig)
+            Sso = ClientSsoConfig.FromConfig(ssoConfig),
+            Tracks = ClientTrackConfig.FromConfig(trackConfig)
+        };
+}
+
+/// <summary>
+/// 下发给前端的首页赛道入口绑定配置
+/// </summary>
+[MemoryPackable]
+public partial class ClientTrackConfig
+{
+    /// <summary>主办赛道绑定的赛事 Id，0 表示未绑定</summary>
+    public int OfficialGameId { get; set; }
+
+    /// <summary>公开赛道绑定的赛事 Id，0 表示未绑定</summary>
+    public int PublicGameId { get; set; }
+
+    public static ClientTrackConfig FromConfig(TrackConfig config) =>
+        new()
+        {
+            OfficialGameId = config.OfficialGameId,
+            PublicGameId = config.PublicGameId
         };
 }
 
@@ -599,6 +627,27 @@ public class SsoConfig
 
     /// <summary>SSO 登录成功后跳转路径</summary>
     public string RedirectPath { get; set; } = "/";
+}
+
+#endregion
+
+#region Track Config
+
+/// <summary>
+/// 首页赛道入口配置：把「主办赛道」「公开赛道」分别绑定到一个赛事。
+/// 绑定后首页卡片直接跳转该赛事详情页；未绑定时保持原有按赛道筛选的链接。
+/// 注：GZCTF 配置机制不支持数组类型，故以扁平字段存储。
+/// </summary>
+public class TrackConfig
+{
+    /// <summary>
+    /// 主办赛道绑定的赛事 Id，0 表示未绑定。
+    /// 注：使用 int 而非 int? 是因为配置机制会跳过 null 值，导致无法取消绑定。
+    /// </summary>
+    public int OfficialGameId { get; set; }
+
+    /// <summary>公开赛道绑定的赛事 Id，0 表示未绑定</summary>
+    public int PublicGameId { get; set; }
 }
 
 #endregion

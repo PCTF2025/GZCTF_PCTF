@@ -26,4 +26,9 @@ public class ConfigEditModel
     /// 外部单点登录（登录页右侧区域）配置
     /// </summary>
     public SsoConfig? SsoConfig { get; set; }
+
+    /// <summary>
+    /// 首页赛道入口绑定配置
+    /// </summary>
+    public TrackConfig? TrackConfig { get; set; }
 }

@@ -6,6 +6,7 @@ import {
   mdiFlagOutline,
   mdiPackageVariantClosed,
   mdiSitemapOutline,
+  mdiTrophyVariantOutline,
   mdiShieldAccountOutline,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
@@ -40,6 +41,7 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     { icon: mdiFileDocumentOutline, title: t('admin.tab.logs'), path: 'logs' },
     { icon: mdiSitemapOutline, title: t('admin.tab.settings'), path: 'settings' },
     { icon: mdiShieldAccountOutline, title: '登录设置', path: 'login' },
+    { icon: mdiTrophyVariantOutline, title: '赛道设置', path: 'tracks' },
   ]
   const getTab = (path: string) => pages.findIndex((page) => path.startsWith(`/admin/${page.path}`))
   const tabIndex = getTab(location.pathname)

@@ -4,16 +4,18 @@ import { Icon } from '@mdi/react'
 import { FC } from 'react'
 import { Link } from 'react-router'
 import { WithNavBar } from '@Components/WithNavbar'
+import { useConfig } from '@Hooks/useConfig'
 import { usePageTitle } from '@Hooks/usePageTitle'
 import { SITE_LINKS } from '@Utils/SiteLinks'
 import logoImage from '@Resources/pctf-logo.png'
 
 /// 赛道入口：主办赛道 / 公开赛道
 interface TrackEntry {
-  key: string
+  key: 'official' | 'public'
   title: string
   description: string
-  link: string
+  /// 未绑定赛事时的兜底链接（按赛道筛选）
+  fallbackLink: string
   color: string
   icon: string
 }
@@ -23,7 +25,7 @@ const TRACKS: TrackEntry[] = [
     key: 'official',
     title: '主办赛道',
     description: '由赛事主办方统一命题，面向受邀队伍开放。',
-    link: '/games?track=official',
+    fallbackLink: '/games?track=official',
     color: 'teal',
     icon: mdiShieldCrownOutline,
   },
@@ -31,7 +33,7 @@ const TRACKS: TrackEntry[] = [
     key: 'public',
     title: '公开赛道',
     description: '面向所有注册选手开放，可自由报名参与。',
-    link: '/games?track=public',
+    fallbackLink: '/games?track=public',
     color: 'blue',
     icon: mdiFlagCheckered,
   },
@@ -39,6 +41,14 @@ const TRACKS: TrackEntry[] = [
 
 const Home: FC = () => {
   usePageTitle()
+  const { config } = useConfig()
+
+  /// 后台已把赛道绑定到具体赛事时，首页卡片直达赛事详情页
+  const trackLink = (track: TrackEntry) => {
+    const bound = track.key === 'official' ? config?.tracks?.officialGameId : config?.tracks?.publicGameId
+    // 0 表示后台未绑定该赛道
+    return bound && bound > 0 ? `/games/${bound}` : track.fallbackLink
+  }
 
   return (
     <WithNavBar minWidth={0} withFooter withHeader stickyHeader>
@@ -67,7 +77,7 @@ const Home: FC = () => {
                 radius="md"
                 padding="xl"
                 component={Link}
-                to={track.link}
+                to={trackLink(track)}
                 style={{ textDecoration: 'none' }}
               >
                 <Stack gap="sm">

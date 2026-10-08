@@ -64,7 +64,8 @@ public class AdminController(
             AccountPolicy = serviceProvider.GetRequiredService<IOptionsSnapshot<AccountPolicy>>().Value,
             GlobalConfig = serviceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value,
             ContainerPolicy = serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerPolicy>>().Value,
-            SsoConfig = serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value
+            SsoConfig = serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value,
+            TrackConfig = serviceProvider.GetRequiredService<IOptionsSnapshot<TrackConfig>>().Value
         };
 
         return Ok(config);
