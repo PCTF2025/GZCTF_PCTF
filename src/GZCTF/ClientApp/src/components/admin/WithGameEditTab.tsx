@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, Link, useNavigate, useParams } from 'react-router'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { DEFAULT_LOADING_OVERLAY } from '@Utils/Shared'
+import { useUser } from '@Hooks/useUser'
+import { Role } from '@Api'
 import misc from '@Styles/Misc.module.css'
 
 export interface GameEditTabProps extends React.PropsWithChildren {
@@ -38,7 +40,12 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
   const { id } = useParams()
   const { t } = useTranslation()
 
-  const pages = [
+  const { user } = useUser()
+  // 系统管理员可配置赛事全部内容；出题人只负责出题，
+  // 仅开放「题目」与「周次设置」，其余（赛事信息、公告、赛区、审核、Writeup）不展示。
+  const isAdmin = user?.role === Role.Admin
+
+  const allPages = [
     { icon: mdiTextBoxOutline, title: t('admin.tab.games.info'), path: 'info' },
     { icon: mdiBullhornOutline, title: t('admin.tab.games.notices'), path: 'notices' },
     { icon: mdiFlagOutline, title: t('admin.tab.games.challenges'), path: 'challenges' },
@@ -48,18 +55,26 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
     { icon: mdiFileDocumentCheckOutline, title: t('admin.tab.games.writeups'), path: 'writeups' },
   ]
 
+  // 出题人仅负责出题，周次设置属于赛事编排，同样只对管理员开放
+  const AUTHOR_PATHS = ['challenges']
+  const pages = isAdmin ? allPages : allPages.filter((p) => AUTHOR_PATHS.includes(p.path))
+
   const getTab = (path: string) => pages.find((page) => path.includes(page.path))
 
   const [activeTab, setActiveTab] = useState(getTab(location.pathname)?.path ?? pages[0].path)
 
   useEffect(() => {
+    if (pages.length === 0) return
+
     const tab = getTab(location.pathname)
+
+    // 当前路径不在可访问列表内（出题人直接访问赛事配置页）：跳回第一个可用页
     if (tab) {
       setActiveTab(tab.path ?? '')
     } else {
       navigate(pages[0].path)
     }
-  }, [location])
+  }, [location, pages.length])
 
   return (
     <AdminPage

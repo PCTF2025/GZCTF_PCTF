@@ -11,6 +11,7 @@ using GZCTF.Services.Container.Manager;
 using GZCTF.Services.Transfer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NSwag.Annotations;
 
@@ -40,6 +41,7 @@ public class EditController(
     GameExportService exportService,
     GameImportService importService,
     IDivisionRepository divisionRepository,
+    AppDbContext dbContext,
     IStringLocalizer<Program> localizer) : Controller
 {
     /// <summary>
@@ -141,6 +143,7 @@ public class EditController(
     /// <response code="200">Successfully added post</response>
     [HttpPost("Posts")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    [RequireAdmin]
     public async Task<IActionResult> AddPost([FromBody] PostEditModel model, CancellationToken token)
     {
         var user = await userManager.GetUserAsync(User);
@@ -162,6 +165,7 @@ public class EditController(
     [HttpPut("Posts/{id}")]
     [ProducesResponseType(typeof(PostDetailModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> UpdatePost(string id, [FromBody] PostEditModel model, CancellationToken token)
     {
         var post = await postRepository.GetPostById(id, token);
@@ -190,6 +194,7 @@ public class EditController(
     [HttpDelete("Posts/{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> DeletePost(string id, CancellationToken token)
     {
         var post = await postRepository.GetPostById(id, token);
@@ -215,6 +220,7 @@ public class EditController(
     [HttpPost("Games")]
     [ProducesResponseType(typeof(GameInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
+    [RequireAdmin]
     public async Task<IActionResult> AddGame([FromBody] GameInfoModel model, CancellationToken token)
     {
         var game = await gameRepository.CreateGame(new Game().Update(model), token);
@@ -305,6 +311,7 @@ public class EditController(
     [HttpPut("Games/{id:int}")]
     [ProducesResponseType(typeof(GameInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> UpdateGame([FromRoute] int id, [FromBody] GameInfoModel model,
         CancellationToken token)
     {
@@ -333,6 +340,7 @@ public class EditController(
     [ProducesResponseType(typeof(GameInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> DeleteGame([FromRoute] int id, CancellationToken token)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -361,6 +369,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/WriteUps")]
     [ProducesResponseType(typeof(GameInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> DeleteGameWriteUps([FromRoute] int id, CancellationToken token)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -387,6 +396,7 @@ public class EditController(
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> UpdateGamePoster([FromRoute] int id, IFormFile file, CancellationToken token)
     {
         switch (file.Length)
@@ -427,6 +437,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Notices")]
     [ProducesResponseType(typeof(GameNotice), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> AddGameNotice([FromRoute] int id, [FromBody] GameNoticeModel model,
         CancellationToken token)
     {
@@ -485,6 +496,7 @@ public class EditController(
     [HttpPut("Games/{id:int}/Notices/{noticeId:int}")]
     [ProducesResponseType(typeof(GameNotice), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> UpdateGameNotice([FromRoute] int id, [FromRoute] int noticeId,
         [FromBody] GameNoticeModel model, CancellationToken token = default)
     {
@@ -515,6 +527,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/Notices/{noticeId:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> DeleteGameNotice([FromRoute] int id, [FromRoute] int noticeId,
         CancellationToken token)
     {
@@ -547,6 +560,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Divisions")]
     [ProducesResponseType(typeof(Division), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> CreateDivision([FromRoute] int id, [FromBody] DivisionCreateModel model,
         CancellationToken token)
     {
@@ -597,6 +611,7 @@ public class EditController(
     [HttpPut("Games/{id:int}/Divisions/{divisionId:int}")]
     [ProducesResponseType(typeof(Division), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> UpdateDivision([FromRoute] int id, [FromRoute] int divisionId,
         [FromBody] DivisionEditModel model, CancellationToken token)
     {
@@ -623,6 +638,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/Divisions/{divisionId:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireAdmin]
     public async Task<IActionResult> DeleteDivision([FromRoute] int id, [FromRoute] int divisionId,
         CancellationToken token)
     {
@@ -691,19 +707,40 @@ public class EditController(
     {
         var challenges = (await challengeRepository.GetChallenges(id, token)).ToList();
 
-        // 非系统管理员只看到自己有权管理的题目：自己创建的 + 被授权方向的
+        // 出题人可以看到全部题目（便于了解全局与避免撞题），
+        // 但只有自己能管理的题目才标记为可编辑，其余在编辑页只读。
         var currentUser = await GetCurrentUserAsync(token);
 
-        if (currentUser is not null && currentUser.Role < Role.Admin)
-            challenges = challenges
-                .Where(c => currentUser.CanManageChallenge(c.Category, c.AuthorId))
-                .ToList();
+        // 作者名映射：AuthorId -> UserName
+        var authorIds = challenges
+            .Where(c => c.AuthorId.HasValue)
+            .Select(c => c.AuthorId!.Value)
+            .Distinct()
+            .ToList();
+
+        var authorNames = new Dictionary<Guid, string?>();
+
+        if (authorIds.Count > 0)
+        {
+            var authors = await dbContext.Users
+                .Where(u => authorIds.Contains(u.Id))
+                .Select(u => new KeyValuePair<Guid, string?>(u.Id, u.UserName))
+                .ToListAsync(token);
+
+            foreach (var (uid, name) in authors)
+                authorNames[uid] = name;
+        }
 
         var scoreboard = await gameRepository.TryGetScoreboard(id, token);
 
         var result = challenges.Select(c =>
         {
-            var model = ChallengeInfoModel.FromChallenge(c);
+            var model = ChallengeInfoModel.FromChallenge(c,
+                c.AuthorId.HasValue && authorNames.TryGetValue(c.AuthorId.Value, out var name) ? name : null);
+
+            model.CanEdit = currentUser is not null &&
+                            currentUser.CanManageChallenge(c.Category, c.AuthorId);
+
             if (scoreboard is not null && scoreboard.ChallengeMap.TryGetValue(c.Id, out var challengeInfo))
                 model.Score = challengeInfo.Score;
             return model;
@@ -720,6 +757,7 @@ public class EditController(
     /// <response code="200"></response>
     [HttpPost("Games/{id:int}/Scoreboard/Flush")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [RequireAdmin]
     public async Task<IActionResult> FlushScoreboardCache([FromRoute] int id, CancellationToken token)
     {
         await cacheHelper.FlushScoreboardCache(id, token);
@@ -1072,6 +1110,7 @@ public class EditController(
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status500InternalServerError)]
+    [RequireAdmin]
     public async Task<IActionResult> ExportGame([FromRoute] int id, CancellationToken token = default)
     {
         try
@@ -1128,6 +1167,7 @@ public class EditController(
     /// <response code="200">Successfully imported game, returns game ID</response>
     /// <response code="400">Invalid package or import failed</response>
     /// <response code="500">Internal server error during import</response>
+    [RequireAdmin]
     [HttpPost("Games/Import")]
     [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]

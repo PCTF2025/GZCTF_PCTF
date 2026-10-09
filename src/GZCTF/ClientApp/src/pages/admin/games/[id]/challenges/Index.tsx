@@ -1,4 +1,17 @@
-import { Button, Center, ComboboxItem, Group, ScrollArea, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import {
+  Badge,
+  Box,
+  Button,
+  Center,
+  ComboboxItem,
+  Group,
+  ScrollArea,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core'
 import { useModals } from '@mantine/modals'
 import { showNotification } from '@mantine/notifications'
 import { mdiCheck, mdiHexagonSlice6, mdiPlus, mdiRefresh } from '@mdi/js'
@@ -39,6 +52,27 @@ const GameChallengeEdit: FC = () => {
         // 未启用周次模式时不按周次过滤
         (!game?.weekModeEnabled || !week || c.week === week)
     ) ?? challenges
+
+  /// 周次分组的展示元数据（与周次设置页保持一致）
+  const WEEK_GROUPS: { week: number | null; label: string; hint: string }[] = [
+    { week: 1, label: '第 1 周', hint: '' },
+    { week: 2, label: '第 2 周', hint: '' },
+    { week: 3, label: '第 3 周', hint: '' },
+    { week: 4, label: '第 4 周', hint: '' },
+    { week: 5, label: '第 5 周', hint: '' },
+    { week: 6, label: '扩展题', hint: '不限周次窗口，全程可做' },
+    { week: 7, label: '其他题', hint: '未归入周次的其它题目' },
+    { week: null, label: '未归类', hint: '未设置周次，不受周次时间窗口限制' },
+  ]
+
+  /// 按周次把题目分组；启用周次模式且未做周次筛选时才分组展示
+  const grouped =
+    game?.weekModeEnabled && !week
+      ? WEEK_GROUPS.map((g) => ({
+          ...g,
+          items: (filteredChallenges ?? []).filter((c) => (c.week ?? null) === g.week),
+        })).filter((g) => g.items.length > 0)
+      : null
 
   const modals = useModals()
 
@@ -152,6 +186,27 @@ const GameChallengeEdit: FC = () => {
               <Text>{t('admin.content.games.challenges.empty.description')}</Text>
             </Stack>
           </Center>
+        ) : grouped ? (
+          // 启用周次模式时按周分组展示，便于按周次配题与检查
+          <Stack gap="lg" pr={6}>
+            {grouped.map((group) => (
+              <Box key={group.week ?? 'none'}>
+                <Group gap="xs" mb="xs">
+                  <Badge variant="light" size="lg" color={group.week === 6 ? 'grape' : undefined}>
+                    {group.label}
+                  </Badge>
+                  <Text size="xs" c="dimmed">
+                    {group.items.length} 题{group.hint ? ` · ${group.hint}` : ''}
+                  </Text>
+                </Group>
+                <SimpleGrid cols={{ base: 2, w18: 3, w24: 4, w30: 5, w36: 6, w42: 7, w48: 8 }} spacing="sm">
+                  {group.items.map((challenge) => (
+                    <ChallengeEditCard key={challenge.id} challenge={challenge} onToggle={onToggle} />
+                  ))}
+                </SimpleGrid>
+              </Box>
+            ))}
+          </Stack>
         ) : (
           <SimpleGrid pr={6} cols={{ base: 2, w18: 3, w24: 4, w30: 5, w36: 6, w42: 7, w48: 8 }} spacing="sm">
             {filteredChallenges &&

@@ -61,7 +61,18 @@ public class ChallengeInfoModel
     /// </summary>
     public int? Week { get; set; }
 
-    internal static ChallengeInfoModel FromChallenge(GameChallenge challenge) =>
+    /// <summary>
+    /// 当前登录用户是否可编辑该题目。
+    /// 出题人能看到全部题目，但只有自己创建的（或被授权方向下的）才能修改。
+    /// </summary>
+    public bool CanEdit { get; set; }
+
+    /// <summary>
+    /// 题目创建者用户名，便于出题人辨认归属
+    /// </summary>
+    public string? AuthorName { get; set; }
+
+    internal static ChallengeInfoModel FromChallenge(GameChallenge challenge, string? authorName = null) =>
         new()
         {
             Id = challenge.Id,
@@ -73,6 +84,7 @@ public class ChallengeInfoModel
             OriginalScore = challenge.OriginalScore,
             IsEnabled = challenge.IsEnabled,
             DeadlineUtc = challenge.DeadlineUtc,
-            Week = challenge.Week
+            Week = challenge.Week,
+            AuthorName = authorName
         };
 }

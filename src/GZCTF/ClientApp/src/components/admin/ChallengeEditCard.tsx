@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Badge,
   Card,
   Group,
   Progress,
@@ -10,7 +11,7 @@ import {
   useMantineColorScheme,
   useMantineTheme,
 } from '@mantine/core'
-import { mdiDatabaseEditOutline, mdiPuzzleEditOutline } from '@mdi/js'
+import { mdiDatabaseEditOutline, mdiLockOutline, mdiPuzzleEditOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,14 +48,17 @@ export const ChallengeEditCard: FC<ChallengeEditCardProps> = ({ challenge, onTog
 
   const contentWidth = 'calc(100% - 12rem)'
 
+  // 出题人能看到全部题目，但非本人（且非被授权方向）的题目为只读
+  const canEdit = challenge.canEdit !== false
+
   return (
-    <Card shadow="sm" p="sm">
+    <Card shadow="sm" p="sm" opacity={canEdit ? 1 : 0.65}>
       <Group wrap="nowrap" justify="space-between" gap="xs">
         <Switch
           color={color}
-          disabled={disabled}
+          disabled={disabled || !canEdit}
           checked={challenge.isEnabled}
-          onChange={() => onToggle(challenge, setDisabled)}
+          onChange={() => canEdit && onToggle(challenge, setDisabled)}
         />
 
         <Icon path={data!.icon} color={theme.colors[data?.color ?? theme.primaryColor][5]} size={1.2} />
@@ -71,23 +75,44 @@ export const ChallengeEditCard: FC<ChallengeEditCardProps> = ({ challenge, onTog
           </Text>
         </Stack>
 
-        <Tooltip label={t('admin.button.challenges.edit')} position="left" offset={10} classNames={classes}>
-          <ActionIcon c={color} component={Link} to={`/admin/games/${id}/challenges/${challenge.id}`}>
-            <Icon path={mdiPuzzleEditOutline} size={1} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip
-          label={t('admin.button.challenges.edit_more')}
-          ta="end"
-          position="left"
-          offset={54}
-          classNames={classes}
-        >
-          <ActionIcon c={color} component={Link} to={`/admin/games/${id}/challenges/${challenge.id}/flags`}>
-            <Icon path={mdiDatabaseEditOutline} size={1} />
-          </ActionIcon>
-        </Tooltip>
+        {canEdit ? (
+          <>
+            <Tooltip label={t('admin.button.challenges.edit')} position="left" offset={10} classNames={classes}>
+              <ActionIcon c={color} component={Link} to={`/admin/games/${id}/challenges/${challenge.id}`}>
+                <Icon path={mdiPuzzleEditOutline} size={1} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip
+              label={t('admin.button.challenges.edit_more')}
+              ta="end"
+              position="left"
+              offset={54}
+              classNames={classes}
+            >
+              <ActionIcon c={color} component={Link} to={`/admin/games/${id}/challenges/${challenge.id}/flags`}>
+                <Icon path={mdiDatabaseEditOutline} size={1} />
+              </ActionIcon>
+            </Tooltip>
+          </>
+        ) : (
+          <Tooltip
+            label={challenge.authorName ? `由 ${challenge.authorName} 创建，你无权修改` : '你无权修改该题目'}
+            position="left"
+            offset={10}
+            classNames={classes}
+          >
+            <ActionIcon variant="subtle" c="dimmed" style={{ cursor: 'not-allowed' }}>
+              <Icon path={mdiLockOutline} size={1} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
+
+      {challenge.authorName && (
+        <Text size="xs" c="dimmed" mt={4} truncate>
+          出题人：{challenge.authorName}
+        </Text>
+      )}
 
       <Card.Section mt="sm">
         <Progress.Root radius={0}>

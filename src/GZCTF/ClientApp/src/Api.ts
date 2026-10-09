@@ -1650,6 +1650,10 @@ export interface ChallengeInfoModel {
   deadlineUtc?: number | null;
   /** Recruitment week (1-5 for weeks, 6 for extension, null if not assigned) */
   week?: number | null;
+  /** 当前登录用户是否可编辑该题目（出题人可见全部题目，但只能改自己的） */
+  canEdit?: boolean;
+  /** 题目创建者用户名 */
+  authorName?: string | null;
 }
 
 /** Challenge update information (Edit) */
