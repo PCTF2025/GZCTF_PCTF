@@ -168,6 +168,25 @@ public class BlobRepository(AppDbContext context, ILogger<BlobRepository> logger
     public Task<LocalFile[]> GetBlobs(int count, int skip, CancellationToken token = default) =>
         Context.Files.OrderBy(e => e.Name).Skip(skip).Take(count).ToArrayAsync(token);
 
+    /// <summary>
+    /// 按上传者查询文件（素材库归属过滤）
+    /// </summary>
+    public Task<LocalFile[]> GetBlobsByOwner(Guid ownerId, int count, int skip, CancellationToken token = default) =>
+        Context.Files.Where(e => e.UploadedById == ownerId)
+            .OrderByDescending(e => e.UploadTimeUtc).Skip(skip).Take(count).ToArrayAsync(token);
+
+    /// <summary>
+    /// 查询全部文件（按上传时间倒序）
+    /// </summary>
+    public Task<LocalFile[]> GetBlobsByTime(int count, int skip, CancellationToken token = default) =>
+        Context.Files.OrderByDescending(e => e.UploadTimeUtc).Skip(skip).Take(count).ToArrayAsync(token);
+
+    /// <summary>
+    /// 统计指定上传者的文件数
+    /// </summary>
+    public Task<int> CountByOwnerAsync(Guid ownerId, CancellationToken token = default) =>
+        Context.Files.CountAsync(e => e.UploadedById == ownerId, token);
+
     public async Task DeleteAttachment(Attachment? attachment, CancellationToken token = default)
     {
         switch (attachment)

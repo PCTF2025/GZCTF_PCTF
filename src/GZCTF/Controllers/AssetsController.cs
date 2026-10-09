@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 using GZCTF.Middlewares;
+using GZCTF.Models.Data;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using GZCTF.Models.Request.Assets;
 using GZCTF.Repositories.Interface;
 using GZCTF.Storage.Interface;
@@ -20,9 +23,19 @@ namespace GZCTF.Controllers;
 public class AssetsController(
     IBlobStorage storage,
     IBlobRepository blobService,
+    AppDbContext dbContext,
+    UserManager<UserInfo> userManager,
     ILogger<AssetsController> logger,
     IStringLocalizer<Program> localizer) : ControllerBase
 {
+    /// <summary>
+    /// 当前登录用户
+    /// </summary>
+    private Task<UserInfo?> GetCurrentUserAsync() =>
+        User.Identity?.IsAuthenticated ?? false
+            ? userManager.GetUserAsync(User)
+            : Task.FromResult<UserInfo?>(null);
+
     private readonly FileExtensionContentTypeProvider _extProvider = new();
 
     /// <summary>
@@ -91,10 +104,21 @@ public class AssetsController(
     {
         try
         {
+            var currentUser = await GetCurrentUserAsync();
             List<LocalFile> results = [];
+
             foreach (var file in files.Where(file => file.Length > 0))
             {
                 var res = await blobService.CreateOrUpdateBlob(file, filename, token);
+
+                // 记录上传者，供素材库做归属过滤；
+                // 同一文件被他人再次上传时不覆盖原归属（保留首个上传者）
+                if (currentUser is not null && res.UploadedById is null)
+                {
+                    res.UploadedById = currentUser.Id;
+                    await dbContext.SaveChangesAsync(token);
+                }
+
                 logger.SystemLog(
                     StaticLocalizer[nameof(Resources.Program.Assets_UpdateFile), res.Hash[..8],
                         filename ?? file.FileName, file.Length],
@@ -129,9 +153,28 @@ public class AssetsController(
         [FromQuery][Range(0, int.MaxValue)] int skip = 0,
         CancellationToken token = default)
     {
-        var files = await blobService.GetBlobs(count, skip, token);
+        var currentUser = await GetCurrentUserAsync();
+        var isAdmin = currentUser is not null && currentUser.Role >= Role.Admin;
 
-        var total = await blobService.CountAsync(token);
+        LocalFile[] files;
+        int total;
+
+        if (isAdmin)
+        {
+            // 系统管理员可见全部素材
+            files = await blobService.GetBlobsByTime(count, skip, token);
+            total = await blobService.CountAsync(token);
+        }
+        else
+        {
+            if (currentUser is null)
+                return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
+                    StatusCodes.Status401Unauthorized));
+
+            // 其余用户（出题人 / 出题管理员 / 学校负责人）只能看到自己上传的素材
+            files = await blobService.GetBlobsByOwner(currentUser.Id, count, skip, token);
+            total = await blobService.CountByOwnerAsync(currentUser.Id, token);
+        }
 
         return Ok(new FileListModel
         {
@@ -144,7 +187,8 @@ public class AssetsController(
                 UploadTimeUtc = f.UploadTimeUtc,
                 ReferenceCount = f.ReferenceCount,
                 // 直接给出可用的内链，便于前端一键复制
-                Url = $"/assets/{f.Hash}/{Uri.EscapeDataString(f.Name)}"
+                Url = $"/assets/{f.Hash}/{Uri.EscapeDataString(f.Name)}",
+                UploadedById = f.UploadedById
             }).ToArray()
         });
     }
@@ -161,13 +205,31 @@ public class AssetsController(
     /// <response code="400">Failed to delete file</response>
     /// <response code="401">Unauthorized user</response>
     /// <response code="403">Access denied</response>
-    [RequireAdmin]
+    [RequireAssetUploader]
     [HttpDelete("api/[controller]/{hash:length(64)}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Delete(string hash, CancellationToken token)
     {
+        var currentUser = await GetCurrentUserAsync();
+        var isAdmin = currentUser is not null && currentUser.Role >= Role.Admin;
+
+        if (!isAdmin)
+        {
+            var target = await blobService.GetBlobByHash(hash, token);
+
+            if (target is null)
+                return NotFound();
+
+            // 非管理员只能删除自己上传的素材
+            if (target.UploadedById != currentUser?.Id)
+                return new ObjectResult(new RequestResponse("你只能删除自己上传的素材"))
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+        }
+
         var result = await blobService.DeleteBlobByHash(hash, token);
 
         logger.SystemLog(StaticLocalizer[nameof(Resources.Program.Assets_DeleteFile), hash[..8]], result,

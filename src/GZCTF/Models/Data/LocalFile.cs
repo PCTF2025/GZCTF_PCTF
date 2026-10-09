@@ -43,6 +43,18 @@ public class LocalFile
     public uint ReferenceCount { get; set; } = 1;
 
     /// <summary>
+    /// 上传者 Id。为空的早期文件视为系统中立素材，仅管理员可管理。
+    /// </summary>
+    [JsonIgnore]
+    public Guid? UploadedById { get; set; }
+
+    /// <summary>
+    /// Navigation to uploader
+    /// </summary>
+    [JsonIgnore]
+    public UserInfo? UploadedBy { get; set; }
+
+    /// <summary>
     /// File storage location
     /// </summary>
     [NotMapped]

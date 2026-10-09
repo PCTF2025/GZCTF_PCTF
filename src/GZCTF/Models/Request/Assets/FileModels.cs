@@ -34,6 +34,11 @@ public class FileItemModel
     /// 可直接用于 Markdown / HTML 的内链地址
     /// </summary>
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 上传者 Id（非管理员仅能看到自己上传的素材）
+    /// </summary>
+    public Guid? UploadedById { get; set; }
 }
 
 /// <summary>

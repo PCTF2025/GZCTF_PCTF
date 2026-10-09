@@ -3,6 +3,21 @@
 public interface IBlobRepository : IRepository
 {
     /// <summary>
+    /// 按上传者查询文件（素材库归属过滤）
+    /// </summary>
+    public Task<LocalFile[]> GetBlobsByOwner(Guid ownerId, int count, int skip, CancellationToken token = default);
+
+    /// <summary>
+    /// 查询全部文件（按上传时间倒序）
+    /// </summary>
+    public Task<LocalFile[]> GetBlobsByTime(int count, int skip, CancellationToken token = default);
+
+    /// <summary>
+    /// 统计指定上传者的文件数
+    /// </summary>
+    public Task<int> CountByOwnerAsync(Guid ownerId, CancellationToken token = default);
+
+    /// <summary>
     /// Create or update a blob file
     /// </summary>
     /// <param name="file">The form file</param>

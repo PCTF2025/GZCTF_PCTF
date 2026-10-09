@@ -827,9 +827,14 @@ namespace GZCTF.Migrations
                     b.Property<DateTimeOffset>("UploadTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("UploadedById")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Hash");
+
+                    b.HasIndex("UploadedById");
 
                     b.ToTable("Files");
                 });
@@ -1679,6 +1684,15 @@ namespace GZCTF.Migrations
                         .IsRequired();
 
                     b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("GZCTF.Models.Data.LocalFile", b =>
+                {
+                    b.HasOne("GZCTF.Models.Data.UserInfo", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedById");
+
+                    b.Navigation("UploadedBy");
                 });
 
             modelBuilder.Entity("GZCTF.Models.Data.Participation", b =>

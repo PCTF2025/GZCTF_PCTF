@@ -61,20 +61,21 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
 
   const getTab = (path: string) => pages.find((page) => path.includes(page.path))
 
-  const [activeTab, setActiveTab] = useState(getTab(location.pathname)?.path ?? pages[0].path)
+  const [activeTab, setActiveTab] = useState(getTab(location.pathname)?.path ?? pages[0]?.path ?? '')
 
   useEffect(() => {
     if (pages.length === 0) return
 
     const tab = getTab(location.pathname)
 
-    // 当前路径不在可访问列表内（出题人直接访问赛事配置页）：跳回第一个可用页
+    // 当前路径不在可访问列表内（出题人直接访问赛事配置页）：跳回第一个可用页。
+    // 必须用绝对路径，相对路径在多层路由下会解析成错误的地址。
     if (tab) {
       setActiveTab(tab.path ?? '')
-    } else {
-      navigate(pages[0].path)
+    } else if (id) {
+      navigate(`/admin/games/${id}/${pages[0].path}`, { replace: true })
     }
-  }, [location, pages.length])
+  }, [location.pathname, pages.length, id])
 
   return (
     <AdminPage
