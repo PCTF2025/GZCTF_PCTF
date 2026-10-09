@@ -290,6 +290,8 @@ export interface SchoolOptionModel {
   emailSuffixes: string[];
   /** 该校绑定是否需要邀请码 */
   inviteCodeRequired?: boolean;
+  /** 学校图标地址（可为内联 data URI） */
+  icon?: string | null;
 }
 
 /** 使用邀请码绑定学校的请求 */

@@ -276,7 +276,9 @@ public class SsoController(
                 },
                 s.EmailSuffixes,
                 // 该校配置了邀请码时，前端应提示邀请码必填
-                inviteCodeMap.TryGetValue(s.Slug, out var code) && !string.IsNullOrWhiteSpace(code)))
+                inviteCodeMap.TryGetValue(s.Slug, out var code) && !string.IsNullOrWhiteSpace(code),
+                // 学校图标：登录页学校卡片左侧展示，为空时前端回退到默认图标
+                string.IsNullOrWhiteSpace(s.Icon) ? null : s.Icon))
             .ToArray();
 
         return Ok(schools);

@@ -4,8 +4,10 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
 using GZCTF.Extensions;
+using GZCTF.Models.Data;
 using GZCTF.Services.Cache;
 using MemoryPack;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Exporter;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -367,11 +369,12 @@ public partial class ClientConfig
             serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerProvider>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<ManagedConfig>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value,
-            serviceProvider.GetRequiredService<IOptionsSnapshot<TrackConfig>>().Value);
+            serviceProvider.GetRequiredService<IOptionsSnapshot<TrackConfig>>().Value,
+            serviceProvider);
 
     private static ClientConfig FromConfigs(GlobalConfig globalConfig, ContainerPolicy containerPolicy,
         ContainerProvider containerProvider, ManagedConfig managedConfig, SsoConfig ssoConfig,
-        TrackConfig trackConfig) =>
+        TrackConfig trackConfig, IServiceProvider? serviceProvider = null) =>
         new()
         {
             Title = globalConfig.Title,
@@ -384,7 +387,9 @@ public partial class ClientConfig
             DefaultLifetime = containerPolicy.DefaultLifetime,
             ExtensionDuration = containerPolicy.ExtensionDuration,
             RenewalWindow = containerPolicy.RenewalWindow,
-            Sso = ClientSsoConfig.FromConfig(ssoConfig),
+            // 学校列表以数据库为准（管理端在「学校设置」里维护），
+            // 数据库没有记录时才回退到 appsettings 中的 SsoConfig.Schools 配置串。
+            Sso = ClientSsoConfig.FromConfig(ssoConfig, serviceProvider),
             Tracks = ClientTrackConfig.FromConfig(trackConfig)
         };
 }
@@ -431,9 +436,13 @@ public partial class ClientSsoConfig
     /// 由服务端配置解析而来。始终返回对象（登录页需要读取本地登录开关），
     /// SSO 关闭或无有效学校时 Schools 为空列表。
     /// </summary>
-    public static ClientSsoConfig FromConfig(SsoConfig config)
+    public static ClientSsoConfig FromConfig(SsoConfig config, IServiceProvider? serviceProvider = null)
     {
-        var schools = config.Enabled ? ParseSchools(config.Schools) : [];
+        // 优先使用数据库中「学校设置」维护的学校（含图标、认证模式、邮箱后缀），
+        // 数据库为空时才回退到 appsettings 的 SsoConfig.Schools 配置串。
+        var dbSchools = LoadSchoolsFromDatabase(serviceProvider);
+
+        var schools = dbSchools ?? (config.Enabled ? ParseSchools(config.Schools) : []);
 
         return new ClientSsoConfig
         {
@@ -442,6 +451,27 @@ public partial class ClientSsoConfig
             Schools = schools,
             LocalLoginEnabled = config.LocalLoginEnabled
         };
+    }
+
+    /// <summary>
+    /// 从数据库读取已启用的学校并转换为客户端模型。
+    /// 无 DbContext 或数据库无记录时返回 null，由调用方回退到配置串。
+    /// </summary>
+    private static List<ClientSsoSchool>? LoadSchoolsFromDatabase(IServiceProvider? serviceProvider)
+    {
+        if (serviceProvider?.GetService(typeof(AppDbContext)) is not AppDbContext dbContext)
+            return null;
+
+        var dbSchools = dbContext.Schools
+            .AsNoTracking()
+            .Where(s => s.Enabled)
+            .OrderBy(s => s.Order).ThenBy(s => s.Id)
+            .ToArray();
+
+        if (dbSchools.Length == 0)
+            return null;
+
+        return [.. dbSchools.Select(s => s.ToClientModel())];
     }
 
     /// <summary>

@@ -15,7 +15,8 @@ public record SchoolOptionModel(
     string Slug,
     string Mode,
     List<string> EmailSuffixes,
-    bool InviteCodeRequired);
+    bool InviteCodeRequired,
+    string? Icon = null);
 
 /// <summary>
 /// 使用邀请码绑定学校的请求
