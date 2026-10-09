@@ -248,7 +248,17 @@ public partial class UserInfo : IdentityUser<Guid>
         if (IsChallengeManager && ManagedCategoryList.Contains(category))
             return true;
 
-        return IsChallengeAuthor && authorId.HasValue && authorId.Value == Id;
+        // 出题人：只能管理自己创建的题目
+        if (IsChallengeAuthor && authorId.HasValue && authorId.Value == Id)
+            return true;
+
+        // 历史数据兼容：早期题目未记录作者（AuthorId 为空），
+        // 视为该方向的公共题目，由被授权该方向的出题管理员维护。
+        // 新建题目时一律写入 AuthorId，不会再产生无主题目。
+        if (!authorId.HasValue && IsChallengeManager && ManagedCategoryList.Contains(category))
+            return true;
+
+        return false;
     }
 
     /// <summary>

@@ -429,7 +429,12 @@ public class AdminController(
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateUserInfo(string userid, [FromBody] AdminUserInfoModel model)
     {
-        var user = await userManager.FindByIdAsync(userid);
+        // 非法 Id 直接 404，避免 Identity 内部抛 FormatException 变成 500
+        if (!Guid.TryParse(userid, out var userId))
+            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Admin_UserNotFound)],
+                StatusCodes.Status404NotFound));
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
 
         if (user is null)
             return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Admin_UserNotFound)],
