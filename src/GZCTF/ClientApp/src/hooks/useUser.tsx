@@ -1,10 +1,11 @@
 import { showNotification } from '@mantine/notifications'
 import { mdiCheck, mdiClose } from '@mdi/js'
 import { Icon } from '@mdi/react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useSWRConfig } from 'swr'
-import api from '@Api'
+import api, { Role, UserPermission, hasPermission } from '@Api'
 
 export const useUser = () => {
   const navigate = useNavigate()
@@ -85,4 +86,34 @@ export const useLogOut = () => {
       mutateProfile(undefined, { revalidate: false })
     }
   }
+}
+
+/// 当前用户可访问的后台标签页 key 集合。
+/// 系统管理员拥有全部权限，其余用户按附加职能权限开放对应页面。
+export const useAdminTabs = () => {
+  const { user } = useUser()
+
+  return useMemo(() => {
+    if (!user) return { keys: [] as string[], canAccessAdmin: false }
+
+    const isAdmin = user.role === Role.Admin
+    const isAuthor = isAdmin || user.isChallengeAuthor === true || user.isChallengeManager === true
+    const isSchoolManager = isAdmin || user.isSchoolAdmin === true
+    const canUpload =
+      isAdmin ||
+      isAuthor ||
+      isSchoolManager ||
+      hasPermission(user.permissions, UserPermission.ChallengeAuthor) ||
+      hasPermission(user.permissions, UserPermission.ChallengeManager)
+
+    const keys: string[] = []
+    if (isAuthor) keys.push('games')
+    if (isSchoolManager) keys.push('verify')
+    if (canUpload) keys.push('assets')
+    // 系统管理员保留全部后台功能
+    if (isAdmin)
+      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'login', 'tracks')
+
+    return { keys, canAccessAdmin: keys.length > 0 }
+  }, [user])
 }

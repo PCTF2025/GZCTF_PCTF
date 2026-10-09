@@ -54,9 +54,12 @@ public class EditController(
     }
 
     /// <summary>
-    /// 校验「新增题目」权限。仅出题人、出题管理员与系统管理员可新增
+    /// 校验「新增题目」权限与出题方向。
+    /// 出题人 / 出题管理员 / 系统管理员可新增；
+    /// 若被指定了出题方向，则只能把题目建在授权方向内。
     /// </summary>
-    private async Task<IActionResult?> EnsureCanCreateChallengeAsync(CancellationToken token)
+    private async Task<IActionResult?> EnsureCanCreateChallengeAsync(ChallengeCategory category,
+        CancellationToken token)
     {
         var user = await GetCurrentUserAsync(token);
 
@@ -64,13 +67,22 @@ public class EditController(
             return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
                 StatusCodes.Status401Unauthorized));
 
-        if (user.IsChallengeAuthor || user.IsChallengeManager)
-            return null;
+        if (!user.IsChallengeAuthor && !user.IsChallengeManager)
+            return new ObjectResult(new RequestResponse("你没有出题权限，无法新增题目"))
+            {
+                StatusCode = StatusCodes.Status403Forbidden
+            };
 
-        return new ObjectResult(new RequestResponse("你没有出题权限，无法新增题目"))
+        if (!user.CanAuthorInCategory(category))
         {
-            StatusCode = StatusCodes.Status403Forbidden
-        };
+            var allowed = string.Join("、", user.ManagedCategoryList.Select(c => c.ToString()));
+            return new ObjectResult(new RequestResponse($"你只能在被指定的方向出题，当前授权方向：{allowed}"))
+            {
+                StatusCode = StatusCodes.Status403Forbidden
+            };
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -94,6 +106,25 @@ public class EditController(
             return null;
 
         return new ObjectResult(new RequestResponse("你只能管理自己创建的题目，或被授权方向下的题目"))
+        {
+            StatusCode = StatusCodes.Status403Forbidden
+        };
+    }
+
+    /// <summary>
+    /// 校验「把题目改到目标方向」是否被允许。
+    /// 防止出题人把题目迁到未被授权的新方向。
+    /// </summary>
+    private async Task<IActionResult?> EnsureCanMoveToCategoryAsync(ChallengeCategory target,
+        CancellationToken token)
+    {
+        var user = await GetCurrentUserAsync(token);
+
+        if (user is null || user.CanAuthorInCategory(target))
+            return null;
+
+        var allowed = string.Join("、", user.ManagedCategoryList.Select(c => c.ToString()));
+        return new ObjectResult(new RequestResponse($"你只能在被指定的方向出题，当前授权方向：{allowed}"))
         {
             StatusCode = StatusCodes.Status403Forbidden
         };
@@ -621,7 +652,7 @@ public class EditController(
     public async Task<IActionResult> AddGameChallenge([FromRoute] int id, [FromBody] ChallengeInfoModel model,
         CancellationToken token)
     {
-        if (await EnsureCanCreateChallengeAsync(token) is { } denied)
+        if (await EnsureCanCreateChallengeAsync(model.Category, token) is { } denied)
             return denied;
 
         var game = await gameRepository.GetGameById(id, token);
@@ -779,6 +810,11 @@ public class EditController(
         if (!string.IsNullOrWhiteSpace(model.FlagTemplate) && res.Type == ChallengeType.DynamicContainer &&
             !model.IsValidFlagTemplate())
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Challenge_FlagTooTrivial)]));
+
+        // 改方向时校验新方向是否在授权范围内
+        if (model.Category is { } targetCategory && targetCategory != res.Category &&
+            await EnsureCanMoveToCategoryAsync(targetCategory, token) is { } moveDenied)
+            return moveDenied;
 
         res.Update(model);
 

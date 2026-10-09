@@ -593,6 +593,8 @@ export interface ProfileUserInfoModel {
   isChallengeManager?: boolean;
   /** 是否可进入题目编辑功能 */
   canEditChallenge?: boolean;
+  /** 被指定可出题的方向（逗号分隔），空表示不限制 */
+  managedCategories?: string | null;
   /** Avatar URL */
   avatar?: string | null;
 }

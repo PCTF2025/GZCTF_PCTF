@@ -18,6 +18,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { IconTabs } from '@Components/IconTabs'
 import { DEFAULT_LOADING_OVERLAY } from '@Utils/Shared'
 import { usePageTitle } from '@Hooks/usePageTitle'
+import { useAdminTabs } from '@Hooks/useUser'
 
 export interface AdminTabProps extends React.PropsWithChildren {
   head?: React.ReactNode
@@ -31,7 +32,11 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
 
   const { t } = useTranslation()
 
-  const pages = [
+  // 按当前用户的职能权限过滤标签页：
+  // 出题人/出题管理员看到「比赛」，学校负责人看到「学籍审核」，能上传的用户看到「素材库」
+  const { keys: allowedKeys } = useAdminTabs()
+
+  const allPages = [
     { icon: mdiFlagOutline, title: t('admin.tab.games.index'), path: 'games' },
     { icon: mdiAccountGroupOutline, title: t('admin.tab.teams'), path: 'teams' },
     { icon: mdiAccountCogOutline, title: t('admin.tab.users'), path: 'users' },
@@ -47,6 +52,8 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     { icon: mdiAccountSearchOutline, title: '学籍审核', path: 'verify' },
     { icon: mdiImageMultipleOutline, title: '素材库', path: 'assets' },
   ]
+
+  const pages = allPages.filter((p) => allowedKeys.includes(p.path))
   const getTab = (path: string) => pages.findIndex((page) => path.startsWith(`/admin/${page.path}`))
   const tabIndex = getTab(location.pathname)
   const [activeTab, setActiveTab] = useState(tabIndex < 0 ? 0 : tabIndex)
@@ -57,15 +64,19 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
   }
 
   useEffect(() => {
+    // 过滤后可能为空（理论上不会，AdminPage 已拦截）
+    if (pages.length === 0) return
+
     const tab = getTab(location.pathname)
     if (tab >= 0) {
       setActiveTab(tab)
     } else {
-      navigate(pages[0].path)
+      navigate(`/admin/${pages[0].path}`)
     }
-  }, [location])
+  }, [location, pages.length])
 
-  usePageTitle(pages[tabIndex].title)
+  // 越界兜底：过滤后 tabIndex 可能超出范围
+  usePageTitle(pages[tabIndex]?.title ?? pages[0]?.title ?? '')
 
   return (
     <Stack gap="xs" align="center" pt="md">

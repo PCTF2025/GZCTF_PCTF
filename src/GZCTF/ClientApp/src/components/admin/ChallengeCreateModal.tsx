@@ -3,10 +3,11 @@ import { useInputState } from '@mantine/hooks'
 import { showNotification } from '@mantine/notifications'
 import { mdiCheck } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
 import { showErrorMsg } from '@Utils/Shared'
+import { useUser } from '@Hooks/useUser'
 import {
   ChallengeCategoryItem,
   ChallengeCategoryList,
@@ -14,7 +15,7 @@ import {
   useChallengeCategoryLabelMap,
   useChallengeTypeLabelMap,
 } from '@Utils/Shared'
-import api, { ChallengeInfoModel, ChallengeCategory, ChallengeType } from '@Api'
+import api, { ChallengeInfoModel, ChallengeCategory, ChallengeType, Role } from '@Api'
 
 interface ChallengeCreateModalProps extends ModalProps {
   onAddChallenge: (game: ChallengeInfoModel) => void
@@ -31,6 +32,27 @@ export const ChallengeCreateModal: FC<ChallengeCreateModalProps> = (props) => {
   const [title, setTitle] = useInputState('')
   const [category, setCategory] = useState<string | null>(null)
   const [type, setType] = useState<string | null>(null)
+
+  const { user } = useUser()
+
+  /// 出题人被指定了出题方向时，只允许在这些方向内建题；
+  /// 未指定方向（或系统管理员、出题管理员未配方向）则不做限制。
+  const allowedCategories = useMemo(() => {
+    const managed = (user?.managedCategories ?? '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+
+    const isAdmin = user?.role === Role.Admin
+    if (isAdmin || managed.length === 0) return ChallengeCategoryList
+
+    return ChallengeCategoryList.filter((c) => managed.includes(c))
+  }, [user])
+
+  /// 仅有一个可用方向时自动选中，减少出题人操作
+  useMemo(() => {
+    if (allowedCategories.length === 1 && !category) setCategory(allowedCategories[0])
+  }, [allowedCategories])
 
   const { t } = useTranslation()
 
@@ -78,7 +100,7 @@ export const ChallengeCreateModal: FC<ChallengeCreateModalProps> = (props) => {
           value={category}
           onChange={setCategory}
           renderOption={ChallengeCategoryItem}
-          data={ChallengeCategoryList.map((category) => {
+          data={allowedCategories.map((category) => {
             const data = challengeCategoryLabelMap.get(category)
             return { value: category, label: data?.name, ...data } as ComboboxItem
           })}

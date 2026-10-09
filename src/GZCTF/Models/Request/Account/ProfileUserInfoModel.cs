@@ -81,6 +81,31 @@ public class ProfileUserInfoModel
     public List<string> ManagedSchools { get; set; } = [];
 
     /// <summary>
+    /// 附加职能权限位（出题人 / 出题管理员 / 学校负责人）
+    /// </summary>
+    public UserPermission Permissions { get; set; }
+
+    /// <summary>
+    /// 是否可进入题目编辑功能（出题人或出题管理员）
+    /// </summary>
+    public bool CanEditChallenge { get; set; }
+
+    /// <summary>
+    /// 是否为出题人
+    /// </summary>
+    public bool IsChallengeAuthor { get; set; }
+
+    /// <summary>
+    /// 是否为出题管理员
+    /// </summary>
+    public bool IsChallengeManager { get; set; }
+
+    /// <summary>
+    /// 被指定可出题的方向（逗号分隔），空表示不限制
+    /// </summary>
+    public string? ManagedCategories { get; set; }
+
+    /// <summary>
     /// Avatar URL
     /// </summary>
     public string? Avatar { get; set; }
@@ -103,6 +128,13 @@ public class ProfileUserInfoModel
             VerifyNote = string.IsNullOrWhiteSpace(user.VerifyNote) ? null : user.VerifyNote,
             IsSchoolAdmin = user.IsSchoolAdmin,
             ManagedSchools = user.ManagedSchoolList.ToList(),
+            Permissions = user.Permissions,
+            IsChallengeAuthor = user.IsChallengeAuthor,
+            IsChallengeManager = user.IsChallengeManager,
+            CanEditChallenge = user.CanEditChallenge,
+            ManagedCategories = string.IsNullOrWhiteSpace(user.ManagedCategories)
+                ? null
+                : user.ManagedCategories,
             Role = user.Role
         };
 }

@@ -37,7 +37,7 @@ import { clearLocalCache } from '@Utils/Cache'
 import { LanguageMap, SupportedLanguages, useLanguage } from '@Utils/I18n'
 import { SITE_LINKS } from '@Utils/SiteLinks'
 import { useConfig } from '@Hooks/useConfig'
-import { useLogOut, useUser } from '@Hooks/useUser'
+import { useAdminTabs, useLogOut, useUser } from '@Hooks/useUser'
 import { ContainerPortMappingType, Role } from '@Api'
 import classes from '@Styles/AppNavbar.module.css'
 import misc from '@Styles/Misc.module.css'
@@ -103,13 +103,17 @@ export const AppNavbar: FC<AppControlProps> = ({ openColorModal }) => {
   const { t } = useTranslation()
   const { setLanguage, supportedLanguages } = useLanguage()
 
+  // 有职能权限的用户（出题人、学校负责人等）也能进入后台，进入首页即其可访问的第一个页面
+  const { keys: adminKeys, canAccessAdmin } = useAdminTabs()
+  const adminHome = adminKeys[0] ?? 'games'
+
   // 仅保留：主页、赛事、战队、Wiki、管理（管理员可见）
   const items: NavbarItem[] = [
     { icon: mdiHomeVariantOutline, label: 'common.tab.home', link: '/' },
     { icon: mdiFlagOutline, label: 'common.tab.game', link: '/games' },
     { icon: mdiAccountGroupOutline, label: 'common.tab.team', link: '/teams' },
     { icon: mdiBookOpenPageVariantOutline, label: 'PCTF Wiki', link: SITE_LINKS.wiki, external: true },
-    { icon: mdiWrenchOutline, label: 'common.tab.admin', link: '/admin/games', admin: true },
+    { icon: mdiWrenchOutline, label: 'common.tab.admin', link: `/admin/${adminHome}`, admin: true },
   ]
 
   const getLabel = (path: string) =>
@@ -132,7 +136,7 @@ export const AppNavbar: FC<AppControlProps> = ({ openColorModal }) => {
   }, [location.pathname])
 
   const links = items
-    .filter((m) => !m.admin || user?.role === Role.Admin)
+    .filter((m) => !m.admin || canAccessAdmin)
     .map((link) => <NavbarLink key={link.label} {...link} isActive={link.label === active} />)
 
   const loggedIn = user && !error

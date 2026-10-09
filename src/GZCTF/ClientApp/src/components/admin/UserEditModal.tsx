@@ -191,14 +191,18 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
               ))}
             </Stack>
 
-            {/* 出题管理员：授权管理范围（方向） */}
-            {hasPermission(permissions, UserPermission.ChallengeManager) && (
+            {/* 出题人或出题管理员：指定方向范围 */}
+            {(hasPermission(permissions, UserPermission.ChallengeAuthor) ||
+              hasPermission(permissions, UserPermission.ChallengeManager)) && (
               <Box>
                 <Text size="sm" fw={500} mb={4}>
-                  可管理的题目方向
+                  指定出题方向
                 </Text>
                 <Text size="xs" c="dimmed" mb="xs">
-                  未勾选任何方向时，该出题管理员没有任何题的修改权限
+                  {hasPermission(permissions, UserPermission.ChallengeManager)
+                    ? '出题管理员：可修改、删除这些方向下的全部题目'
+                    : '出题人：只能在这些方向内新增题目'}
+                  ；不勾选任何方向表示不限制
                 </Text>
                 <Group gap="xs">
                   {Object.values(ChallengeCategory).map((cat) => (

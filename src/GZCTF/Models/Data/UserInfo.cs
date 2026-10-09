@@ -207,9 +207,36 @@ public partial class UserInfo : IdentityUser<Guid>
                 .ToList();
 
     /// <summary>
+    /// 是否可在指定方向出题（新增题目时校验）。
+    /// 系统管理员放行全部方向；被授权了方向时只允许在这些方向内出题；
+    /// 未授权任何方向则视为不限制（兼容未指定方向的旧数据）。
+    /// </summary>
+    public bool CanAuthorInCategory(ChallengeCategory category)
+    {
+        if (Role >= Role.Admin)
+            return true;
+
+        // 未配置授权方向时不限制，避免历史数据被锁死
+        if (ManagedCategoryList.Count == 0)
+            return true;
+
+        return ManagedCategoryList.Contains(category);
+    }
+
+    /// <summary>
+    /// 出题人可用的方向集合（用于前端新建题目时的下拉选项）
+    /// </summary>
+    [NotMapped]
+    [MemoryPackIgnore]
+    public IReadOnlyList<ChallengeCategory> AuthorableCategories =>
+        Role >= Role.Admin || ManagedCategoryList.Count == 0
+            ? Enum.GetValues<ChallengeCategory>()
+            : ManagedCategoryList;
+
+    /// <summary>
     /// 是否可管理指定题目。
     /// 系统管理员放行全部；出题管理员放行被授权方向；
-    /// 出题人放行自己创建的题目。
+    /// 出题人放行自己创建的题目（自己已有的题目不受方向变更影响）。
     /// </summary>
     /// <param name="category">题目方向</param>
     /// <param name="authorId">题目创建者 Id</param>
