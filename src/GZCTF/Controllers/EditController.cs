@@ -19,7 +19,7 @@ namespace GZCTF.Controllers;
 /// <summary>
 /// Data Modification APIs
 /// </summary>
-[RequireAdmin]
+[RequireChallengeEditorOrAdmin]
 [ApiController]
 [Route("api/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
@@ -42,6 +42,63 @@ public class EditController(
     IDivisionRepository divisionRepository,
     IStringLocalizer<Program> localizer) : Controller
 {
+    /// <summary>
+    /// 当前登录用户（带权限判定所需的全部字段）
+    /// </summary>
+    private async Task<UserInfo?> GetCurrentUserAsync(CancellationToken token)
+    {
+        if (!User.Identity?.IsAuthenticated ?? true)
+            return null;
+
+        return await userManager.GetUserAsync(User);
+    }
+
+    /// <summary>
+    /// 校验「新增题目」权限。仅出题人、出题管理员与系统管理员可新增
+    /// </summary>
+    private async Task<IActionResult?> EnsureCanCreateChallengeAsync(CancellationToken token)
+    {
+        var user = await GetCurrentUserAsync(token);
+
+        if (user is null)
+            return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
+                StatusCodes.Status401Unauthorized));
+
+        if (user.IsChallengeAuthor || user.IsChallengeManager)
+            return null;
+
+        return new ObjectResult(new RequestResponse("你没有出题权限，无法新增题目"))
+        {
+            StatusCode = StatusCodes.Status403Forbidden
+        };
+    }
+
+    /// <summary>
+    /// 校验对指定题目的管理权限。
+    /// 系统管理员 / 被授权方向的出题管理员 / 题目创建者本人可操作。
+    /// </summary>
+    private async Task<IActionResult?> EnsureCanManageChallengeAsync(GameChallenge? challenge,
+        CancellationToken token)
+    {
+        if (challenge is null)
+            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Game_ChallengeNotFound)],
+                StatusCodes.Status404NotFound));
+
+        var user = await GetCurrentUserAsync(token);
+
+        if (user is null)
+            return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
+                StatusCodes.Status401Unauthorized));
+
+        if (user.CanManageChallenge(challenge.Category, challenge.AuthorId))
+            return null;
+
+        return new ObjectResult(new RequestResponse("你只能管理自己创建的题目，或被授权方向下的题目"))
+        {
+            StatusCode = StatusCodes.Status403Forbidden
+        };
+    }
+
     /// <summary>
     /// Add Post
     /// </summary>
@@ -564,14 +621,26 @@ public class EditController(
     public async Task<IActionResult> AddGameChallenge([FromRoute] int id, [FromBody] ChallengeInfoModel model,
         CancellationToken token)
     {
+        if (await EnsureCanCreateChallengeAsync(token) is { } denied)
+            return denied;
+
         var game = await gameRepository.GetGameById(id, token);
 
         if (game is null)
             return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Game_NotFound)],
                 StatusCodes.Status404NotFound));
 
+        var author = await GetCurrentUserAsync(token);
+
         var res = await challengeRepository.CreateChallenge(game,
-            new GameChallenge { Title = model.Title, Type = model.Type, Category = model.Category }, token);
+            new GameChallenge
+            {
+                Title = model.Title,
+                Type = model.Type,
+                Category = model.Category,
+                // 记录出题人，供「只能修改自己新增的题目」判定
+                AuthorId = author?.Id
+            }, token);
 
         return Ok(ChallengeEditDetailModel.FromChallenge(res));
     }
@@ -589,7 +658,15 @@ public class EditController(
     [ProducesResponseType(typeof(ChallengeInfoModel[]), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetGameChallenges([FromRoute] int id, CancellationToken token)
     {
-        var challenges = await challengeRepository.GetChallenges(id, token);
+        var challenges = (await challengeRepository.GetChallenges(id, token)).ToList();
+
+        // 非系统管理员只看到自己有权管理的题目：自己创建的 + 被授权方向的
+        var currentUser = await GetCurrentUserAsync(token);
+
+        if (currentUser is not null && currentUser.Role < Role.Admin)
+            challenges = challenges
+                .Where(c => currentUser.CanManageChallenge(c.Category, c.AuthorId))
+                .ToList();
 
         var scoreboard = await gameRepository.TryGetScoreboard(id, token);
 
@@ -635,9 +712,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         // Do not load flags for dynamic containers
         if (challenge.Type != ChallengeType.DynamicContainer)
@@ -679,9 +755,8 @@ public class EditController(
 
         var res = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (res is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(res, token) is { } denied)
+            return denied;
 
         // NOTE: IsEnabled can only be updated outside the edit page
         if (model.IsEnabled is true && !res.IsEnabled && res.Type != ChallengeType.DynamicContainer)
@@ -760,9 +835,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         if (!challenge.Type.IsContainer())
             return BadRequest(
@@ -821,9 +895,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         if (challenge.TestContainer is null)
             return Ok();
@@ -851,9 +924,8 @@ public class EditController(
     {
         var res = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (res is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(res, token) is { } denied)
+            return denied;
 
         await challengeRepository.RemoveChallenge(res, true, token);
 
@@ -882,9 +954,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         if (challenge.Type == ChallengeType.DynamicAttachment)
             return BadRequest(
@@ -914,9 +985,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         await challengeRepository.AddFlags(challenge, models, token);
 
@@ -942,9 +1012,8 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Challenge_NotFound)],
-                StatusCodes.Status404NotFound));
+        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+            return denied;
 
         return Ok(await challengeRepository.RemoveFlag(challenge, fId, token));
     }

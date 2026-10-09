@@ -31,6 +31,39 @@ public enum Role : byte
 }
 
 /// <summary>
+/// 附加权限位（与 Role 正交，可叠加）
+/// </summary>
+/// <remarks>
+/// Role 是单值的等级序列（Banned &lt; User &lt; Monitor &lt; Admin），
+/// 只能表达"等级不低于某值"，无法表达互不包含的职能。
+/// 出题人 / 出题管理员 / 学校负责人属于职能权限，
+/// 因此单独用位标志存储，一个用户可以同时拥有多个。
+/// </remarks>
+[Flags]
+public enum UserPermission : int
+{
+    /// <summary>
+    /// 无附加权限
+    /// </summary>
+    None = 0,
+
+    /// <summary>
+    /// 出题人：可新增题目，并可修改、删除自己创建的题目
+    /// </summary>
+    ChallengeAuthor = 1 << 0,
+
+    /// <summary>
+    /// 出题管理员：可修改、删除被授权方向（分类）下的全部题目
+    /// </summary>
+    ChallengeManager = 1 << 1,
+
+    /// <summary>
+    /// 学校负责人：可审核自己所属学校的学生学籍
+    /// </summary>
+    SchoolManager = 1 << 2
+}
+
+/// <summary>
 /// Login response status
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<RegisterStatus>))]

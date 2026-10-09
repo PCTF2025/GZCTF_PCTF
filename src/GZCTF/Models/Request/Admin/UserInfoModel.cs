@@ -98,9 +98,19 @@ public class UserInfoModel
     public string? VerifyNote { get; set; }
 
     /// <summary>
-    /// 该用户负责审核的学校短名（逗号分隔），非空即为学校管理员
+    /// 该用户负责审核的学校短名（逗号分隔），非空即为学校负责人
     /// </summary>
     public string? ManagedSchools { get; set; }
+
+    /// <summary>
+    /// 附加职能权限位（出题人 / 出题管理员 / 学校负责人）
+    /// </summary>
+    public UserPermission Permissions { get; set; }
+
+    /// <summary>
+    /// 作为「出题管理员」被授权管理的题目方向（逗号分隔）
+    /// </summary>
+    public string? ManagedCategories { get; set; }
 
     internal static UserInfoModel FromUserInfo(UserInfo user) =>
         new()
@@ -123,6 +133,8 @@ public class UserInfoModel
             Grade = string.IsNullOrWhiteSpace(user.Grade) ? null : user.Grade,
             VerifyStatus = user.VerifyStatus,
             VerifyNote = string.IsNullOrWhiteSpace(user.VerifyNote) ? null : user.VerifyNote,
-            ManagedSchools = string.IsNullOrWhiteSpace(user.ManagedSchools) ? null : user.ManagedSchools
+            ManagedSchools = string.IsNullOrWhiteSpace(user.ManagedSchools) ? null : user.ManagedSchools,
+            Permissions = user.Permissions,
+            ManagedCategories = string.IsNullOrWhiteSpace(user.ManagedCategories) ? null : user.ManagedCategories
         };
 }

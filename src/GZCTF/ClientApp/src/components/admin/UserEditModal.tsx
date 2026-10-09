@@ -1,11 +1,16 @@
 import {
   Avatar,
+  Badge,
+  Box,
   Button,
   Center,
+  Checkbox,
+  Chip,
   Grid,
   Group,
   Modal,
   ModalProps,
+  Paper,
   Radio,
   SimpleGrid,
   Stack,
@@ -17,12 +22,20 @@ import { showNotification } from '@mantine/notifications'
 import { mdiCheck } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { showErrorMsg } from '@Utils/Shared'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
 import { useUser } from '@Hooks/useUser'
-import api, { AdminUserInfoModel, Role, UserInfoModel } from '@Api'
+import api, {
+  AdminUserInfoModel,
+  ChallengeCategory,
+  PERMISSION_META,
+  Role,
+  UserInfoModel,
+  UserPermission,
+  hasPermission,
+} from '@Api'
 
 export const RoleColorMap = new Map<Role, string>([
   [Role.Admin, 'blue'],
@@ -45,6 +58,36 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
 
   const { t } = useTranslation()
   const isSelf = self?.userId === user.id
+
+  /// 已勾选的权限位（用位运算叠加，支持同时赋予多个权限）
+  const permissions = profile.permissions ?? UserPermission.None
+
+  const togglePermission = (bit: UserPermission) => {
+    const next = (permissions & bit) === bit ? permissions & ~bit : permissions | bit
+    setProfile({ ...profile, permissions: next })
+  }
+
+  /// 出题管理员可管理的方向（逗号分隔字符串，与后端一致）
+  const managedCategories = (profile.managedCategories ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+
+  const toggleCategory = (cat: ChallengeCategory) => {
+    const next = managedCategories.includes(cat)
+      ? managedCategories.filter((c) => c !== cat)
+      : [...managedCategories, cat]
+    setProfile({ ...profile, managedCategories: next.join(',') })
+  }
+
+  /// 学校负责人负责的学校（逗号分隔字符串）
+  const [schoolDraft, setSchoolDraft] = useState('')
+
+  useSyncOnChange([user], () => setSchoolDraft(user.managedSchools ?? ''))
+
+  useEffect(() => {
+    setProfile((prev) => ({ ...prev, managedSchools: schoolDraft }))
+  }, [schoolDraft])
 
   useSyncOnChange([user], () => setProfile({ ...user }))
 
@@ -115,6 +158,78 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
             ))}
           </Group>
         </Radio.Group>
+        {/* 附加职能权限（与角色正交，可同时赋予多个） */}
+        <Paper p="sm" withBorder>
+          <Stack gap="xs">
+            <Group gap="xs">
+              <Text size="sm" fw={500}>
+                附加职能权限
+              </Text>
+              <Badge size="xs" variant="light" color="gray">
+                与角色相互独立，可同时勾选
+              </Badge>
+            </Group>
+
+            <Stack gap="xs">
+              {PERMISSION_META.map((meta) => (
+                <Checkbox
+                  key={meta.value}
+                  checked={hasPermission(permissions, meta.value)}
+                  disabled={disabled || isSelf}
+                  onChange={() => togglePermission(meta.value)}
+                  label={
+                    <Box>
+                      <Text size="sm" fw={500}>
+                        {meta.label}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {meta.description}
+                      </Text>
+                    </Box>
+                  }
+                />
+              ))}
+            </Stack>
+
+            {/* 出题管理员：授权管理范围（方向） */}
+            {hasPermission(permissions, UserPermission.ChallengeManager) && (
+              <Box>
+                <Text size="sm" fw={500} mb={4}>
+                  可管理的题目方向
+                </Text>
+                <Text size="xs" c="dimmed" mb="xs">
+                  未勾选任何方向时，该出题管理员没有任何题的修改权限
+                </Text>
+                <Group gap="xs">
+                  {Object.values(ChallengeCategory).map((cat) => (
+                    <Chip
+                      key={cat}
+                      checked={managedCategories.includes(cat)}
+                      disabled={disabled || isSelf}
+                      onChange={() => toggleCategory(cat)}
+                    >
+                      {cat}
+                    </Chip>
+                  ))}
+                </Group>
+              </Box>
+            )}
+
+            {/* 学校负责人：负责的学校短名 */}
+            {hasPermission(permissions, UserPermission.SchoolManager) && (
+              <TextInput
+                label="负责审核的学校短名"
+                description="多个学校以英文逗号分隔，例如 testu,ppsuc；留空则该权限不生效"
+                placeholder="testu,ppsuc"
+                w="100%"
+                value={schoolDraft}
+                disabled={disabled || isSelf}
+                onChange={(event) => setSchoolDraft(event.target.value.replace(/\s/g, ''))}
+              />
+            )}
+          </Stack>
+        </Paper>
+
         <SimpleGrid cols={2}>
           <TextInput
             label={t('account.label.email')}

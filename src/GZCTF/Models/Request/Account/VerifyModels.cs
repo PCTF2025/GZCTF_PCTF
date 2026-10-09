@@ -129,6 +129,10 @@ public class SchoolCodeLoginModel
     [MaxLength(16)]
     public string Code { get; set; } = string.Empty;
 
+    /// <summary>用户名（首次注册时可选，留空则自动取学号）</summary>
+    [MaxLength(Limits.MaxUserNameLength)]
+    public string? UserName { get; set; }
+
     /// <summary>真实姓名（首次注册时必填）</summary>
     [MaxLength(Limits.MaxUserDataLength)]
     public string? RealName { get; set; }

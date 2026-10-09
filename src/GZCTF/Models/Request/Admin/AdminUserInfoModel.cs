@@ -69,8 +69,20 @@ public class AdminUserInfoModel
 
     /// <summary>
     /// 该用户负责审核的学校短名（逗号分隔）。
-    /// 设置后该用户即成为这些学校的学校管理员。
+    /// 设置后该用户即成为这些学校的学校负责人。
     /// </summary>
     [MaxLength(Limits.MaxUserDataLength)]
     public string? ManagedSchools { get; set; }
+
+    /// <summary>
+    /// 附加职能权限位（出题人 / 出题管理员 / 学校负责人），可同时赋予多个。
+    /// 传 null 表示不修改。
+    /// </summary>
+    public UserPermission? Permissions { get; set; }
+
+    /// <summary>
+    /// 作为「出题管理员」被授权管理的题目方向（ChallengeCategory 名称，逗号分隔）。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? ManagedCategories { get; set; }
 }

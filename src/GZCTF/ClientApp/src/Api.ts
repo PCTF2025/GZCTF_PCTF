@@ -145,6 +145,48 @@ export enum Role {
 }
 
 /**
+ * 附加职能权限位（与 Role 正交，可叠加）
+ * 数值与后端 UserPermission 位标志一致
+ */
+export enum UserPermission {
+  /** 无附加权限 */
+  None = 0,
+  /** 出题人：可新增题目，并可修改、删除自己创建的题目 */
+  ChallengeAuthor = 1,
+  /** 出题管理员：可修改、删除被授权方向下的全部题目 */
+  ChallengeManager = 2,
+  /** 学校负责人：可审核自己所属学校的学生学籍 */
+  SchoolManager = 4,
+}
+
+/** 权限位的展示元数据：名称、说明、图标色 */
+export const PERMISSION_META: { value: UserPermission; label: string; description: string }[] = [
+  {
+    value: UserPermission.ChallengeAuthor,
+    label: '出题人',
+    description: '可新增题目，并可修改、删除自己创建的题目',
+  },
+  {
+    value: UserPermission.ChallengeManager,
+    label: '出题管理员',
+    description: '可修改、删除被授权方向下的全部题目',
+  },
+  {
+    value: UserPermission.SchoolManager,
+    label: '学校负责人',
+    description: '可审核自己负责学校的学生学籍',
+  },
+]
+
+/** 判断权限值是否包含某一位 */
+export const hasPermission = (value: number | undefined | null, bit: UserPermission) =>
+  ((value ?? 0) & bit) === bit
+
+/** 位值 → 权限名称列表 */
+export const permissionNames = (value: number | undefined | null) =>
+  PERMISSION_META.filter((m) => hasPermission(value, m.value)).map((m) => m.label)
+
+/**
  * 学校绑定来源
  * None = 未绑定；Sso = 快速登录自动绑定；Invite = 邀请码绑定
  */
@@ -274,6 +316,8 @@ export interface SchoolCodeLoginModel {
   email: string;
   /** 6 位数字验证码 */
   code: string;
+  /** 用户名（首次注册时可选，留空则自动取学号） */
+  userName?: string | null;
   /** 真实姓名（首次注册时必填） */
   realName?: string | null;
   /** 学号（首次注册时必填） */
@@ -541,6 +585,14 @@ export interface ProfileUserInfoModel {
   isSchoolAdmin?: boolean;
   /** 负责审核的学校短名列表 */
   managedSchools?: string[];
+  /** 附加职能权限位（出题人 / 出题管理员 / 学校负责人） */
+  permissions?: UserPermission;
+  /** 是否为出题人 */
+  isChallengeAuthor?: boolean;
+  /** 是否为出题管理员 */
+  isChallengeManager?: boolean;
+  /** 是否可进入题目编辑功能 */
+  canEditChallenge?: boolean;
   /** Avatar URL */
   avatar?: string | null;
 }
@@ -713,6 +765,22 @@ export interface UserInfoModel {
   role?: Role | null;
   /** Is email confirmed (can log in) */
   emailConfirmed?: boolean | null;
+  /** 所属学校短名 */
+  school?: string | null;
+  /** 学校绑定来源 */
+  schoolSource?: SchoolBindSource;
+  /** 年级 */
+  grade?: string | null;
+  /** 学籍审核状态 */
+  verifyStatus?: VerifyStatus;
+  /** 审核备注（驳回原因） */
+  verifyNote?: string | null;
+  /** 负责审核的学校短名（逗号分隔） */
+  managedSchools?: string | null;
+  /** 附加职能权限位 */
+  permissions?: UserPermission | null;
+  /** 作为出题管理员被授权管理的方向（逗号分隔） */
+  managedCategories?: string | null;
 }
 
 /** Batch user creation (Admin) */
@@ -825,6 +893,30 @@ export interface AdminTeamModel {
 }
 
 /** User information modification (Admin) */
+/** 素材库文件条目 */
+export interface FileItemModel {
+  /** 文件哈希（内链标识） */
+  hash: string;
+  /** 文件名 */
+  name: string;
+  /** 文件大小（字节） */
+  size: number;
+  /** 上传时间（后端 DateTimeOffset 序列化为毫秒时间戳） */
+  uploadTimeUtc: number;
+  /** 引用计数 */
+  referenceCount: number;
+  /** 可直接用于 Markdown / HTML 的内链地址 */
+  url: string;
+}
+
+/** 素材库文件列表 */
+export interface FileListModel {
+  /** 文件总数 */
+  total: number;
+  /** 当前页文件 */
+  files: FileItemModel[];
+}
+
 export interface AdminUserInfoModel {
   /**
    * Username
@@ -861,6 +953,14 @@ export interface AdminUserInfoModel {
   emailConfirmed?: boolean | null;
   /** User role */
   role?: Role | null;
+  /** 年级 */
+  grade?: string | null;
+  /** 负责审核的学校短名（逗号分隔） */
+  managedSchools?: string | null;
+  /** 附加职能权限位（出题人 / 出题管理员 / 学校负责人），可同时赋予多个 */
+  permissions?: UserPermission | null;
+  /** 作为出题管理员被授权管理的方向（ChallengeCategory 名称，逗号分隔） */
+  managedCategories?: string | null;
 }
 
 /** Log information (Admin) */
@@ -3994,6 +4094,31 @@ export class Api<
         query: query,
         body: data,
         type: ContentType.FormData,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 分页返回已上传文件，供管理端插入内链图片
+     *
+     * @tags Assets
+     * @name AssetsList
+     * @summary 文件列表接口
+     * @request GET:/api/assets/list
+     */
+    assetsList: (
+      query?: {
+        /** 每页数量 */
+        count?: number;
+        /** 跳过数量 */
+        skip?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<FileListModel, RequestResponse>({
+        path: `/api/assets/list`,
+        method: "GET",
+        query: query,
         format: "json",
         ...params,
       }),

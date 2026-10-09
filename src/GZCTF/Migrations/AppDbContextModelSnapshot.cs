@@ -246,6 +246,9 @@ namespace GZCTF.Migrations
                     b.Property<int?>("AttachmentId")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid");
+
                     b.Property<int?>("CPUCount")
                         .HasColumnType("integer");
 
@@ -594,6 +597,9 @@ namespace GZCTF.Migrations
 
                     b.Property<int?>("AttachmentId")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid");
 
                     b.Property<int?>("CPUCount")
                         .HasColumnType("integer");
@@ -1097,6 +1103,11 @@ namespace GZCTF.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ManagedCategories")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("ManagedSchools")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -1112,6 +1123,9 @@ namespace GZCTF.Migrations
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
+
+                    b.Property<int>("Permissions")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("text");

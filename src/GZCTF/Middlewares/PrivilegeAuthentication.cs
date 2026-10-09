@@ -12,7 +12,8 @@ namespace GZCTF.Middlewares;
 /// <param name="privilege"> The privilege required </param>
 /// <param name="allowToken"> Whether to allow token authentication </param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class RequirePrivilegeAttribute(Role privilege, bool allowToken = false) : Attribute, IAsyncAuthorizationFilter
+public class RequirePrivilegeAttribute(Role privilege, bool allowToken = false, UserPermission? permission = null)
+    : Attribute, IAsyncAuthorizationFilter
 {
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
@@ -55,7 +56,7 @@ public class RequirePrivilegeAttribute(Role privilege, bool allowToken = false) 
             await dbContext.SaveChangesAsync(); // avoid to update ConcurrencyStamp
         }
 
-        if (user.Role >= privilege)
+        if (Verify(user, privilege) && (permission is null || user.HasPermission(permission.Value)))
             return;
 
         if (privilege > Role.User)
@@ -67,6 +68,11 @@ public class RequirePrivilegeAttribute(Role privilege, bool allowToken = false) 
         context.Result = RequestResponse.Result(localizer[nameof(Resources.Program.Auth_AccessForbidden)],
             StatusCodes.Status403Forbidden);
     }
+
+    /// <summary>
+    /// 是否满足角色等级要求。子类可覆盖以实现更宽松的判定
+    /// </summary>
+    protected virtual bool Verify(UserInfo user, Role required) => user.Role >= required;
 }
 
 /// <summary>
@@ -83,6 +89,55 @@ public class RequireMonitorAttribute() : RequirePrivilegeAttribute(Role.Monitor)
 /// Admin privilege required
 /// </summary>
 public class RequireAdminAttribute() : RequirePrivilegeAttribute(Role.Admin);
+
+/// <summary>
+/// 要求指定职能权限（出题人 / 出题管理员 / 学校负责人）。
+/// 角色等级不足但持有对应权限位时同样放行，因此角色放宽到 User。
+/// </summary>
+/// <param name="permission">要求的权限位</param>
+public class RequirePermissionAttribute(UserPermission permission)
+    : RequirePrivilegeAttribute(Role.User, false, permission);
+
+/// <summary>
+/// 可进入题目编辑功能（出题人或出题管理员，系统管理员天然放行）
+/// </summary>
+public class RequireChallengeEditorAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) => user.CanEditChallenge;
+}
+
+/// <summary>
+/// 可审核学籍（学校负责人，需另行校验具体学校范围）
+/// </summary>
+public class RequireSchoolManagerAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Admin ||
+        user.IsSchoolAdmin ||
+        user.HasPermission(UserPermission.SchoolManager);
+}
+
+/// <summary>
+/// 可进入题目编辑控制器（出题人 / 出题管理员 / 系统管理员）。
+/// 具体到每个接口的精细化校验在控制器内完成
+/// </summary>
+public class RequireChallengeEditorOrAdminAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) => user.CanEditChallenge;
+}
+
+/// <summary>
+/// 可上传素材文件（出题人 / 出题管理员 / 学校负责人 / 系统管理员）
+/// </summary>
+public class RequireAssetUploaderAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Admin || user.CanEditChallenge || user.IsSchoolAdmin;
+}
 
 /// <summary>
 /// Admin privilege required, but allow token authentication

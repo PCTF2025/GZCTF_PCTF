@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using GZCTF.Middlewares;
+using GZCTF.Models;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
 using GZCTF.Repositories.Interface;
@@ -64,7 +65,13 @@ public class AccountController(
         if (string.IsNullOrWhiteSpace(password))
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Model_PasswordRequired)]));
 
-        var user = new UserInfo { UserName = model.UserName, Email = model.Email, Role = Role.User };
+        // 用户名可选：留空时自动使用学号（学号也缺失时回退邮箱前缀）
+        var userName = ResolveUserName(model.UserName, model.StdNumber);
+
+        if (string.IsNullOrWhiteSpace(userName))
+            return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Model_UserNameRequired)]));
+
+        var user = new UserInfo { UserName = userName, Email = model.Email, Role = Role.User };
 
         // 来自学校邮箱认证（快速登录）的注册：直接绑定学校，
         // 省去注册后再手动绑定的一步，且无需邀请码（邮箱域名已校验归属）。
@@ -175,6 +182,35 @@ public class AccountController(
         !string.IsNullOrWhiteSpace(user.RealName) &&
         !string.IsNullOrWhiteSpace(user.StdNumber) &&
         !string.IsNullOrWhiteSpace(user.Grade);
+
+    /// <summary>
+    /// 解析注册用户名：优先使用用户填写值，未填写时回退学号。
+    /// 仅做规范化（保留字母数字与下划线），冲突由调用方处理。
+    /// </summary>
+    /// <param name="input">用户填写的用户名（可空）</param>
+    /// <param name="stdNumber">学号（可空）</param>
+    /// <returns>规范化后的用户名，无法推导时返回 null</returns>
+    internal static string? ResolveUserName(string? input, string? stdNumber)
+    {
+        foreach (var candidate in new[] { input, stdNumber })
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+                continue;
+
+            var normalized = new string(candidate.Trim()
+                .Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+
+            if (normalized.Length < Limits.MinUserNameLength)
+                continue;
+
+            if (normalized.Length > Limits.MaxUserNameLength)
+                normalized = normalized[..Limits.MaxUserNameLength];
+
+            return normalized;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// User password recovery request

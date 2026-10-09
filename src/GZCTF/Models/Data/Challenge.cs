@@ -26,6 +26,11 @@ public class Challenge
     public string Content { get; set; } = string.Empty;
 
     /// <summary>
+    /// 题目创建者（出题人）。用于判定「出题人只能改自己的题目」
+    /// </summary>
+    public Guid? AuthorId { get; set; }
+
+    /// <summary>
     /// Challenge category
     /// </summary>
     [Required]

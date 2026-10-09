@@ -9,15 +9,13 @@ namespace GZCTF.Models.Request.Account;
 public class RegisterModel : ModelWithCaptcha
 {
     /// <summary>
-    /// Username
+    /// Username（可空：留空则由后端自动使用学号，学号冲突时回退邮箱前缀）
     /// </summary>
-    [Required(ErrorMessageResourceName = nameof(Resources.Program.Model_UserNameRequired),
-        ErrorMessageResourceType = typeof(Resources.Program))]
     [MinLength(Limits.MinUserNameLength, ErrorMessageResourceName = nameof(Resources.Program.Model_UserNameTooShort),
         ErrorMessageResourceType = typeof(Resources.Program))]
     [MaxLength(Limits.MaxUserNameLength, ErrorMessageResourceName = nameof(Resources.Program.Model_UserNameTooLong),
         ErrorMessageResourceType = typeof(Resources.Program))]
-    public string UserName { get; set; } = string.Empty;
+    public string? UserName { get; set; }
 
     /// <summary>
     /// Password

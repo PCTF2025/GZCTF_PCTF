@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 using GZCTF.Middlewares;
+using GZCTF.Models.Request.Assets;
 using GZCTF.Repositories.Interface;
 using GZCTF.Storage.Interface;
 using Microsoft.AspNetCore.Mvc;
@@ -80,7 +81,7 @@ public class AssetsController(
     /// <response code="400">Failed to upload file(s)</response>
     /// <response code="401">Unauthorized user</response>
     /// <response code="403">Access denied</response>
-    [RequireAdmin]
+    [RequireAssetUploader]
     [HttpPost("api/[controller]")]
     [ProducesResponseType(typeof(List<LocalFile>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
@@ -108,6 +109,44 @@ public class AssetsController(
             logger.LogErrorMessage(ex, ex.Message);
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Assets_IOError)]));
         }
+    }
+
+    /// <summary>
+    /// 文件列表接口（管理端素材库）
+    /// </summary>
+    /// <remarks>
+    /// 分页返回已上传文件的哈希、名称、大小与引用计数，
+    /// 供管理端在题目正文中插入内链图片。
+    /// </remarks>
+    /// <param name="count">每页数量</param>
+    /// <param name="skip">跳过数量</param>
+    /// <param name="token"></param>
+    /// <response code="200">文件列表获取成功</response>
+    [RequireAssetUploader]
+    [HttpGet("api/[controller]/list")]
+    [ProducesResponseType(typeof(FileListModel), StatusCodes.Status200OK)]
+    public async Task<IActionResult> List([FromQuery][Range(1, 200)] int count = 60,
+        [FromQuery][Range(0, int.MaxValue)] int skip = 0,
+        CancellationToken token = default)
+    {
+        var files = await blobService.GetBlobs(count, skip, token);
+
+        var total = await blobService.CountAsync(token);
+
+        return Ok(new FileListModel
+        {
+            Total = total,
+            Files = files.Select(f => new FileItemModel
+            {
+                Hash = f.Hash,
+                Name = f.Name,
+                Size = f.FileSize,
+                UploadTimeUtc = f.UploadTimeUtc,
+                ReferenceCount = f.ReferenceCount,
+                // 直接给出可用的内链，便于前端一键复制
+                Url = $"/assets/{f.Hash}/{Uri.EscapeDataString(f.Name)}"
+            }).ToArray()
+        });
     }
 
     /// <summary>

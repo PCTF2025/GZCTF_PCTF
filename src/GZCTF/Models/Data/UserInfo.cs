@@ -112,6 +112,19 @@ public partial class UserInfo : IdentityUser<Guid>
     public string ManagedSchools { get; set; } = string.Empty;
 
     /// <summary>
+    /// 附加职能权限位（出题人 / 出题管理员 / 学校负责人）。
+    /// 与 Role 正交，一个用户可以同时拥有多个权限。
+    /// </summary>
+    public UserPermission Permissions { get; set; } = UserPermission.None;
+
+    /// <summary>
+    /// 作为「出题管理员」被授权管理的题目方向（ChallengeCategory，逗号分隔）。
+    /// 空表示未被授权任何方向；系统管理员不受此限制。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string ManagedCategories { get; set; } = string.Empty;
+
+    /// <summary>
     /// Hide in exercise scoreboard
     /// </summary>
     public bool ExerciseVisible { get; set; } = true;
@@ -121,11 +134,14 @@ public partial class UserInfo : IdentityUser<Guid>
     public string? AvatarUrl => AvatarHash is null ? null : $"/assets/{AvatarHash}/avatar";
 
     /// <summary>
-    /// 该用户是否被指定为学校管理员（负责至少一所学校）
+    /// 该用户是否被指定为学校负责人（持有权限位且负责至少一所学校）。
+    /// 兼容旧数据：仅设置了 ManagedSchools 而未打权限位时同样视为负责人。
     /// </summary>
     [NotMapped]
     [MemoryPackIgnore]
-    public bool IsSchoolAdmin => !string.IsNullOrWhiteSpace(ManagedSchools);
+    public bool IsSchoolAdmin =>
+        !string.IsNullOrWhiteSpace(ManagedSchools) &&
+        (HasPermission(UserPermission.SchoolManager) || Permissions == UserPermission.None);
 
     /// <summary>
     /// 该用户负责审核的学校短名集合
@@ -144,8 +160,69 @@ public partial class UserInfo : IdentityUser<Guid>
     /// </summary>
     public bool CanManageSchool(string? schoolSlug) =>
         Role >= Role.Admin ||
-        (!string.IsNullOrWhiteSpace(schoolSlug) &&
+        (HasPermission(UserPermission.SchoolManager) &&
+         !string.IsNullOrWhiteSpace(schoolSlug) &&
          ManagedSchoolList.Any(s => string.Equals(s, schoolSlug, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// 是否拥有指定权限位（系统管理员默认拥有全部权限）
+    /// </summary>
+    public bool HasPermission(UserPermission permission) =>
+        Role >= Role.Admin || (Permissions & permission) == permission;
+
+    /// <summary>
+    /// 是否为出题人（可新增题目，并可管理自己创建的题目）
+    /// </summary>
+    [NotMapped]
+    [MemoryPackIgnore]
+    public bool IsChallengeAuthor => Role >= Role.Admin || HasPermission(UserPermission.ChallengeAuthor);
+
+    /// <summary>
+    /// 是否为出题管理员（可管理被授权方向下的全部题目）
+    /// </summary>
+    [NotMapped]
+    [MemoryPackIgnore]
+    public bool IsChallengeManager => Role >= Role.Admin || HasPermission(UserPermission.ChallengeManager);
+
+    /// <summary>
+    /// 是否可进入题目编辑功能（出题人或出题管理员）
+    /// </summary>
+    [NotMapped]
+    [MemoryPackIgnore]
+    public bool CanEditChallenge => Role >= Role.Admin || IsChallengeAuthor || IsChallengeManager;
+
+    /// <summary>
+    /// 被授权管理的题目方向集合
+    /// </summary>
+    [NotMapped]
+    [MemoryPackIgnore]
+    public IReadOnlyList<ChallengeCategory> ManagedCategoryList =>
+        string.IsNullOrWhiteSpace(ManagedCategories)
+            ? []
+            : ManagedCategories
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(v => Enum.TryParse<ChallengeCategory>(v, true, out var c) ? (ChallengeCategory?)c : null)
+                .Where(c => c.HasValue)
+                .Select(c => c!.Value)
+                .ToList();
+
+    /// <summary>
+    /// 是否可管理指定题目。
+    /// 系统管理员放行全部；出题管理员放行被授权方向；
+    /// 出题人放行自己创建的题目。
+    /// </summary>
+    /// <param name="category">题目方向</param>
+    /// <param name="authorId">题目创建者 Id</param>
+    public bool CanManageChallenge(ChallengeCategory category, Guid? authorId)
+    {
+        if (Role >= Role.Admin)
+            return true;
+
+        if (IsChallengeManager && ManagedCategoryList.Contains(category))
+            return true;
+
+        return IsChallengeAuthor && authorId.HasValue && authorId.Value == Id;
+    }
 
     /// <summary>
     /// Update user's last visit time and IP address via HTTP request
@@ -174,6 +251,8 @@ public partial class UserInfo : IdentityUser<Guid>
         EmailConfirmed = model.EmailConfirmed ?? EmailConfirmed;
         Grade = model.Grade ?? Grade;
         ManagedSchools = model.ManagedSchools?.Trim() ?? ManagedSchools;
+        Permissions = model.Permissions ?? Permissions;
+        ManagedCategories = model.ManagedCategories?.Trim() ?? ManagedCategories;
     }
 
     /// <summary>
