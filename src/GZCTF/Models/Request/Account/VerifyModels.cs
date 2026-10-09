@@ -90,3 +90,99 @@ public class VerifyPermissionModel
     /// <summary>可审核的学校列表</summary>
     public List<VerifySchoolOption> Schools { get; set; } = [];
 }
+
+/// <summary>
+/// 发送邮箱验证码请求
+/// </summary>
+public class SchoolCodeSendModel
+{
+    /// <summary>学校短名</summary>
+    [Required]
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string SchoolSlug { get; set; } = string.Empty;
+
+    /// <summary>学校邮箱</summary>
+    [Required]
+    [EmailAddress]
+    [MaxLength(Limits.MaxEmailLength)]
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 验证码校验 / 一键登录请求
+/// </summary>
+public class SchoolCodeLoginModel
+{
+    /// <summary>学校短名</summary>
+    [Required]
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string SchoolSlug { get; set; } = string.Empty;
+
+    /// <summary>学校邮箱</summary>
+    [Required]
+    [EmailAddress]
+    [MaxLength(Limits.MaxEmailLength)]
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>6 位数字验证码</summary>
+    [Required]
+    [MaxLength(16)]
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>真实姓名（首次注册时必填）</summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? RealName { get; set; }
+
+    /// <summary>学号（首次注册时必填）</summary>
+    [MaxLength(Limits.MaxStdNumberLength)]
+    public string? StdNumber { get; set; }
+
+    /// <summary>年级</summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? Grade { get; set; }
+}
+
+/// <summary>
+/// 验证码校验结果
+/// </summary>
+public class SchoolCodeCheckResult
+{
+    /// <summary>该邮箱是否已注册</summary>
+    public bool Registered { get; set; }
+
+    /// <summary>是否仍需补充学籍信息（姓名 / 学号）</summary>
+    public bool NeedProfile { get; set; }
+
+    /// <summary>已注册用户的用户名</summary>
+    public string? UserName { get; set; }
+
+    /// <summary>已填写的真实姓名</summary>
+    public string? RealName { get; set; }
+
+    /// <summary>已填写的学号</summary>
+    public string? StdNumber { get; set; }
+
+    /// <summary>已填写的年级</summary>
+    public string? Grade { get; set; }
+}
+
+/// <summary>
+/// 一键注册 / 登录结果
+/// </summary>
+public class SchoolCodeLoginResult
+{
+    /// <summary>本次是否新创建账号</summary>
+    public bool Created { get; set; }
+
+    /// <summary>登录后的用户名</summary>
+    public string? UserName { get; set; }
+
+    /// <summary>绑定的学校短名</summary>
+    public string? School { get; set; }
+
+    /// <summary>绑定的学校名称</summary>
+    public string? SchoolName { get; set; }
+
+    /// <summary>学籍审核状态</summary>
+    public VerifyStatus VerifyStatus { get; set; }
+}

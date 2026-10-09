@@ -258,6 +258,52 @@ export interface SchoolBindModel {
   stdNumber?: string | null;
 }
 
+/** 发送邮箱验证码请求 */
+export interface SchoolCodeSendModel {
+  /** 学校短名 */
+  schoolSlug: string;
+  /** 学校邮箱 */
+  email: string;
+}
+
+/** 验证码校验 / 一键登录请求 */
+export interface SchoolCodeLoginModel {
+  /** 学校短名 */
+  schoolSlug: string;
+  /** 学校邮箱 */
+  email: string;
+  /** 6 位数字验证码 */
+  code: string;
+  /** 真实姓名（首次注册时必填） */
+  realName?: string | null;
+  /** 学号（首次注册时必填） */
+  stdNumber?: string | null;
+  /** 年级 */
+  grade?: string | null;
+}
+
+/** 验证码校验结果 */
+export interface SchoolCodeCheckResult {
+  /** 该邮箱是否已注册 */
+  registered?: boolean;
+  /** 是否仍需补充学籍信息（姓名 / 学号） */
+  needProfile?: boolean;
+  userName?: string | null;
+  realName?: string | null;
+  stdNumber?: string | null;
+  grade?: string | null;
+}
+
+/** 一键注册 / 登录结果 */
+export interface SchoolCodeLoginResult {
+  /** 本次是否新创建账号 */
+  created?: boolean;
+  userName?: string | null;
+  school?: string | null;
+  schoolName?: string | null;
+  verifyStatus?: VerifyStatus;
+}
+
 /** Login response status */
 export enum RegisterStatus {
   LoggedIn = "LoggedIn",
@@ -2900,6 +2946,60 @@ export class Api<
     ssoBind: (data: SchoolBindModel, params: RequestParams = {}) =>
       this.request<RequestResponse, RequestResponse>({
         path: `/api/account/sso/bind`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 校验邮箱后缀属于该校后，发送 6 位数字验证码
+     *
+     * @tags Sso
+     * @name SsoSendCode
+     * @summary 发送邮箱验证码
+     * @request POST:/api/account/sso/sendCode
+     */
+    ssoSendCode: (data: SchoolCodeSendModel, params: RequestParams = {}) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/account/sso/sendCode`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 校验验证码并判断该邮箱是否已注册
+     *
+     * @tags Sso
+     * @name SsoCheckCode
+     * @summary 校验验证码
+     * @request POST:/api/account/sso/checkCode
+     */
+    ssoCheckCode: (data: SchoolCodeLoginModel, params: RequestParams = {}) =>
+      this.request<SchoolCodeCheckResult, RequestResponse>({
+        path: `/api/account/sso/checkCode`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 未注册则自动创建账号并绑定学校，已注册则直接登录
+     *
+     * @tags Sso
+     * @name SsoLoginWithCode
+     * @summary 验证码一键注册 / 登录
+     * @request POST:/api/account/sso/loginWithCode
+     */
+    ssoLoginWithCode: (data: SchoolCodeLoginModel, params: RequestParams = {}) =>
+      this.request<SchoolCodeLoginResult, RequestResponse>({
+        path: `/api/account/sso/loginWithCode`,
         method: "POST",
         body: data,
         type: ContentType.Json,

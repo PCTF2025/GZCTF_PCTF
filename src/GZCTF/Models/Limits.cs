@@ -33,6 +33,11 @@ public static class Limits
     public const int MaxStdNumberLength = 64;
 
     /// <summary>
+    /// 邮箱地址最大长度
+    /// </summary>
+    public const int MaxEmailLength = 256;
+
+    /// <summary>
     /// 用户名最小长度
     /// </summary>
     public const int MinUserNameLength = 3;

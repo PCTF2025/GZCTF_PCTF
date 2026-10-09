@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import logoImage from '@Resources/pctf-logo.png'
 import { Captcha, useCaptchaRef } from '@Components/Captcha'
+import { SsoCodeLogin } from '@Components/SsoCodeLogin'
 import { encryptApiData } from '@Utils/Crypto'
 import { tryGetClientError } from '@Utils/Shared'
 import { useConfig } from '@Hooks/useConfig'
@@ -333,47 +334,17 @@ const Login: FC = () => {
             ))}
           </Stack>
         </>
-      ) : (
-        <>
-          <Title order={standalone ? 3 : 4} ta="center">
-            {emailSchool?.name} 邮箱登录
-          </Title>
-          <Text size="sm" c="dimmed" ta="center">
-            请使用学校邮箱登录
-            {(emailSchool?.emailSuffixes?.length ?? 0) > 0 &&
-              `（${emailSchool!.emailSuffixes!.map((s) => `@${s}`).join(' / ')}）`}
-          </Text>
-          <TextInput
-            required
-            label="学号 / 邮箱"
-            placeholder="请输入学号或邮箱"
-            w="100%"
-            value={emailAccount}
-            disabled={disabled}
-            onChange={(event) => setEmailAccount(event.currentTarget.value)}
-          />
-          {pickedSuffix && (
-            <Text size="xs" c="dimmed" ta="center" w="100%">
-              登录邮箱：{emailAccount.includes('@') ? emailAccount : `${emailAccount || '学号'}@${pickedSuffix}`}
-            </Text>
-          )}
-          <Group w="100%" grow>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSsoMode('schools')
-                setEmailSchool(null)
-                setEmailAccount('')
-              }}
-            >
-              返回
-            </Button>
-            <Button disabled={disabled} onClick={onEmailLogin}>
-              下一步
-            </Button>
-          </Group>
-        </>
-      )}
+      ) : emailSchool ? (
+        <SsoCodeLogin
+          school={emailSchool}
+          standalone={standalone}
+          onBack={() => {
+            setSsoMode('schools')
+            setEmailSchool(null)
+            setEmailAccount('')
+          }}
+        />
+      ) : null}
     </Stack>
   )
 

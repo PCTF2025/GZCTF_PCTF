@@ -1,10 +1,15 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using GZCTF.Models;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
+using GZCTF.Services;
+using GZCTF.Services.Mail;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace GZCTF.Controllers;
@@ -18,8 +23,12 @@ namespace GZCTF.Controllers;
 [Route("api/account/[controller]")]
 public class SsoController(
     IOptionsSnapshot<SsoConfig> ssoConfig,
+    IOptionsSnapshot<GlobalConfig> globalConfig,
     UserManager<UserInfo> userManager,
     SignInManager<UserInfo> signInManager,
+    EmailCodeService emailCode,
+    IMailSender mailSender,
+    IStringLocalizer<Program> localizer,
     ILogger<SsoController> logger) : ControllerBase
 {
     /// <summary>
@@ -261,6 +270,320 @@ public class SsoController(
             .ToArray();
 
         return Ok(schools);
+    }
+
+    /// <summary>
+    /// 发送邮箱验证码（邮箱认证模式）
+    /// </summary>
+    /// <remarks>
+    /// 校验邮箱后缀属于该校后，发送 6 位数字验证码。
+    /// 同一邮箱 60 秒内不可重发，每小时最多 8 次。
+    /// </remarks>
+    /// <param name="model">含学校短名与邮箱</param>
+    /// <param name="token"></param>
+    [HttpPost("sendCode")]
+    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SendCode([FromBody] SchoolCodeSendModel model, CancellationToken token = default)
+    {
+        var school = FindSchool(model.SchoolSlug);
+
+        if (school is null)
+            return NotFound(new RequestResponse("未配置的学校，请刷新页面后重试"));
+
+        if (school.Mode != SsoAuthMode.Email)
+            return BadRequest(new RequestResponse($"{school.Name} 未启用邮箱验证码登录，请使用统一认证登录"));
+
+        var email = model.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+            return BadRequest(new RequestResponse("请输入正确的邮箱地址"));
+
+        if (!EmailCodeService.EmailMatchesSchool(email, school))
+            return BadRequest(new RequestResponse($"该邮箱不属于 {school.Name}，请使用学校邮箱"));
+
+        var code = await emailCode.IssueAsync(school.Slug, email, token);
+
+        if (code is null)
+            return BadRequest(new RequestResponse("验证码发送过于频繁，请稍后再试"));
+
+        var content = new MailContent(
+            BuildCodeMailContent(school, code),
+            email,
+            $"{school.Name} 登录验证码",
+            null,
+            localizer,
+            globalConfig);
+
+        try
+        {
+            await mailSender.SendMailContent(content);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "发送学校验证码邮件失败：school={School} email={Email}", school.Name, email);
+            return BadRequest(new RequestResponse("验证码邮件发送失败，请稍后重试或联系赛事管理员"));
+        }
+
+        logger.LogInformation("已发送学校 {School} 的登录验证码至 {Email}", school.Name, email);
+
+        return Ok(new RequestResponse($"验证码已发送至 {email}，10 分钟内有效", StatusCodes.Status200OK));
+    }
+
+    /// <summary>
+    /// 校验验证码，判断该邮箱是否已注册
+    /// </summary>
+    /// <remarks>
+    /// 前端据此决定「一键注册」还是「一键登录」的按钮文案与后续字段。
+    /// 校验通过后验证码不失效，仍需在 loginWithCode 中再次提交。
+    /// </remarks>
+    /// <param name="model">含学校短名、邮箱与验证码</param>
+    /// <param name="token"></param>
+    [HttpPost("checkCode")]
+    [ProducesResponseType(typeof(SchoolCodeCheckResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CheckCode([FromBody] SchoolCodeLoginModel model,
+        CancellationToken token = default)
+    {
+        var school = FindSchool(model.SchoolSlug);
+
+        if (school is null)
+            return NotFound(new RequestResponse("未配置的学校，请刷新页面后重试"));
+
+        var email = model.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(model.Code))
+            return BadRequest(new RequestResponse("请填写验证码"));
+
+        var valid = await VerifyCodeWithoutConsumeAsync(school.Slug, email, model.Code, token);
+
+        if (!valid)
+            return BadRequest(new RequestResponse("验证码不正确或已过期，请重新获取"));
+
+        var user = await userManager.FindByEmailAsync(email);
+        var exists = user is not null;
+
+        // 已注册用户：若学籍信息缺失，仍需要前端收集姓名 / 学号
+        var needProfile = !exists ||
+                          string.IsNullOrWhiteSpace(user!.RealName) ||
+                          string.IsNullOrWhiteSpace(user.StdNumber);
+
+        return Ok(new SchoolCodeCheckResult
+        {
+            Registered = exists,
+            NeedProfile = needProfile,
+            UserName = user?.UserName,
+            RealName = user?.RealName,
+            StdNumber = user?.StdNumber,
+            Grade = user?.Grade
+        });
+    }
+
+    /// <summary>
+    /// 验证码一键注册 / 登录
+    /// </summary>
+    /// <remarks>
+    /// 邮箱未注册时自动创建账号（随机密码，仅验证码登录），并绑定学校；
+    /// 已注册时直接登录并补齐学校绑定。首次需提供真实姓名与学号。
+    /// </remarks>
+    /// <param name="model">含学校短名、邮箱、验证码、真实姓名、学号与年级</param>
+    /// <param name="token"></param>
+    [HttpPost("loginWithCode")]
+    [ProducesResponseType(typeof(SchoolCodeLoginResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> LoginWithCode([FromBody] SchoolCodeLoginModel model,
+        CancellationToken token = default)
+    {
+        var school = FindSchool(model.SchoolSlug);
+
+        if (school is null)
+            return NotFound(new RequestResponse("未配置的学校，请刷新页面后重试"));
+
+        if (school.Mode != SsoAuthMode.Email)
+            return BadRequest(new RequestResponse($"{school.Name} 未启用邮箱验证码登录，请使用统一认证登录"));
+
+        var email = model.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email))
+            return BadRequest(new RequestResponse("请输入邮箱地址"));
+
+        if (!EmailCodeService.EmailMatchesSchool(email, school))
+            return BadRequest(new RequestResponse($"该邮箱不属于 {school.Name}，请使用学校邮箱"));
+
+        if (string.IsNullOrWhiteSpace(model.Code))
+            return BadRequest(new RequestResponse("请填写验证码"));
+
+        // 一次性消费验证码
+        var valid = await emailCode.VerifyAsync(school.Slug, email, model.Code, token);
+
+        if (!valid)
+            return BadRequest(new RequestResponse("验证码不正确或已过期，请重新获取"));
+
+        var user = await userManager.FindByEmailAsync(email);
+        var created = false;
+
+        if (user is null)
+        {
+            // 账号名：优先学号，冲突时回退到邮箱前缀加随机后缀
+            var userName = await PickUserNameAsync(model.StdNumber, email);
+
+            user = new UserInfo
+            {
+                UserName = userName,
+                Email = email,
+                EmailConfirmed = true,
+                Role = Role.User,
+                RegisterTimeUtc = DateTimeOffset.UtcNow,
+                LastVisitedUtc = DateTimeOffset.UtcNow,
+                IP = HttpContext.Connection.RemoteIpAddress ?? System.Net.IPAddress.Any
+            };
+
+            // 随机强密码：本流程仅支持验证码登录，用户之后可在个人资料页设置密码
+            var password = $"Pctf@{Guid.NewGuid():N}aA1";
+            var result = await userManager.CreateAsync(user, password);
+
+            if (!result.Succeeded)
+            {
+                logger.LogError("验证码注册失败：{Errors}",
+                    string.Join("; ", result.Errors.Select(e => e.Description)));
+                return BadRequest(new RequestResponse("账号创建失败，请联系赛事管理员"));
+            }
+
+            created = true;
+        }
+        else if (!user.EmailConfirmed)
+        {
+            user.EmailConfirmed = true;
+        }
+
+        // 补齐学籍信息：不覆盖用户已填写的有效值
+        if (!string.IsNullOrWhiteSpace(model.RealName))
+            user.RealName = model.RealName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(model.StdNumber))
+            user.StdNumber = model.StdNumber.Trim();
+
+        if (!string.IsNullOrWhiteSpace(model.Grade))
+            user.Grade = model.Grade.Trim();
+
+        // 绑定学校：已通过邀请码绑定的学校不覆盖
+        if (user.SchoolSource != SchoolBindSource.Invite)
+        {
+            user.School = school.Slug;
+            user.SchoolSource = SchoolBindSource.Sso;
+        }
+
+        user.SubmitForVerification();
+        user.LastVisitedUtc = DateTimeOffset.UtcNow;
+        user.IP = HttpContext.Connection.RemoteIpAddress ?? System.Net.IPAddress.Any;
+
+        var update = await userManager.UpdateAsync(user);
+
+        if (!update.Succeeded)
+        {
+            logger.LogError("验证码登录后资料更新失败：{Errors}",
+                string.Join("; ", update.Errors.Select(e => e.Description)));
+        }
+
+        // 免密码登录：用已验证的邮箱身份直接签发 Cookie
+        await signInManager.SignInAsync(user, isPersistent: true);
+
+        logger.LogInformation("学校 {School} 验证码登录成功：user={User} created={Created}",
+            school.Name, user.UserName, created);
+
+        return Ok(new SchoolCodeLoginResult
+        {
+            Created = created,
+            UserName = user.UserName,
+            School = school.Slug,
+            SchoolName = school.Name,
+            VerifyStatus = user.VerifyStatus
+        });
+    }
+
+    /// <summary>
+    /// 校验验证码但不消费（供 checkCode 使用）
+    /// </summary>
+    async Task<bool> VerifyCodeWithoutConsumeAsync(string slug, string email, string code, CancellationToken token)
+    {
+        // 用一个短时占位副本校验，避免 checkCode 阶段就消耗掉真实验证码
+        var valid = await emailCode.VerifyAsync(slug, email, code, token);
+
+        if (!valid)
+            return false;
+
+        // 校验成功后把验证码写回，保留给随后的 loginWithCode 消费
+        await emailCode.ReissueSilentlyAsync(slug, email, code, token);
+        return true;
+    }
+
+    /// <summary>
+    /// 生成可用的用户名：优先学号，冲突则追加随机后缀
+    /// </summary>
+    async Task<string> PickUserNameAsync(string? stdNumber, string email)
+    {
+        var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(stdNumber))
+            candidates.Add(stdNumber.Trim());
+
+        candidates.Add(email.Split('@')[0]);
+
+        foreach (var candidate in candidates)
+        {
+            var normalized = new string(candidate.Where(char.IsLetterOrDigit).ToArray());
+
+            if (normalized.Length < Limits.MinUserNameLength)
+                continue;
+
+            if (normalized.Length > Limits.MaxUserNameLength)
+                normalized = normalized[..Limits.MaxUserNameLength];
+
+            if (await userManager.FindByNameAsync(normalized) is null)
+                return normalized;
+        }
+
+        // 全部冲突：邮箱前缀 + 4 位随机数
+        var baseName = new string(email.Split('@')[0].Where(char.IsLetterOrDigit).ToArray());
+        if (baseName.Length < Limits.MinUserNameLength)
+            baseName = "pctf";
+
+        var maxBase = Math.Max(1, Limits.MaxUserNameLength - 5);
+
+        if (baseName.Length > maxBase)
+            baseName = baseName[..maxBase];
+
+        for (var i = 0; i < 20; i++)
+        {
+            var name = $"{baseName}{Random.Shared.Next(1000, 9999)}";
+            if (await userManager.FindByNameAsync(name) is null)
+                return name;
+        }
+
+        return $"{baseName}{DateTimeOffset.UtcNow.ToUnixTimeSeconds() % 100000}";
+    }
+
+    /// <summary>
+    /// 构造验证码邮件正文（复用站点风格的 HTML）
+    /// </summary>
+    string BuildCodeMailContent(ClientSsoSchool school, string code)
+    {
+        var title = $"{school.Name} 登录验证码";
+        var platform = globalConfig.Value.Platform;
+
+        return $"""
+                <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1f2933;">
+                  <h2 style="font-size:18px;margin:0 0 16px;">{title}</h2>
+                  <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">
+                    你正在通过 <b>{school.Name}</b> 邮箱登录 <b>{platform}</b>。请在页面中输入以下验证码完成验证：
+                  </p>
+                  <div style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;
+                              padding:18px;background:#f4f6f8;border-radius:8px;margin:0 0 16px;">
+                    {code}
+                  </div>
+                  <p style="font-size:13px;color:#7b8794;line-height:1.6;margin:0;">
+                    验证码 10 分钟内有效，请勿转发给他人。<br/>
+                    若这不是你本人的操作，请忽略本邮件。
+                  </p>
+                </div>
+                """;
     }
 
     /// <summary>

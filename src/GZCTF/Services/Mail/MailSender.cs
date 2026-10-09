@@ -90,6 +90,31 @@ public sealed class MailSender : IMailSender, IDisposable
 
     public async Task SendMailContent(MailContent content)
     {
+        // 自定义正文邮件（验证码 / 通知）：跳过模板替换，直接发送 HTML
+        if (!string.IsNullOrWhiteSpace(content.RawHtml))
+        {
+            var rawTitle = string.IsNullOrWhiteSpace(content.RawTitle) ? content.Platform : content.RawTitle!;
+
+            if (_options is null || string.IsNullOrWhiteSpace(_options.SenderAddress) || _smtpClient is null)
+            {
+                _logger.SystemLog($"邮件配置不完整，无法发送「{rawTitle}」至 {content.Email}",
+                    TaskStatus.Failed);
+                return;
+            }
+
+            var rawSender = string.IsNullOrWhiteSpace(_options.SenderName) ? content.Platform : _options.SenderName;
+
+            if (!await SendEmailAsync($"{rawTitle} - {content.Platform}",
+                    content.RawHtml!,
+                    new MailboxAddress(rawSender, _options.SenderAddress),
+                    new MailboxAddress(string.IsNullOrWhiteSpace(content.UserName) ? content.Email : content.UserName,
+                        content.Email)))
+                _logger.SystemLog(StaticLocalizer[nameof(Resources.Program.MailSender_MailSendFailed)],
+                    TaskStatus.Failed);
+
+            return;
+        }
+
         // TODO: use GlobalConfig.DefaultEmailTemplate
         // TODO: use a string formatter library
         // TODO: update default template with new names
@@ -325,4 +350,30 @@ public class MailContent(
     /// 平台名称
     /// </summary>
     public string Platform { get; } = globalConfig.Value.Platform;
+
+    /// <summary>
+    /// 自定义 HTML 正文。非空时直接作为邮件正文发送，
+    /// 不再套用站点的按钮式模板（用于验证码、通知类邮件）。
+    /// </summary>
+    public string? RawHtml { get; private init; }
+
+    /// <summary>
+    /// 自定义邮件标题，配合 <see cref="RawHtml"/> 使用。
+    /// </summary>
+    public string? RawTitle { get; private init; }
+
+    /// <summary>
+    /// 构造正文自定义的邮件（验证码 / 通知）
+    /// </summary>
+    /// <param name="html">邮件 HTML 正文</param>
+    /// <param name="email">收件人邮箱</param>
+    /// <param name="title">邮件标题</param>
+    /// <param name="userName">收件人用户名（可空）</param>
+    public MailContent(string html, string email, string title, string? userName,
+        IStringLocalizer<Program> localizer, IOptionsSnapshot<GlobalConfig> globalConfig)
+        : this(userName ?? string.Empty, email, string.Empty, MailType.ConfirmEmail, localizer, globalConfig)
+    {
+        RawHtml = html;
+        RawTitle = title;
+    }
 }

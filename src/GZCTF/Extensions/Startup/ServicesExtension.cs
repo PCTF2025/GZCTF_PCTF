@@ -92,6 +92,7 @@ internal static class ServicesExtension
             builder.Services.AddChannel<CacheRequest>();
             builder.Services.AddSingleton<CacheHelper>();
             builder.Services.AddSingleton<IMailSender, MailSender>();
+            builder.Services.AddScoped<EmailCodeService>();
             builder.Services.AddSingleton<TrafficRecorderRegistry>();
 
             builder.Services.AddHostedService<CacheMaker>();
