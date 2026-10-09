@@ -1,6 +1,7 @@
 using System.Net.Mime;
 using GZCTF.Middlewares;
 using GZCTF.Models;
+using GZCTF.Models.Data;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
 using GZCTF.Repositories.Interface;
@@ -9,6 +10,7 @@ using GZCTF.Services.Config;
 using GZCTF.Services.Mail;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -32,9 +34,17 @@ public class AccountController(
     IOptionsSnapshot<SsoConfig> ssoConfig,
     UserManager<UserInfo> userManager,
     SignInManager<UserInfo> signInManager,
+    AppDbContext dbContext,
     ILogger<AccountController> logger,
     IStringLocalizer<Program> localizer) : ControllerBase
 {
+    /// <summary>
+    /// 「社会」学校归属的短名。
+    /// 注册时未填邀请码、或邀请码匹配不到任何学校的学生归入该组，
+    /// 既能在审核列表里与在校生区分，也不影响其正常参赛。
+    /// </summary>
+    internal const string SocialSchoolSlug = "social";
+
     /// <summary>
     /// User registration
     /// </summary>
@@ -73,17 +83,46 @@ public class AccountController(
 
         var user = new UserInfo { UserName = userName, Email = model.Email, Role = Role.User };
 
-        // 来自学校邮箱认证（快速登录）的注册：直接绑定学校，
-        // 省去注册后再手动绑定的一步，且无需邀请码（邮箱域名已校验归属）。
+        // 学校归属的三种来源，按优先级依次判定：
+        //   1. 学校邮箱认证入口带来的短名 —— 直接绑定，无需邀请码；
+        //   2. 报名邀请码 —— 匹配到哪所学校就绑定哪所；
+        //   3. 以上都没有或邀请码匹配不上 —— 记为「社会」（自由参赛者）。
         if (!string.IsNullOrWhiteSpace(model.SchoolSlug))
         {
-            var school = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-                .FirstOrDefault(s => string.Equals(s.Slug, model.SchoolSlug.Trim(), StringComparison.OrdinalIgnoreCase));
+            var school = await dbContext.Schools
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Enabled && s.Slug == model.SchoolSlug!.Trim(), token);
 
             if (school is not null)
             {
                 user.School = school.Slug;
                 user.SchoolSource = SchoolBindSource.Sso;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(user.School))
+        {
+            var inviteCode = model.InviteCode?.Trim();
+
+            var school = string.IsNullOrWhiteSpace(inviteCode)
+                ? null
+                : await dbContext.Schools
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Enabled && s.InviteCode == inviteCode, token);
+
+            if (school is not null)
+            {
+                user.School = school.Slug;
+                user.SchoolSource = SchoolBindSource.Invite;
+                logger.LogInformation("注册时凭邀请码绑定学校：school={School} user={User}", school.Slug, user.UserName);
+            }
+            else
+            {
+                // 未填邀请码或邀请码无效：归入社会组，仍可正常使用平台
+                user.School = SocialSchoolSlug;
+
+                if (!string.IsNullOrWhiteSpace(inviteCode))
+                    logger.LogInformation("注册邀请码未匹配到学校，归入社会：user={User}", user.UserName);
             }
         }
 

@@ -403,6 +403,11 @@ export type RegisterModel = ModelWithCaptcha & {
    * 注册时直接绑定该学校，无需邀请码。
    */
   schoolSlug?: string | null;
+  /**
+   * 学校报名邀请码（可选）。填写后自动匹配对应学校并绑定归属；
+   * 留空或匹配不到时，学校归属记为「社会」。
+   */
+  inviteCode?: string | null;
   /** 真实姓名 */
   realName?: string | null;
   /** 学号 */

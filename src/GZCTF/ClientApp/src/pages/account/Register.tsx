@@ -44,6 +44,7 @@ const Register: FC = () => {
   const [pickedSchool, setPickedSchool] = useState<string | null>(null)
   const [realName, setRealName] = useInputState('')
   const [stdNumber, setStdNumber] = useInputState('')
+  const [inviteCode, setInviteCode] = useInputState('')
   const [grade, setGrade] = useState<string | null>(null)
 
   const navigate = useNavigate()
@@ -129,12 +130,13 @@ const Register: FC = () => {
       return
     }
 
-    // 学籍信息为报名主办赛道的前提，注册时一并校验
-    if (!effectiveSchool || !realName.trim() || !stdNumber.trim() || !grade) {
+    // 学籍信息为报名主办赛道的前提，注册时一并校验。
+    // 学校不再单独必填：由邀请码自动匹配，匹配不到则归入「社会」组。
+    if (!realName.trim() || !stdNumber.trim() || !grade) {
       showNotification({
         color: 'orange',
         title: '请完善学籍信息',
-        message: '所属学校、真实姓名、学号、年级均为必填',
+        message: '真实姓名、学号、年级均为必填',
         icon: <Icon path={mdiClose} size={1} />,
       })
       return
@@ -171,6 +173,7 @@ const Register: FC = () => {
         challenge: token,
         // 学校邮箱认证入口进入时携带学校，注册即完成学校绑定
         schoolSlug: effectiveSchool || undefined,
+        inviteCode: inviteCode.trim() || undefined,
         // 学籍信息：提交后由对应学校管理员审核
         realName: realName.trim() || undefined,
         stdNumber: stdNumber.trim() || undefined,
@@ -264,17 +267,14 @@ const Register: FC = () => {
         error={pwd !== retypedPwd}
       />
       <Divider label="学籍信息（报名主办赛道需经学校审核）" labelPosition="center" my="xs" />
-      <Select
-        required
-        label="所属学校"
-        description="请选择你的学校，学籍信息将由该校管理员审核"
-        placeholder="请选择学校"
-        data={schoolOptions}
-        value={pickedSchool}
-        disabled={disabled || Boolean(schoolSlug)}
-        searchable
+      <TextInput
+        label="学校邀请码（选填）"
+        description="填写学校下发的邀请码将自动绑定该学校；留空或填写不正确时归入「社会」组，不影响正常参赛"
+        placeholder="如 PCTF2026-XXXX"
         w="100%"
-        onChange={setPickedSchool}
+        disabled={disabled || Boolean(schoolSlug)}
+        value={inviteCode}
+        onChange={(event) => setInviteCode(event.currentTarget.value)}
       />
       <TextInput
         required

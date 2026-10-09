@@ -41,6 +41,13 @@ public class RegisterModel : ModelWithCaptcha
     public string? SchoolSlug { get; set; }
 
     /// <summary>
+    /// 学校报名邀请码（可选）。填写后自动匹配对应学校并绑定归属；
+    /// 留空或匹配不到时，学校归属记为「社会」。
+    /// </summary>
+    [MaxLength(Limits.InviteTokenLength)]
+    public string? InviteCode { get; set; }
+
+    /// <summary>
     /// 真实姓名（主办赛道报名必需，注册时填写可免二次提交）
     /// </summary>
     [MaxLength(Limits.MaxUserDataLength)]
