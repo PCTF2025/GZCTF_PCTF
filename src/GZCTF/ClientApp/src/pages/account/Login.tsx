@@ -162,8 +162,11 @@ const Login: FC = () => {
         loading: false,
       })
       cleanUp(true)
+
+      // 先刷新用户态：SWR 缓存里的 profile 仍是旧的未登录值，
+      // 若直接跳转，首页会读到旧缓存而显示未登录，需要手动刷新
+      await mutate()
       setNeedRedirect(true)
-      mutate()
 
       // 登录成功，清理待绑定学校暂存，避免影响下次登录
       try {

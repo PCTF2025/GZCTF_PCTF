@@ -9,7 +9,7 @@ import { OnceSWRConfig } from '@Hooks/useConfig'
 import { useGame } from '@Hooks/useGame'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
 import { useTeams, useUser } from '@Hooks/useUser'
-import api, { GameJoinModel, DetailedGameInfoModel } from '@Api'
+import api, { GameJoinModel, DetailedGameInfoModel, VerifyStatus } from '@Api'
 
 const defaultTeam = (teams?: { id?: number | null }[]) => (teams && teams.length >= 1 ? teams[0].id!.toString() : null)
 
@@ -92,7 +92,7 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
     }
   })
 
-  // 主办赛道要求真实姓名 + 学号 + 学校绑定，缺项在报名前提示
+  // 主办赛道要求真实姓名 + 学号 + 学校绑定，且学籍审核通过，缺项在报名前提示
   const profileIncomplete = useMemo(() => {
     const missing: string[] = []
     if (!user?.realName?.trim()) missing.push('真实姓名')
@@ -100,6 +100,28 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
     if (!user?.school?.trim()) missing.push('所属学校')
     return missing
   }, [user])
+
+  // 资料齐全时，还要看学校管理员的学籍审核结果；
+  // 平台本身可以正常使用（浏览赛题、组队），仅主办赛道报名受此限制
+  const verifyBlocked = useMemo(() => {
+    if (profileIncomplete.length > 0) return null
+    switch (user?.verifyStatus) {
+      case VerifyStatus.Approved:
+        return null
+      case VerifyStatus.Pending:
+        return { color: 'orange', title: '学籍审核中', message: '你的学籍信息正在等待学校管理员审核，通过后即可报名主办赛道。平台其他功能不受影响。' }
+      case VerifyStatus.Rejected:
+        return {
+          color: 'red',
+          title: '学籍审核未通过',
+          message: user.verifyNote
+            ? `驳回原因：${user.verifyNote}。请前往「个人资料」页面修正后重新提交。`
+            : '请前往「个人资料」页面检查学籍信息后重新提交。',
+        }
+      default:
+        return { color: 'orange', title: '学籍待提交', message: '请前往「个人资料」页面补全学籍信息并提交审核。' }
+    }
+  }, [user, profileIncomplete])
 
   const onJoinGame = async () => {
     setDisabled(true)
@@ -121,6 +143,19 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
         title: '报名信息不完整',
         message: `报名主办赛道前请先完善：${profileIncomplete.join('、')}。可前往「个人资料」页面填写。`,
         icon: <Icon path={mdiClose} size={1} />,
+        autoClose: 8000,
+      })
+      setDisabled(false)
+      return
+    }
+
+    // 资料齐全但学籍未通过审核：给出明确原因，避免提交后收到后端报错
+    if (verifyBlocked) {
+      showNotification({
+        color: verifyBlocked.color,
+        title: verifyBlocked.title,
+        message: verifyBlocked.message,
+        icon: <Icon path={mdiAlertCircleOutline} size={1} />,
         autoClose: 8000,
       })
       setDisabled(false)
@@ -174,6 +209,11 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
             <Text size="sm">
               缺少：{profileIncomplete.join('、')}。请前往「个人资料」页面填写真实姓名、学号并绑定学校。
             </Text>
+          </Alert>
+        )}
+        {verifyBlocked && (
+          <Alert color={verifyBlocked.color} icon={<Icon path={mdiAlertCircleOutline} size={1} />} title={verifyBlocked.title}>
+            <Text size="sm">{verifyBlocked.message}</Text>
           </Alert>
         )}
         <Select

@@ -417,7 +417,8 @@ public class SsoController(
         if (user is null)
         {
             // 账号名：优先学号，冲突时回退到邮箱前缀加随机后缀
-            var userName = await PickUserNameAsync(model.StdNumber, email);
+            // 用户名优先级：用户填写 > 学号 > 邮箱前缀
+            var userName = await PickUserNameAsync(model.UserName, model.StdNumber, email);
 
             user = new UserInfo
             {
@@ -512,9 +513,16 @@ public class SsoController(
     /// <summary>
     /// 生成可用的用户名：优先学号，冲突则追加随机后缀
     /// </summary>
-    async Task<string> PickUserNameAsync(string? stdNumber, string email)
+    /// <summary>
+    /// 解析新账号的用户名：依次尝试用户填写值、学号、邮箱前缀，
+    /// 全部被占用时回退「邮箱前缀 + 随机数」。
+    /// </summary>
+    async Task<string> PickUserNameAsync(string? preferred, string? stdNumber, string email)
     {
         var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(preferred))
+            candidates.Add(preferred.Trim());
 
         if (!string.IsNullOrWhiteSpace(stdNumber))
             candidates.Add(stdNumber.Trim());
@@ -523,7 +531,7 @@ public class SsoController(
 
         foreach (var candidate in candidates)
         {
-            var normalized = new string(candidate.Where(char.IsLetterOrDigit).ToArray());
+            var normalized = new string(candidate.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
 
             if (normalized.Length < Limits.MinUserNameLength)
                 continue;

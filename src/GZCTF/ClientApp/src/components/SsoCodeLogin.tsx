@@ -4,6 +4,7 @@ import { mdiAlertCircleOutline, mdiArrowLeft, mdiEmailFastOutline, mdiLoginVaria
 import { Icon } from '@mdi/react'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useUser } from '@Hooks/useUser'
 import api, { ClientSsoSchool, RequestResponse } from '@Api'
 
 /// 年级选项
@@ -35,10 +36,12 @@ interface Props {
 
 export const SsoCodeLogin: FC<Props> = ({ school, onBack, standalone }) => {
   const navigate = useNavigate()
+  const { mutate: mutateProfile } = useUser()
 
   const [step, setStep] = useState<Step>('email')
   const [emailPrefix, setEmailPrefix] = useState('')
   const [code, setCode] = useState('')
+  const [userName, setUserName] = useState('')
   const [realName, setRealName] = useState('')
   const [stdNumber, setStdNumber] = useState('')
   const [grade, setGrade] = useState<string | null>(null)
@@ -153,6 +156,7 @@ export const SsoCodeLogin: FC<Props> = ({ school, onBack, standalone }) => {
         schoolSlug: school.slug!,
         email,
         code: input,
+        userName: userName.trim() || undefined,
         realName: realName.trim() || undefined,
         stdNumber: stdNumber.trim() || undefined,
         grade: grade || undefined,
@@ -174,6 +178,8 @@ export const SsoCodeLogin: FC<Props> = ({ school, onBack, standalone }) => {
         `${result.schoolName ?? school.name} 已绑定，学籍信息待学校管理员审核`
       )
 
+      // 先刷新用户态再跳转，避免首页读到旧的未登录缓存而需要手动刷新
+      await mutateProfile()
       navigate('/')
     } catch (err) {
       const e = err as { response?: { data?: RequestResponse } }
@@ -282,6 +288,15 @@ export const SsoCodeLogin: FC<Props> = ({ school, onBack, standalone }) => {
 
       {registered === false || (registered && needProfile) ? (
         <>
+          <TextInput
+            label="用户名（可选）"
+            placeholder={`留空则使用学号 ${stdNumber || ''}`.trim()}
+            description="登录时使用的账号名，3-15 位字母、数字或下划线"
+            w="100%"
+            value={userName}
+            disabled={disabled}
+            onChange={(event) => setUserName(event.currentTarget.value.replace(/[^A-Za-z0-9_]/g, ''))}
+          />
           <TextInput
             required
             label="真实姓名"

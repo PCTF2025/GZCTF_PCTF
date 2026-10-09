@@ -13,6 +13,7 @@ import { encryptApiData } from '@Utils/Crypto'
 import { tryGetClientError } from '@Utils/Shared'
 import { useConfig } from '@Hooks/useConfig'
 import { usePageTitle } from '@Hooks/usePageTitle'
+import { useUser } from '@Hooks/useUser'
 import api, { RegisterStatus } from '@Api'
 import misc from '@Styles/Misc.module.css'
 
@@ -46,6 +47,7 @@ const Register: FC = () => {
   const [grade, setGrade] = useState<string | null>(null)
 
   const navigate = useNavigate()
+  const { mutate: mutateProfile } = useUser()
   const { captchaRef, getToken, cleanUp } = useCaptchaRef()
   const params = useSearchParams()[0]
 
@@ -194,7 +196,11 @@ const Register: FC = () => {
           /* 忽略 */
         }
 
-        if (res.data.data === RegisterStatus.LoggedIn) navigate('/')
+        if (res.data.data === RegisterStatus.LoggedIn) {
+          // 先刷新用户态再跳转，避免首页读到旧的未登录缓存而需要手动刷新
+          await mutateProfile()
+          navigate('/')
+        }
         else if (res.data.data === RegisterStatus.EmailConfirmationRequired)
           navigate('/account/pending', { state: { email } })
         else navigate('/account/login')
@@ -237,14 +243,15 @@ const Register: FC = () => {
         onChange={(event) => setEmail(event.currentTarget.value)}
       />
       <TextInput
-        required
         label={t('account.label.username')}
         type="text"
-        placeholder="ctfer"
+        placeholder={stdNumber.trim() ? `留空则使用学号 ${stdNumber.trim()}` : '留空则使用学号'}
+        description="选填，3-15 位字母、数字或下划线"
         w="100%"
         value={uname}
         disabled={disabled}
-        onChange={(event) => setUname(event.currentTarget.value)}
+        error={uname.length > 0 && uname.length < 3 ? '用户名至少 3 位' : undefined}
+        onChange={(event) => setUname(event.currentTarget.value.replace(/[^A-Za-z0-9_]/g, ''))}
       />
       <StrengthPasswordInput value={pwd} onChange={(event) => setPwd(event.currentTarget.value)} disabled={disabled} />
       <PasswordInput
