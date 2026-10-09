@@ -13,6 +13,7 @@ import {
   Table,
   Text,
   TextInput,
+  Tooltip,
 } from '@mantine/core'
 import { useClipboard, useInputState } from '@mantine/hooks'
 import { useModals } from '@mantine/modals'
@@ -28,16 +29,15 @@ import {
   mdiPencilOutline,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import React, { FC, useEffect, useMemo, useRef, useState } from 'react'
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ActionIconWithConfirm } from '@Components/ActionIconWithConfirm'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { UserEditModal, RoleColorMap } from '@Components/admin/UserEditModal'
 import { showErrorMsg } from '@Utils/Shared'
-import { useConfig } from '@Hooks/useConfig'
 import { useArrayResponse } from '@Hooks/useArrayResponse'
 import { useUser } from '@Hooks/useUser'
-import api, { Role, UserInfoModel, VerifyStatus } from '@Api'
+import api, { hasPermission, Role, UserInfoModel, UserPermission, VerifyStatus } from '@Api'
 import tableClasses from '@Styles/Table.module.css'
 
 const ITEM_COUNT_PER_PAGE = 30
@@ -49,6 +49,93 @@ const VERIFY_STATUS_OPTIONS = [
   { value: VerifyStatus.Rejected, label: '已驳回' },
   { value: VerifyStatus.None, label: '未提交' },
 ]
+
+
+/// 学籍审核状态 → 展示样式
+const VERIFY_BADGE: Record<string, { label: string; color: string }> = {
+  [VerifyStatus.Approved]: { label: '已通过', color: 'teal' },
+  [VerifyStatus.Pending]: { label: '待审核', color: 'orange' },
+  [VerifyStatus.Rejected]: { label: '已驳回', color: 'red' },
+  [VerifyStatus.None]: { label: '未提交', color: 'gray' },
+}
+
+/// 学籍审核状态徽章
+const VerifyBadge: FC<{ user: UserInfoModel }> = ({ user }) => {
+  const meta = VERIFY_BADGE[user.verifyStatus ?? VerifyStatus.None] ?? VERIFY_BADGE[VerifyStatus.None]
+  return (
+    <Badge size="sm" variant="light" color={meta.color}>
+      {meta.label}
+    </Badge>
+  )
+}
+
+/// 职能权限位 → 展示元信息
+const DUTY_META: { bit: UserPermission; label: string; color: string }[] = [
+  { bit: UserPermission.ChallengeAuthor, label: '出题人', color: 'grape' },
+  { bit: UserPermission.ChallengeManager, label: '出题管理员', color: 'indigo' },
+  { bit: UserPermission.SchoolManager, label: '学校负责人', color: 'cyan' },
+]
+
+/// 负责人类型（及授权方向）徽章组
+const DutyBadges: FC<{ user: UserInfoModel }> = ({ user }) => {
+  const bits = user.permissions ?? UserPermission.None
+  const categories = (user.managedCategories ?? '')
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+  const schools = (user.managedSchools ?? '')
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+
+  const duties = DUTY_META.filter((m) => hasPermission(bits, m.bit))
+
+  // 兼容历史数据：仅有负责学校但未打权限位的账号，仍视为学校负责人
+  if (duties.length === 0 && schools.length > 0)
+    duties.push({ bit: UserPermission.SchoolManager, label: '学校负责人', color: 'cyan' })
+
+  // 平台管理员单独标注（Role 体系，与职能权限正交）
+  const isAdmin = user.role === Role.Admin
+
+  if (!isAdmin && duties.length === 0)
+    return (
+      <Text size="xs" c="dimmed">
+        —
+      </Text>
+    )
+
+  return (
+    <Group gap={4} wrap="wrap">
+      {isAdmin && (
+        <Badge size="sm" variant="light" color={RoleColorMap.get(Role.Admin)}>
+          平台管理员
+        </Badge>
+      )}
+      {duties.map((d) => (
+        <Tooltip
+          key={d.label}
+          withArrow
+          label={
+            d.bit === UserPermission.SchoolManager
+              ? schools.length > 0
+                ? `负责审核：${schools.join('、')}`
+                : '负责审核学校'
+              : categories.length > 0
+                ? `授权方向：${categories.join('、')}`
+                : '全部方向'
+          }
+        >
+          <Badge size="sm" variant="light" color={d.color} style={{ cursor: 'help' }}>
+            {d.label}
+            {d.bit === UserPermission.SchoolManager
+              ? schools.length > 0 && ` · ${schools.length} 校`
+              : categories.length > 0 && ` · ${categories.length} 方向`}
+          </Badge>
+        </Tooltip>
+      ))}
+    </Group>
+  )
+}
 
 const Users: FC = () => {
   const [page, setPage] = useState(1)
@@ -65,15 +152,32 @@ const Users: FC = () => {
 
   const modals = useModals()
   const { user: currentUser } = useUser()
-  const { config } = useConfig()
 
-  /// 学校下拉选项（来自后台 SSO 配置）
+  /// 学校列表（数据库为准，含已停用的「社会」组）
+  const { data: schoolSettings } = api.school.useSchoolSettings()
+
+  /// 学校短名 → 名称
+  const schoolNameMap = useMemo(
+    () => new Map((schoolSettings?.schools ?? []).map((s) => [s.slug, s.name])),
+    [schoolSettings]
+  )
+
+  /// 学校短名 → 展示名（未知短名原样回显）
+  const schoolLabel = useCallback(
+    (slug?: string | null) => {
+      if (!slug) return '—'
+      return schoolNameMap.get(slug) ?? slug
+    },
+    [schoolNameMap]
+  )
+
+  /// 学校下拉选项
   const schoolOptions = useMemo(
     () =>
-      (config.sso?.schools ?? [])
-        .filter((s) => s.name && s.slug)
-        .map((s) => ({ value: s.slug!, label: `${s.name}（${s.slug}）` })),
-    [config.sso]
+      (schoolSettings?.schools ?? [])
+        .filter((s) => s.slug)
+        .map((s) => ({ value: s.slug, label: `${s.name}（${s.slug}）` })),
+    [schoolSettings]
   )
   const clipboard = useClipboard()
   const { t } = useTranslation()
@@ -288,9 +392,9 @@ const Users: FC = () => {
                 <Table.Th miw="1.8rem">{t('admin.label.users.active')}</Table.Th>
                 <Table.Th>{t('common.label.user')}</Table.Th>
                 <Table.Th>{t('account.label.email')}</Table.Th>
-                <Table.Th>{t('common.label.ip')}</Table.Th>
-                <Table.Th>{t('account.label.real_name')}</Table.Th>
-                <Table.Th>{t('account.label.student_id')}</Table.Th>
+                <Table.Th miw="9rem">学校</Table.Th>
+                <Table.Th miw="14rem">负责人类型 / 方向</Table.Th>
+                <Table.Th miw="6rem">学籍审核</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -326,15 +430,15 @@ const Users: FC = () => {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text lineClamp={1} size="sm" ff="monospace">
-                        {user.ip}
+                      <Text size="sm" lineClamp={1}>
+                        {schoolLabel(user.school)}
                       </Text>
                     </Table.Td>
-                    <Table.Td>{user.realName ?? t('admin.placeholder.users.real_name')}</Table.Td>
                     <Table.Td>
-                      <Text size="sm" ff="monospace">
-                        {user.stdNumber ?? t('admin.placeholder.users.student_id')}
-                      </Text>
+                      <DutyBadges user={user} />
+                    </Table.Td>
+                    <Table.Td>
+                      <VerifyBadge user={user} />
                     </Table.Td>
                     <Table.Td align="right">
                       <Group wrap="nowrap" gap="sm" justify="right">
