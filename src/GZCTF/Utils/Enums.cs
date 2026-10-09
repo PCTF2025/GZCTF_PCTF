@@ -639,7 +639,13 @@ public enum SchoolAuthType : byte
     Email = 0,
 
     /// <summary>学校 CAS 统一身份认证跳转</summary>
-    Cas = 1
+    Cas = 1,
+
+    /// <summary>
+    /// 仅邀请码绑定：不提供学校专属登录入口，
+    /// 选手使用站内账号注册后凭邀请码绑定学校归属。
+    /// </summary>
+    InviteOnly = 2
 }
 
 /// <summary>

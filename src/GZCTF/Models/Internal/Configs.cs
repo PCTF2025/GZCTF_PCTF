@@ -549,7 +549,10 @@ public enum SsoAuthMode
     Cas,
 
     /// <summary>按邮箱后缀归属校验，仅允许本校邮箱登录</summary>
-    Email
+    Email,
+
+    /// <summary>仅邀请码绑定：登录页不提供该校专属入口，凭邀请码加入</summary>
+    Invite
 }
 
 /// <summary>

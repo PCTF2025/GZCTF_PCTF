@@ -53,6 +53,11 @@ public class SsoController(
         if (school.Mode == SsoAuthMode.Email)
             return Ok(new RequestResponse($"请使用 {school.Name} 邮箱登录", StatusCodes.Status200OK));
 
+        // 仅邀请码绑定的学校没有专属登录入口，引导到邀请码绑定流程
+        if (school.Mode == SsoAuthMode.Invite)
+            return BadRequest(new RequestResponse(
+                $"{school.Name} 不提供统一认证登录，请使用站内账号注册后凭邀请码绑定学校"));
+
         if (string.IsNullOrWhiteSpace(school.LoginUrl))
             return BadRequest(new RequestResponse($"{school.Name} 未配置统一认证登录地址"));
 
@@ -263,7 +268,12 @@ public class SsoController(
             .Select(s => new SchoolOptionModel(
                 s.Name,
                 s.Slug,
-                s.Mode == SsoAuthMode.Cas ? "cas" : "email",
+                s.Mode switch
+                {
+                    SsoAuthMode.Cas => "cas",
+                    SsoAuthMode.Invite => "invite",
+                    _ => "email"
+                },
                 s.EmailSuffixes,
                 // 该校配置了邀请码时，前端应提示邀请码必填
                 inviteCodeMap.TryGetValue(s.Slug, out var code) && !string.IsNullOrWhiteSpace(code)))

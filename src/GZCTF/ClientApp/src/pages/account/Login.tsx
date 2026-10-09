@@ -57,8 +57,11 @@ const Login: FC = () => {
   const stacked = width < 900
 
   // 后台配置的学校列表；未配置时不显示右栏
+  // 「仅邀请码绑定」的学校没有专属登录入口，不出现在登录页
   const sso = config.sso
-  const ssoSchools = (sso?.schools ?? []).filter((s) => s.name && s.slug)
+  const ssoSchools = (sso?.schools ?? []).filter(
+    (s) => s.name && s.slug && s.mode !== SsoAuthMode.Invite
+  )
 
   // 右栏状态：学校列表 / 邮箱登录表单
   const [ssoMode, setSsoMode] = useState<'schools' | 'email'>('schools')

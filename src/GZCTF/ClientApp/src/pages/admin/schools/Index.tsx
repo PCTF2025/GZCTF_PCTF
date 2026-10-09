@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -31,6 +32,7 @@ import {
   mdiCheckCircleOutline,
   mdiDeleteOutline,
   mdiDomain,
+  mdiInformationOutline,
   mdiLockOutline,
   mdiPencilOutline,
   mdiContentCopy,
@@ -421,8 +423,12 @@ const SchoolSettings: FC = () => {
                     <Group gap="xs" wrap="nowrap">
                       <Icon path={mdiDomain} size={0.8} />
                       <Text fw={600}>{s.name}</Text>
-                      <Badge size="sm" variant="light" color={s.authType === 'cas' ? 'blue' : 'grape'}>
-                        {s.authType === 'cas' ? '统一认证' : '邮箱验证码'}
+                      <Badge
+                        size="sm"
+                        variant="light"
+                        color={s.authType === 'cas' ? 'blue' : s.authType === 'invite' ? 'cyan' : 'grape'}
+                      >
+                        {s.authType === 'cas' ? '统一认证' : s.authType === 'invite' ? '仅邀请码' : '邮箱验证码'}
                       </Badge>
                       {!s.enabled && (
                         <Badge size="sm" variant="light" color="gray">
@@ -553,23 +559,34 @@ const SchoolSettings: FC = () => {
 
             <Select
               label="认证模式"
+              description="决定登录页展示方式：邮箱验证码需填写学校邮箱后缀；CAS 需填写对接地址；仅邀请码绑定则在登录页不出现该校，学生凭邀请码加入"
               data={[
-                { value: 'email', label: '邮箱验证码（学校邮箱后缀）' },
+                { value: 'email', label: '邮箱验证码（按学校邮箱后缀）' },
                 { value: 'cas', label: 'CAS 统一身份认证' },
+                { value: 'invite', label: '仅邀请码绑定（无专属登录入口）' },
               ]}
               value={form.authType ?? 'email'}
               onChange={(v) => setForm({ ...form, authType: v ?? 'email' })}
               allowDeselect={false}
             />
 
-            {form.authType === 'email' ? (
+            {form.authType === 'invite' && (
+              <Alert color="cyan" variant="light" icon={<Icon path={mdiInformationOutline} size={0.9} />}>
+                该校不显示在登录页的学校列表中，学生使用站内账号注册 / 登录后，凭下方「报名邀请码」绑定学校归属。
+                请务必在「报名设置」中设置邀请码。
+              </Alert>
+            )}
+
+            {form.authType === 'email' && (
               <TagsInput
                 label="允许的邮箱后缀"
                 description="回车添加，如 cppu.edu.cn"
                 value={toList(form.emailDomains)}
                 onChange={(list) => setForm({ ...form, emailDomains: toRaw(list) })}
               />
-            ) : (
+            )}
+
+            {form.authType === 'cas' && (
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <TextInput
                   label="CAS 登录地址"

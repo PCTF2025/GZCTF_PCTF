@@ -94,7 +94,7 @@ public class SchoolController(
             AuthType = ParseAuthType(model.AuthType),
             CasLoginUrl = model.CasLoginUrl?.Trim(),
             CasValidateUrl = model.CasValidateUrl?.Trim(),
-            EmailDomains = Clean(model.EmailDomains),
+            EmailDomains = CleanRequired(model.EmailDomains),
             IconUrl = model.IconUrl?.Trim(),
             InviteCode = Clean(model.InviteCode),
             Enabled = model.Enabled,
@@ -143,7 +143,7 @@ public class SchoolController(
         school.AuthType = ParseAuthType(model.AuthType);
         school.CasLoginUrl = model.CasLoginUrl?.Trim();
         school.CasValidateUrl = model.CasValidateUrl?.Trim();
-        school.EmailDomains = Clean(model.EmailDomains);
+        school.EmailDomains = CleanRequired(model.EmailDomains);
         school.IconUrl = model.IconUrl?.Trim();
         school.InviteCode = Clean(model.InviteCode);
         school.Enabled = model.Enabled;
@@ -272,12 +272,21 @@ public class SchoolController(
     ];
 
     private static SchoolAuthType ParseAuthType(string? raw) =>
-        string.Equals(raw, "cas", StringComparison.OrdinalIgnoreCase)
-            ? SchoolAuthType.Cas
-            : SchoolAuthType.Email;
+        raw?.Trim().ToLowerInvariant() switch
+        {
+            "cas" => SchoolAuthType.Cas,
+            "invite" or "inviteonly" or "code" => SchoolAuthType.InviteOnly,
+            _ => SchoolAuthType.Email
+        };
 
     private static string? Clean(string? raw) =>
         string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+
+    /// <summary>
+    /// 规范化「非空列」的字符串字段：数据库列声明为 NOT NULL，空值须落成空串
+    /// </summary>
+    private static string CleanRequired(string? raw) =>
+        string.IsNullOrWhiteSpace(raw) ? string.Empty : raw.Trim();
 
     /// <summary>
     /// 年级列表规范化：统一以逗号连接并去重

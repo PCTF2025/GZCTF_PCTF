@@ -53,7 +53,12 @@ public class SchoolDetailModel
         Id = s.Id,
         Name = s.Name,
         Slug = s.Slug,
-        AuthType = s.AuthType == SchoolAuthType.Cas ? "cas" : "email",
+        AuthType = s.AuthType switch
+        {
+            SchoolAuthType.Cas => "cas",
+            SchoolAuthType.InviteOnly => "invite",
+            _ => "email"
+        },
         CasLoginUrl = s.CasLoginUrl,
         CasValidateUrl = s.CasValidateUrl,
         EmailDomains = s.EmailDomains,

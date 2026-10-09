@@ -2601,6 +2601,8 @@ export interface ClientSsoConfig {
 export enum SsoAuthMode {
   Cas = 'Cas',
   Email = 'Email',
+  /** 仅邀请码绑定：登录页不显示该校专属入口 */
+  Invite = 'Invite',
 }
 
 /** 单所学校 */

@@ -213,7 +213,12 @@ public class School
     {
         Name = Name,
         Slug = Slug,
-        Mode = AuthType == SchoolAuthType.Cas ? SsoAuthMode.Cas : SsoAuthMode.Email,
+        Mode = AuthType switch
+        {
+            SchoolAuthType.Cas => SsoAuthMode.Cas,
+            SchoolAuthType.InviteOnly => SsoAuthMode.Invite,
+            _ => SsoAuthMode.Email
+        },
         LoginUrl = CasLoginUrl ?? string.Empty,
         ValidateUrl = CasValidateUrl ?? string.Empty,
         Icon = IconUrl,
