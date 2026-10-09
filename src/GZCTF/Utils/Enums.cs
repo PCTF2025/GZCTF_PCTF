@@ -629,6 +629,32 @@ public static class ErrorCodes
 /// <summary>
 /// 学校绑定来源
 /// </summary>
+/// <summary>
+/// 学校统一身份认证方式
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SchoolAuthType>))]
+public enum SchoolAuthType : byte
+{
+    /// <summary>站内邮箱验证码登录（按邮箱后缀判定归属）</summary>
+    Email = 0,
+
+    /// <summary>学校 CAS 统一身份认证跳转</summary>
+    Cas = 1
+}
+
+/// <summary>
+/// 报名分组类型：按年级把学生分成新生组 / 老生组
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SchoolDivisionGroup>))]
+public enum SchoolDivisionGroup : byte
+{
+    /// <summary>新生组</summary>
+    Freshman = 0,
+
+    /// <summary>老生组</summary>
+    Senior = 1
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SchoolBindSource>))]
 public enum SchoolBindSource : byte
 {

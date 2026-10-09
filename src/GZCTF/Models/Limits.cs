@@ -96,4 +96,29 @@ public static class Limits
     /// 分组名称最大长度
     /// </summary>
     public const int MaxDivisionNameLength = 31;
+
+    /// <summary>
+    /// 学校名称最大长度
+    /// </summary>
+    public const int MaxSchoolNameLength = 64;
+
+    /// <summary>
+    /// 学校短名最大长度
+    /// </summary>
+    public const int MaxSchoolSlugLength = 32;
+
+    /// <summary>
+    /// 邮箱后缀列表最大长度
+    /// </summary>
+    public const int MaxEmailDomainListLength = 512;
+
+    /// <summary>
+    /// 年级列表最大长度（CSV）
+    /// </summary>
+    public const int MaxGradeListLength = 256;
+
+    /// <summary>
+    /// URL 字段最大长度
+    /// </summary>
+    public const int MaxUrlLength = 512;
 }

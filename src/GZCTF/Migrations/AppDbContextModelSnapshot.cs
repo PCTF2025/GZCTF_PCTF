@@ -963,6 +963,82 @@ namespace GZCTF.Migrations
                     b.ToTable("Posts");
                 });
 
+            modelBuilder.Entity("GZCTF.Models.Data.School", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<byte>("AuthType")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("CasLoginUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CasValidateUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("EmailDomains")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("FreshmanDivisionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FreshmanGrades")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("IconUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("InviteCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SeniorDivisionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SeniorGrades")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FreshmanDivisionId");
+
+                    b.HasIndex("SeniorDivisionId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Schools");
+                });
+
             modelBuilder.Entity("GZCTF.Models.Data.Submission", b =>
                 {
                     b.Property<int>("Id")
@@ -1735,6 +1811,21 @@ namespace GZCTF.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("GZCTF.Models.Data.School", b =>
+                {
+                    b.HasOne("GZCTF.Models.Data.Division", "FreshmanDivision")
+                        .WithMany()
+                        .HasForeignKey("FreshmanDivisionId");
+
+                    b.HasOne("GZCTF.Models.Data.Division", "SeniorDivision")
+                        .WithMany()
+                        .HasForeignKey("SeniorDivisionId");
+
+                    b.Navigation("FreshmanDivision");
+
+                    b.Navigation("SeniorDivision");
                 });
 
             modelBuilder.Entity("GZCTF.Models.Data.Submission", b =>

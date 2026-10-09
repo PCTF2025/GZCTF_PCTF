@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Threading.Channels;
 using GZCTF.Middlewares;
 using GZCTF.Models;
+using GZCTF.Models.Data;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Admin;
 using GZCTF.Models.Request.Game;
@@ -32,6 +33,7 @@ namespace GZCTF.Controllers;
 [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status403Forbidden)]
 public class GameController(
+    AppDbContext dbContext,
     ILogger<GameController> logger,
     UserManager<UserInfo> userManager,
     ChannelWriter<Submission> channelWriter,
@@ -189,6 +191,28 @@ public class GameController(
 
         if (team.Members.All(u => u.Id != user!.Id))
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_NotMemberOfTeam)]));
+
+        // =============== 主办赛道：按学校与年级自动分配赛区 ===============
+        // 每所学校在「学校设置」里把年级划分为新生组 / 老生组，各组绑定一个赛区。
+        // 报名主办赛道时若未显式指定赛区，则按学生的学校与年级自动归属，
+        // 避免选手自行选错组别（也便于按组别出题与排名）。
+        if (trackConfig.Value.OfficialGameId > 0 && trackConfig.Value.OfficialGameId == game.Id &&
+            model.DivisionId is null && !string.IsNullOrWhiteSpace(user!.School))
+        {
+            var school = await dbContext.Schools
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Slug == user.School, token);
+
+            var autoDivisionId = school?.ResolveDivisionId(user.Grade);
+
+            if (autoDivisionId is > 0)
+            {
+                model.DivisionId = autoDivisionId;
+                logger.LogInformation(
+                    "按学校自动分配赛区：user={User} school={School} grade={Grade} group={Group} division={Division}",
+                    user.UserName, school!.Name, user.Grade, school.ResolveGroupName(user.Grade), autoDivisionId);
+            }
+        }
 
         // =============== Validate division and permissions ===============
 

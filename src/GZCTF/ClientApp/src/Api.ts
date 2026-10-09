@@ -919,6 +919,75 @@ export interface FileListModel {
   files: FileItemModel[];
 }
 
+/** 管理端：学校完整信息 */
+export interface SchoolDetailModel {
+  id: number;
+  name: string;
+  slug: string;
+  /** 认证模式：cas / email */
+  authType: string;
+  casLoginUrl?: string | null;
+  casValidateUrl?: string | null;
+  /** 允许的邮箱后缀，逗号分隔 */
+  emailDomains: string;
+  iconUrl?: string | null;
+  /** 报名邀请码，留空表示免邀请码绑定 */
+  inviteCode?: string | null;
+  enabled: boolean;
+  order: number;
+  /** 新生组年级列表，逗号分隔 */
+  freshmanGrades: string;
+  /** 老生组年级列表，逗号分隔 */
+  seniorGrades: string;
+  /** 新生组绑定赛区 */
+  freshmanDivisionId?: number | null;
+  /** 老生组绑定赛区 */
+  seniorDivisionId?: number | null;
+  /** 已绑定本校的学生数 */
+  userCount: number;
+  /** 是否已配置报名邀请码 */
+  hasInviteCode: boolean;
+}
+
+/** 管理端：新增 / 编辑学校 */
+export interface SchoolEditModel {
+  name: string;
+  slug?: string | null;
+  authType?: string | null;
+  casLoginUrl?: string | null;
+  casValidateUrl?: string | null;
+  emailDomains?: string | null;
+  iconUrl?: string | null;
+  inviteCode?: string | null;
+  enabled?: boolean;
+  order?: number;
+  freshmanGrades?: string | null;
+  seniorGrades?: string | null;
+  freshmanDivisionId?: number | null;
+  seniorDivisionId?: number | null;
+}
+
+/** 赛区选项（含所属赛事） */
+export interface SchoolDivisionOptionModel {
+  id: number;
+  name: string;
+  gameId: number;
+  gameTitle: string;
+}
+
+/** 学校设置页聚合数据 */
+export interface SchoolSettingsModel {
+  schools: SchoolDetailModel[];
+  divisions: SchoolDivisionOptionModel[];
+  grades: string[];
+}
+
+/** 批量设置报名邀请码 */
+export interface SchoolInviteBatchModel {
+  slug: string;
+  inviteCode?: string | null;
+}
+
 export interface AdminUserInfoModel {
   /**
    * Username
@@ -3239,6 +3308,105 @@ export class Api<
     useVerifyPermission: (options?: SWRConfiguration, doFetch: boolean = true) =>
       useSWR<VerifyPermissionModel, RequestResponse>(
         doFetch ? `/api/verify/permission` : null,
+        options,
+      ),
+  };
+  school = {
+    /**
+     * @description 学校设置页聚合数据（学校列表 + 可选赛区 + 年级选项）
+     *
+     * @tags School
+     * @name SchoolSettings
+     * @summary 学校设置页聚合数据
+     * @request GET:/api/school/settings
+     */
+    schoolSettings: (params: RequestParams = {}) =>
+      this.request<SchoolSettingsModel, any>({
+        path: `/api/school/settings`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 新增学校
+     *
+     * @tags School
+     * @name SchoolCreate
+     * @summary 新增学校
+     * @request POST:/api/school
+     */
+    schoolCreate: (data: SchoolEditModel, params: RequestParams = {}) =>
+      this.request<any, RequestResponse>({
+        path: `/api/school`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 编辑学校
+     *
+     * @tags School
+     * @name SchoolUpdate
+     * @summary 编辑学校
+     * @request PUT:/api/school/{id}
+     */
+    schoolUpdate: (id: number, data: SchoolEditModel, params: RequestParams = {}) =>
+      this.request<any, RequestResponse>({
+        path: `/api/school/${id}`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 删除学校（已有学生绑定时拒绝）
+     *
+     * @tags School
+     * @name SchoolDelete
+     * @summary 删除学校
+     * @request DELETE:/api/school/{id}
+     */
+    schoolDelete: (id: number, params: RequestParams = {}) =>
+      this.request<any, RequestResponse>({
+        path: `/api/school/${id}`,
+        method: "DELETE",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 批量设置各校报名邀请码
+     *
+     * @tags School
+     * @name SchoolInviteCodes
+     * @summary 批量设置报名邀请码
+     * @request POST:/api/school/inviteCodes
+     */
+    schoolInviteCodes: (data: SchoolInviteBatchModel[], params: RequestParams = {}) =>
+      this.request<any, RequestResponse>({
+        path: `/api/school/inviteCodes`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 学校设置页聚合数据
+     * @tags School
+     * @name useSchoolSettings
+     * @request GET:/api/school/settings
+     */
+    useSchoolSettings: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<SchoolSettingsModel, RequestResponse>(
+        doFetch ? `/api/school/settings` : null,
         options,
       ),
   };

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using GZCTF.Models;
+using GZCTF.Models.Data;
 using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
 using GZCTF.Services;
@@ -24,6 +25,7 @@ namespace GZCTF.Controllers;
 public class SsoController(
     IOptionsSnapshot<SsoConfig> ssoConfig,
     IOptionsSnapshot<GlobalConfig> globalConfig,
+    AppDbContext dbContext,
     UserManager<UserInfo> userManager,
     SignInManager<UserInfo> signInManager,
     EmailCodeService emailCode,
@@ -255,18 +257,16 @@ public class SsoController(
     [ProducesResponseType(typeof(SchoolOptionModel[]), StatusCodes.Status200OK)]
     public IActionResult GetSchools()
     {
-        var inviteCodes = ClientSsoConfig.ParseInviteCodes(ssoConfig.Value.SchoolInviteCodes);
+        var (enabledSchools, inviteCodeMap) = LoadEnabledSchools();
 
-        var schools = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+        var schools = enabledSchools
             .Select(s => new SchoolOptionModel(
                 s.Name,
                 s.Slug,
                 s.Mode == SsoAuthMode.Cas ? "cas" : "email",
                 s.EmailSuffixes,
-                // 该校在邀请码表中且邀请码非空时，前端应提示邀请码必填
-                inviteCodes.Any(pair =>
-                    string.Equals(pair.Slug, s.Slug, StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(pair.Code))))
+                // 该校配置了邀请码时，前端应提示邀请码必填
+                inviteCodeMap.TryGetValue(s.Slug, out var code) && !string.IsNullOrWhiteSpace(code)))
             .ToArray();
 
         return Ok(schools);
@@ -615,11 +615,8 @@ public class SsoController(
             return BadRequest(new RequestResponse("所选学校不存在或未启用"));
 
         // 邀请码校验：学校级邀请码，未配置则该校不需要邀请码
-        var expected = ssoConfig.Value.SchoolInviteCodes is { Length: > 0 }
-            ? ClientSsoConfig.ParseInviteCodes(ssoConfig.Value.SchoolInviteCodes)
-                .FirstOrDefault(pair => string.Equals(pair.Slug, school.Slug, StringComparison.OrdinalIgnoreCase))
-                .Code
-            : null;
+        var (_, inviteCodeMap) = LoadEnabledSchools();
+        var expected = inviteCodeMap.TryGetValue(school.Slug, out var configured) ? configured : null;
 
         if (!string.IsNullOrWhiteSpace(expected) &&
             !string.Equals(expected, model.InviteCode?.Trim(), StringComparison.Ordinal))
@@ -655,11 +652,55 @@ public class SsoController(
     }
 
     /// <summary>
-    /// 按短名查找已启用学校
+    /// 按短名查找已启用学校。
+    ///
+    /// 优先读取数据库中的 Schools 表（学校设置页维护），
+    /// 表为空时回退到旧的 SsoConfig.Schools 配置串，
+    /// 保证升级过程中未迁移的部署仍可正常登录。
     /// </summary>
-    ClientSsoSchool? FindSchool(string? slug) =>
-        string.IsNullOrWhiteSpace(slug)
-            ? null
-            : ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-                .FirstOrDefault(s => string.Equals(s.Slug, slug, StringComparison.OrdinalIgnoreCase));
+    ClientSsoSchool? FindSchool(string? slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            return null;
+
+        var fromDb = dbContext.Schools
+            .AsNoTracking()
+            .Where(s => s.Enabled && s.Slug == slug)
+            .ToArray()
+            .Select(s => s.ToClientModel())
+            .FirstOrDefault();
+
+        if (fromDb is not null)
+            return fromDb;
+
+        return ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
+            .FirstOrDefault(s => string.Equals(s.Slug, slug, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 读取全部启用学校（数据库优先，回退配置串）
+    /// </summary>
+    (ClientSsoSchool[] Schools, Dictionary<string, string?> InviteCodes) LoadEnabledSchools()
+    {
+        var dbSchools = dbContext.Schools
+            .AsNoTracking()
+            .Where(s => s.Enabled)
+            .OrderBy(s => s.Order).ThenBy(s => s.Id)
+            .ToArray();
+
+        if (dbSchools.Length > 0)
+        {
+            var codes = dbSchools
+                .Where(s => !string.IsNullOrWhiteSpace(s.InviteCode))
+                .ToDictionary(s => s.Slug, s => s.InviteCode, StringComparer.OrdinalIgnoreCase);
+
+            return ([.. dbSchools.Select(s => s.ToClientModel())], codes);
+        }
+
+        var fallbackCodes = ClientSsoConfig.ParseInviteCodes(ssoConfig.Value.SchoolInviteCodes)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Code))
+            .ToDictionary(p => p.Slug, p => (string?)p.Code, StringComparer.OrdinalIgnoreCase);
+
+        return ([.. ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)], fallbackCodes);
+    }
 }

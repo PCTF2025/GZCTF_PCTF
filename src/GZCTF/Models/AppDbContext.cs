@@ -23,6 +23,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
     public DbSet<Config> Configs { get; set; } = null!;
     public DbSet<LogModel> Logs { get; set; } = null!;
     public DbSet<Division> Divisions { get; set; } = null!;
+    /// <summary>
+    /// 学校（参赛单位）：登录方式、报名邀请码、按年级划分的报名分组
+    /// </summary>
+    public DbSet<School> Schools { get; set; } = null!;
     public DbSet<LocalFile> Files { get; set; } = null!;
     public DbSet<CheatInfo> CheatInfo { get; set; } = null!;
     public DbSet<Container> Containers { get; set; } = null!;
@@ -64,6 +68,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         var listConverter = GetJsonConverter<List<string>>();
         var listComparer = GetEnumerableComparer<List<string>, string>();
 
+        builder.Entity<School>(entity =>
+        {
+            // 短名是登录路由标识，必须唯一
+            entity.HasIndex(e => e.Slug).IsUnique();
+        });
         builder.Entity<UserInfo>(entity =>
         {
             entity.Property(e => e.Role)
