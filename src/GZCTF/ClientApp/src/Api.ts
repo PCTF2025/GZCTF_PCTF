@@ -989,6 +989,22 @@ export interface SchoolSettingsModel {
   grades: string[];
 }
 
+/** 学校分组解析结果（用于按学校 + 年级匹配赛区） */
+export interface SchoolResolveResult {
+  resolved: boolean;
+  schoolName?: string | null;
+  /** 新生组 / 老生组 */
+  groupName?: string | null;
+  grade?: string | null;
+  /**
+   * 命中的赛区 ID
+   * @format int32
+   */
+  divisionId?: number | null;
+  /** 未命中时的原因说明 */
+  reason?: string | null;
+}
+
 /** 批量设置报名邀请码 */
 export interface SchoolInviteBatchModel {
   slug: string;
@@ -1913,6 +1929,11 @@ export interface DetailedGameInfoModel {
   /** Game poster URL */
   poster?: string | null;
   /**
+   * Team member count limit.
+   * 为 1 时表示个人赛，报名无需手动建队。
+   */
+  limit?: number;
+  /**
    * Team member count limit
    * @format int32
    */
@@ -1983,10 +2004,11 @@ export interface JoinedTeam {
 
 export interface GameJoinModel {
   /**
-   * Team ID for participation
+   * Team ID for participation.
+   * 个人赛可留空，后端会自动创建个人队。
    * @format int32
    */
-  teamId: number;
+  teamId?: number | null;
   /**
    * Division for participation
    * @format int32
@@ -3418,6 +3440,41 @@ export class Api<
     useSchoolSettings: (options?: SWRConfiguration, doFetch: boolean = true) =>
       useSWR<SchoolSettingsModel, RequestResponse>(
         doFetch ? `/api/school/settings` : null,
+        options,
+      ),
+
+    /**
+     * @description 解析学校分组：普通学员查自己，管理员可传 slug / userId 预览
+     * @tags School
+     * @name SchoolResolve
+     * @request GET:/api/school/resolve
+     */
+    schoolResolve: (query?: { slug?: string; userId?: string }, params: RequestParams = {}) =>
+      this.request<SchoolResolveResult, any>({
+        path: `/api/school/resolve`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 解析学校分组：普通学员查自己，管理员可传 slug / userId 预览
+     * @tags School
+     * @name useSchoolResolve
+     * @request GET:/api/school/resolve
+     */
+    useSchoolResolve: (
+      query?: { slug?: string; userId?: string },
+      options?: SWRConfiguration,
+      doFetch: boolean = true,
+    ) =>
+      useSWR<SchoolResolveResult, RequestResponse>(
+        doFetch
+          ? `/api/school/resolve${
+              query && Object.keys(query).length ? "?" + Object.entries(query).filter(([,v])=>v!=null).map(([k,v])=>`${k}=${encodeURIComponent(String(v))}`).join("&") : ""
+            }`
+          : null,
         options,
       ),
   };

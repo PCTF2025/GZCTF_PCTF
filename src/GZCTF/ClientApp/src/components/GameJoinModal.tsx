@@ -1,8 +1,8 @@
 import { Alert, Button, Modal, ModalProps, Select, Stack, Text, TextInput } from '@mantine/core'
 import { showNotification } from '@mantine/notifications'
-import { mdiAlertCircleOutline, mdiClose } from '@mdi/js'
+import { mdiAccountOutline, mdiAlertCircleOutline, mdiClose } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import { OnceSWRConfig } from '@Hooks/useConfig'
@@ -40,6 +40,10 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
   const [disabled, setDisabled] = useState(false)
 
   const { t } = useTranslation()
+
+  /// 个人赛：队伍人数上限为 1 时，报名无需手动建队，
+  /// 由后端自动创建个人队，前端隐藏队伍选择步骤。
+  const isSolo = game?.limit === 1
 
   useSyncOnChange([team, teams], () => {
     if (!team) setTeam(defaultTeam(teams))
@@ -81,6 +85,34 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
   const joinedDivision = joinedTeam?.div ? game?.divisions?.find((d) => d.id === joinedTeam?.div) : null
   const hasDivision = divisionOptions.length > 0 || joinedTeam?.div
   const canSelectDivision = !joinedTeam
+
+  /// 个人赛按「学校 + 年级」自动匹配分组赛区。
+  /// 走 /api/school/resolve（登录即可查自己的分组，无需管理权限），
+  /// 由后端按学校设置的年级分组规则推导出赛区。
+  /// 不传 userId：后端自动取当前登录用户，避免越权查询他人
+  const { data: schoolResolve } = api.school.useSchoolResolve(
+    undefined,
+    OnceSWRConfig,
+    Boolean(isSolo && user)
+  )
+
+  const autoDivisionId = useMemo(
+    () => (schoolResolve?.resolved ? (schoolResolve.divisionId ?? null) : null),
+    [schoolResolve]
+  )
+
+  /// 自动匹配到的赛区是否在可选列表中
+  const autoDivisionAvailable = useMemo(
+    () => Boolean(autoDivisionId && divisionOptions.some((o) => o.value === autoDivisionId.toString())),
+    [autoDivisionId, divisionOptions]
+  )
+
+  // 命中自动分组时预选赛区；仅在用户尚未手动选择时生效
+  useEffect(() => {
+    if (isSolo && autoDivisionAvailable && autoDivisionId) {
+      setDivisionId(autoDivisionId.toString())
+    }
+  }, [isSolo, autoDivisionAvailable, autoDivisionId])
 
   const shouldRequireInviteCode = hasDivision
     ? Boolean(selectedDivision?.inviteCodeRequired)
@@ -126,7 +158,8 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
   const onJoinGame = async () => {
     setDisabled(true)
 
-    if (!team) {
+    // 个人赛无需选择队伍（由后端自动创建），跳过该检查
+    if (!isSolo && !team) {
       showNotification({
         color: 'orange',
         message: t('game.notification.no_team'),
@@ -184,7 +217,7 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
 
     try {
       await onSubmitJoin({
-        teamId: parseInt(team, 10),
+        teamId: isSolo ? undefined : parseInt(team!, 10),
         inviteCode: shouldRequireInviteCode ? inviteCode : undefined,
         divisionId:
           canSelectDivision && hasDivision
@@ -216,27 +249,36 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
             <Text size="sm">{verifyBlocked.message}</Text>
           </Alert>
         )}
-        <Select
-          required
-          label={t('game.content.join.team.label')}
-          description={t('game.content.join.team.description')}
-          data={teamsData}
-          disabled={disabled}
-          value={team}
-          onChange={(e) => e && setTeam(e)}
-        />
-        {canSelectDivision && hasDivision && (
+        {isSolo ? (
+          <Alert color="teal" variant="light" icon={<Icon path={mdiAccountOutline} size={1} />}>
+            <Text size="sm">
+              本赛事为个人赛，报名后系统将自动为你创建个人队伍，无需手动组队。
+            </Text>
+          </Alert>
+        ) : (
           <Select
             required
-            label={t('game.content.join.division.label')}
-            description={t('game.content.join.division.description')}
-            readOnly={!canSelectDivision}
-            data={divisionOptions}
+            label={t('game.content.join.team.label')}
+            description={t('game.content.join.team.description')}
+            data={teamsData}
             disabled={disabled}
-            value={divisionId}
-            onChange={(e) => setDivisionId(e ?? '')}
+            value={team}
+            onChange={(e) => e && setTeam(e)}
           />
         )}
+
+        {/* 个人赛：按学校 + 年级自动匹配分组，展示匹配结果而非让选手手选 */}
+        {isSolo && autoDivisionAvailable && selectedDivision && (
+          <Select
+            label={t('game.content.join.division.label')}
+            description="按你的学校与年级自动匹配，如需调整请联系赛事管理员"
+            readOnly
+            data={divisionOptions}
+            disabled
+            value={divisionId}
+          />
+        )}
+
         {!canSelectDivision && joinedDivision && (
           <Select
             required
@@ -251,6 +293,20 @@ export const GameJoinModal: FC<GameJoinModalProps> = (props) => {
               },
             ]}
             value={joinedDivision.id!.toString()}
+          />
+        )}
+
+        {/* 非个人赛：保留手动选择赛区 */}
+        {!isSolo && canSelectDivision && hasDivision && (
+          <Select
+            required
+            label={t('game.content.join.division.label')}
+            description={t('game.content.join.division.description')}
+            readOnly={!canSelectDivision}
+            data={divisionOptions}
+            disabled={disabled}
+            value={divisionId}
+            onChange={(e) => setDivisionId(e ?? '')}
           />
         )}
         {shouldRequireInviteCode && (

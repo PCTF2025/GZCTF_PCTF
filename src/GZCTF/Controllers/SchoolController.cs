@@ -2,6 +2,7 @@
 using GZCTF.Models;
 using GZCTF.Models.Data;
 using GZCTF.Models.Request.Account;
+using GZCTF.Utils;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -225,8 +226,10 @@ public class SchoolController(
     /// </summary>
     /// <remarks>
     /// 供报名流程内部调用，也便于管理端预览分组规则。
+    /// 普通学员可查询自己的分组（用于报名时自动匹配赛区），
+    /// 管理员可传 slug / userId 预览任意组合。
     /// </remarks>
-    [RequireAdmin]
+    [RequireUser]
     [HttpGet("resolve")]
     [ProducesResponseType(typeof(SchoolResolveResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> Resolve(
@@ -234,10 +237,23 @@ public class SchoolController(
         [FromQuery] string? userId,
         CancellationToken token)
     {
-        UserInfo? user = null;
+        var current = await userManager.GetUserAsync(User);
+        var isAdmin = current is not null && current.Role >= Role.Admin;
 
-        if (Guid.TryParse(userId, out var uid))
-            user = await userManager.FindByIdAsync(uid.ToString());
+        UserInfo? user;
+
+        if (isAdmin)
+        {
+            // 管理员可指定 userId 预览；不传则查自己
+            user = Guid.TryParse(userId, out var uid)
+                ? await userManager.FindByIdAsync(uid.ToString())
+                : current;
+        }
+        else
+        {
+            // 普通学员只能查自己的分组
+            user = current;
+        }
 
         var school = await dbContext.Schools
             .FirstOrDefaultAsync(s => s.Slug == (slug ?? user!.School), token);

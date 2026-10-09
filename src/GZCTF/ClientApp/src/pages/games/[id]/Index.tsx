@@ -158,15 +158,23 @@ const GameDetail: FC = () => {
   // Allow join if game is not finished OR practice mode is enabled
   const isGameOpenForJoin = !finished || game?.practiceMode
 
+  /// 个人赛：队伍人数上限为 1，报名无需预先建队（后端会自动创建个人队）
+  const isSolo = game?.limit === 1
+
   const canSubmit =
     (status === ParticipationStatus.Unsubmitted || status === ParticipationStatus.Rejected) &&
     isGameOpenForJoin &&
     user &&
     teams &&
-    teams.length > 0
+    (isSolo || teams.length > 0)
 
   const teamRequire =
-    user && status === ParticipationStatus.Unsubmitted && isGameOpenForJoin && teams && teams.length === 0
+    !isSolo &&
+    user &&
+    status === ParticipationStatus.Unsubmitted &&
+    isGameOpenForJoin &&
+    teams &&
+    teams.length === 0
 
   const onJoin = () =>
     modals.openConfirmModal({

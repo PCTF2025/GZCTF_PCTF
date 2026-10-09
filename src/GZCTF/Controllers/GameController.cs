@@ -183,14 +183,28 @@ public class GameController(
                 new RequestResponse(localizer[nameof(Resources.Program.Game_Ended)], ErrorCodes.GameEnded));
 
         var user = await userManager.GetUserAsync(User);
-        var team = await teamRepository.GetTeamById(model.TeamId, token);
 
-        if (team is null)
-            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Team_NotFound)],
-                StatusCodes.Status404NotFound));
+        // =============== 解析参赛队伍 ===============
+        // 个人赛可不传 TeamId：优先复用该用户已有的个人队，
+        // 没有就自动创建一个（队名取用户名），让选手免去手动建队的步骤。
+        // 传入 TeamId 时走原有的队伍校验流程。
+        Team? team;
 
-        if (team.Members.All(u => u.Id != user!.Id))
-            return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_NotMemberOfTeam)]));
+        if (model.TeamId is > 0)
+        {
+            team = await teamRepository.GetTeamById(model.TeamId.Value, token);
+
+            if (team is null)
+                return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Team_NotFound)],
+                    StatusCodes.Status404NotFound));
+
+            if (team.Members.All(u => u.Id != user!.Id))
+                return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_NotMemberOfTeam)]));
+        }
+        else
+        {
+            team = await GetOrCreateSoloTeamAsync(user!, token);
+        }
 
         // =============== 主办赛道：按学校与年级自动分配赛区 ===============
         // 每所学校在「学校设置」里把年级划分为新生组 / 老生组，各组绑定一个赛区。
@@ -1513,6 +1527,43 @@ public class GameController(
         }
 
         return res;
+    }
+
+    /// <summary>
+    /// 获取或创建用户的「个人队」。
+    ///
+    /// 个人赛场景下选手无需手动建队：报名时若未指定队伍，
+    /// 优先复用该用户已创建且仅含自己一人的队伍，
+    /// 否则自动建一个以用户名为队名的队伍。
+    /// 队名冲突时追加短后缀，保证一定能建成。
+    /// </summary>
+    private async Task<Team> GetOrCreateSoloTeamAsync(UserInfo user, CancellationToken token)
+    {
+        var existing = await dbContext.Teams
+            .Include(t => t.Members)
+            .Where(t => t.CaptainId == user.Id)
+            .OrderBy(t => t.Id)
+            .ToListAsync(token);
+
+        // 复用仅含本人、且未参加任何进行中赛事的个人队；有多个时取最早的一个
+        var solo = existing.FirstOrDefault(t => t.Members.Count == 1 && t.Members.All(m => m.Id == user.Id));
+        if (solo is not null)
+            return solo;
+
+        // 队名取用户名，冲突时追加随机短后缀
+        var name = user.UserName ?? $"player{user.Id:N}"[..12];
+        if (await dbContext.Teams.AnyAsync(t => t.Name == name, token))
+            name = $"{name}-{Random.Shared.Next(1000, 9999)}";
+
+        Team team = new() { Name = name, Captain = user };
+        team.Members.Add(user);
+
+        dbContext.Teams.Add(team);
+        await dbContext.SaveChangesAsync(token);
+
+        logger.LogInformation("个人赛自动建队：team={Team} user={User}", team.Name, user.UserName);
+
+        return team;
     }
 
     private class ContextInfo
