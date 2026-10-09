@@ -14,7 +14,6 @@ import {
   mdiAccountGroupOutline,
   mdiBookOpenPageVariantOutline,
   mdiCached,
-  mdiFlagOutline,
   mdiHomeVariantOutline,
   mdiLogin,
   mdiLogout,
@@ -107,10 +106,10 @@ export const AppNavbar: FC<AppControlProps> = ({ openColorModal }) => {
   const { keys: adminKeys, canAccessAdmin } = useAdminTabs()
   const adminHome = adminKeys[0] ?? 'games'
 
-  // 仅保留：主页、赛事、战队、Wiki、管理（管理员可见）
+  // 仅保留：主页、战队、Wiki、管理（有职能权限者可见）
+  // 赛事列表不再直接导航（赛事数量少，从主页卡片进入即可），路由仍保留
   const items: NavbarItem[] = [
     { icon: mdiHomeVariantOutline, label: 'common.tab.home', link: '/' },
-    { icon: mdiFlagOutline, label: 'common.tab.game', link: '/games' },
     { icon: mdiAccountGroupOutline, label: 'common.tab.team', link: '/teams' },
     { icon: mdiBookOpenPageVariantOutline, label: 'PCTF Wiki', link: SITE_LINKS.wiki, external: true },
     { icon: mdiWrenchOutline, label: 'common.tab.admin', link: `/admin/${adminHome}`, admin: true },
