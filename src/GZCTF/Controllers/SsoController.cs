@@ -306,23 +306,18 @@ public class SsoController(
         if (code is null)
             return BadRequest(new RequestResponse("验证码发送过于频繁，请稍后再试"));
 
-        var content = new MailContent(
-            BuildCodeMailContent(school, code),
+        // 必须走发送队列：MailSender 的 SMTP 连接由后台 worker 统一持有，
+        // 直接调用 SendMailContent 会因连接未建立而抛出 ServiceNotConnectedException
+        var enqueued = mailSender.EnqueueRawMail(
             email,
-            $"{school.Name} 登录验证码",
             null,
+            $"{school.Name} 登录验证码",
+            BuildCodeMailContent(school, code),
             localizer,
             globalConfig);
 
-        try
-        {
-            await mailSender.SendMailContent(content);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "发送学校验证码邮件失败：school={School} email={Email}", school.Name, email);
+        if (!enqueued)
             return BadRequest(new RequestResponse("验证码邮件发送失败，请稍后重试或联系赛事管理员"));
-        }
 
         logger.LogInformation("已发送学校 {School} 的登录验证码至 {Email}", school.Name, email);
 

@@ -218,6 +218,27 @@ public sealed class MailSender : IMailSender, IDisposable
         }
     }
 
+    public bool EnqueueRawMail(string? email, string? userName, string title, string html,
+        IStringLocalizer<Program> localizer, IOptionsSnapshot<GlobalConfig> options)
+    {
+        if (_smtpClient is null)
+            return false;
+
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(html))
+        {
+            _logger.SystemLog(StaticLocalizer[nameof(Resources.Program.MailSender_InvalidRequest)],
+                TaskStatus.Failed);
+            return false;
+        }
+
+        var content = new MailContent(html, email, title, userName, localizer, options);
+
+        _mailQueue.Enqueue(content);
+        _resetEvent.Set();
+
+        return true;
+    }
+
     private bool EnqueueMailTask(string? userName, string? email, string? resetLink, MailType type,
         IStringLocalizer<Program> localizer, IOptionsSnapshot<GlobalConfig> options)
     {

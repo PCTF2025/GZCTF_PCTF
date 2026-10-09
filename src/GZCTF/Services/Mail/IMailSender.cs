@@ -13,6 +13,18 @@ public interface IMailSender
     public Task SendMailContent(MailContent content);
 
     /// <summary>
+    /// 将自定义正文邮件加入发送队列（验证码 / 通知类邮件）
+    /// </summary>
+    /// <param name="email">收件人邮箱</param>
+    /// <param name="userName">收件人名称（可空，默认取邮箱）</param>
+    /// <param name="title">邮件标题（不含平台后缀）</param>
+    /// <param name="html">邮件 HTML 正文</param>
+    /// <param name="localizer">本地化</param>
+    /// <param name="options">全局配置</param>
+    public bool EnqueueRawMail(string? email, string? userName, string title, string html,
+        IStringLocalizer<Program> localizer, IOptionsSnapshot<GlobalConfig> options);
+
+    /// <summary>
     /// 发送新用户验证URL
     /// </summary>
     /// <param name="userName">用户名</param>
