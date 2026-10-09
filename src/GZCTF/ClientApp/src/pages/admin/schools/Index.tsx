@@ -21,6 +21,8 @@ import {
   TextInput,
   Title,
   Tooltip,
+  Code,
+  CopyButton,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import {
@@ -31,6 +33,7 @@ import {
   mdiDomain,
   mdiLockOutline,
   mdiPencilOutline,
+  mdiContentCopy,
   mdiPlus,
   mdiRefresh,
 } from '@mdi/js'
@@ -40,7 +43,9 @@ import { useTranslation } from 'react-i18next'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { SwitchLabel } from '@Components/admin/SwitchLabel'
 import { usePageTitle } from '@Hooks/usePageTitle'
-import api, { SchoolDetailModel, SchoolEditModel } from '@Api'
+import { useSyncOnChange } from '@Hooks/useSyncOnChange'
+import { OnceSWRConfig } from '@Hooks/useConfig'
+import api, { ConfigEditModel, SchoolDetailModel, SchoolEditModel } from '@Api'
 import { showErrorMsg } from '@Utils/Shared'
 
 /// 空表单
@@ -85,6 +90,60 @@ const SchoolSettings: FC = () => {
   const [saving, setSaving] = useState(false)
   const [inviteDraft, setInviteDraft] = useState<Record<string, string>>({})
   const [inviteSaving, setInviteSaving] = useState(false)
+
+  // ===== 全局登录设置（原「登录设置」页功能）=====
+  const { data: configs, mutate: mutateConfigs } = api.admin.useAdminGetConfigs(OnceSWRConfig)
+  const [authEnabled, setAuthEnabled] = useState(true)
+  const [localLoginEnabled, setLocalLoginEnabled] = useState(true)
+  const [authTitle, setAuthTitle] = useState('')
+  const [authDescription, setAuthDescription] = useState('')
+  const [redirectPath, setRedirectPath] = useState('/')
+  const [allowAutoRegister, setAllowAutoRegister] = useState(true)
+  const [authSaving, setAuthSaving] = useState(false)
+
+  useSyncOnChange([configs], () => {
+    const sso = configs?.ssoConfig
+    setAuthEnabled(sso?.enabled ?? true)
+    setLocalLoginEnabled(sso?.localLoginEnabled ?? true)
+    setAuthTitle(sso?.title ?? '')
+    setAuthDescription(sso?.description ?? '')
+    setRedirectPath(sso?.redirectPath ?? '/')
+    setAllowAutoRegister(sso?.allowAutoRegister ?? true)
+  })
+
+  const saveAuthSettings = async () => {
+    if (!configs) return
+    setAuthSaving(true)
+    try {
+      const conf: ConfigEditModel = {
+        ...configs,
+        ssoConfig: {
+          ...configs.ssoConfig,
+          enabled: authEnabled,
+          localLoginEnabled,
+          title: authTitle.trim(),
+          description: authDescription.trim() || null,
+          redirectPath: redirectPath.trim() || '/',
+          allowAutoRegister,
+        },
+      }
+      await api.admin.adminUpdateConfigs(conf)
+      await mutateConfigs()
+      notifications.show({
+        color: 'teal',
+        title: '保存成功',
+        message: '登录设置已保存',
+        icon: <Icon path={mdiCheckCircleOutline} />,
+      })
+    } catch (e) {
+      showErrorMsg(e, t)
+    } finally {
+      setAuthSaving(false)
+    }
+  }
+
+  const callbackUrl =
+    typeof window === 'undefined' ? '' : `${window.location.origin}/api/account/sso/callback`
 
   const divisionOptions = useMemo(
     () =>
@@ -247,6 +306,93 @@ const SchoolSettings: FC = () => {
       }
     >
       <Stack gap="md">
+        {/* ===== 登录方式 ===== */}
+        <Paper withBorder p="md">
+          <Stack gap="sm">
+            <Group justify="space-between">
+              <Title order={5}>登录方式</Title>
+              <Button size="xs" loading={authSaving} onClick={() => void saveAuthSettings()}>
+                保存登录设置
+              </Button>
+            </Group>
+            <Switch
+              checked={localLoginEnabled}
+              onChange={(e) => setLocalLoginEnabled(e.currentTarget.checked)}
+              label={SwitchLabel(
+                '允许用户名 / 邮箱 + 密码登录',
+                '关闭后登录页不再提供本地账号登录表单，参赛者只能通过学校统一身份认证登录。'
+              )}
+            />
+            <Switch
+              checked={authEnabled}
+              onChange={(e) => setAuthEnabled(e.currentTarget.checked)}
+              label={SwitchLabel(
+                '启用学校统一身份认证',
+                '启用后在登录页右侧展示学校列表；关闭后右侧区域整体隐藏。'
+              )}
+            />
+          </Stack>
+        </Paper>
+
+        {/* ===== 登录页文案 ===== */}
+        <Paper withBorder p="md">
+          <Stack gap="sm">
+            <Title order={5}>登录页文案</Title>
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label="区域标题"
+                placeholder="学校统一身份认证"
+                value={authTitle}
+                disabled={!authEnabled}
+                onChange={(e) => setAuthTitle(e.currentTarget.value)}
+              />
+              <TextInput
+                label="登录成功后跳转路径"
+                placeholder="/"
+                value={redirectPath}
+                disabled={!authEnabled}
+                onChange={(e) => setRedirectPath(e.currentTarget.value)}
+              />
+            </SimpleGrid>
+            <TextInput
+              label="区域说明"
+              placeholder="选择所在学校，使用学校账号登录"
+              value={authDescription}
+              disabled={!authEnabled}
+              onChange={(e) => setAuthDescription(e.currentTarget.value)}
+            />
+            <Switch
+              checked={allowAutoRegister}
+              onChange={(e) => setAllowAutoRegister(e.currentTarget.checked)}
+              disabled={!authEnabled}
+              label={SwitchLabel(
+                '允许首次登录自动创建账号',
+                '关闭后需要用户先注册并绑定学号，SSO 回调才能匹配到账号。'
+              )}
+            />
+            <Divider label="CAS 对接信息" labelPosition="left" />
+            <Text size="sm" c="dimmed">
+              配置学校 CAS 侧「服务地址 / 回调地址」时填写以下地址。平台已在回调中附带学校短名。
+            </Text>
+            <Group gap="xs">
+              <Code style={{ flex: 1, wordBreak: 'break-all' }}>{`${callbackUrl}?slug=<学校短名>`}</Code>
+              <CopyButton value={callbackUrl}>
+                {({ copied, copy }) => (
+                  <Tooltip label={copied ? '已复制' : '复制回调地址'}>
+                    <ActionIcon variant="subtle" onClick={copy}>
+                      <Icon path={copied ? mdiCheckCircleOutline : mdiContentCopy} size={0.9} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </CopyButton>
+            </Group>
+            <Text size="xs" c="dimmed">
+              校验方式：CAS 2.0。平台请求 <Code>{`<校验地址>?service=<回调地址>&ticket=<票据>`}</Code>
+              ，解析返回的 cas:user 作为学号/账号。
+            </Text>
+          </Stack>
+        </Paper>
+
         <Paper withBorder p="md">
           <Stack gap="xs">
             <Title order={5}>学校与报名分组</Title>
