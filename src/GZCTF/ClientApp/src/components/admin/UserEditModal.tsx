@@ -12,6 +12,7 @@ import {
   ModalProps,
   Paper,
   Radio,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -22,7 +23,7 @@ import { showNotification } from '@mantine/notifications'
 import { mdiCheck } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { showErrorMsg } from '@Utils/Shared'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
@@ -48,6 +49,9 @@ interface UserEditModalProps extends ModalProps {
   user: UserInfoModel
   mutateUser: (user: UserInfoModel) => void
 }
+
+/// 「社会」学校短名，与后端 AccountController.SocialSchoolSlug 保持一致
+const SOCIAL_SCHOOL_SLUG = 'social'
 
 export const UserEditModal: FC<UserEditModalProps> = (props) => {
   const { user, mutateUser, ...modalProps } = props
@@ -79,6 +83,17 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
       : [...managedCategories, cat]
     setProfile({ ...profile, managedCategories: next.join(',') })
   }
+
+  /// 学校清单（用于「所属学校」下拉，含已停用的「社会」组）
+  const { data: schoolSettings } = api.school.useSchoolSettings()
+
+  const schoolOptions = useMemo(
+    () =>
+      (schoolSettings?.schools ?? [])
+        .filter((s) => s.slug)
+        .map((s) => ({ value: s.slug, label: `${s.name}（${s.slug}）` })),
+    [schoolSettings]
+  )
 
   /// 学校负责人负责的学校（逗号分隔字符串）
   const [schoolDraft, setSchoolDraft] = useState('')
@@ -158,6 +173,38 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
             ))}
           </Group>
         </Radio.Group>
+        {/* 学校归属：平台管理员可直接调整 */}
+        <Paper p="sm" withBorder>
+          <Stack gap="xs">
+            <Group gap="xs">
+              <Text size="sm" fw={500}>
+                所属学校
+              </Text>
+              <Badge size="xs" variant="light" color="gray">
+                仅平台管理员可调整
+              </Badge>
+            </Group>
+            <Select
+              placeholder="未归属"
+              description="调整后学生将出现在该校的审核列表中；清空表示取消学校归属"
+              data={schoolOptions}
+              value={profile.school || null}
+              disabled={disabled || isSelf}
+              clearable
+              searchable
+              w="100%"
+              onChange={(v) => setProfile({ ...profile, school: v ?? '' })}
+            />
+            <Text size="xs" c="dimmed">
+              {!profile.school
+                ? '当前未设置学校归属，该账号不会进入任何学校的审核列表。'
+                : profile.school === SOCIAL_SCHOOL_SLUG
+                  ? '该账号归入「社会」组，仅作归属标识，不参与学校学籍审核。'
+                  : `当前归属：${schoolOptions.find((o) => o.value === profile.school)?.label ?? profile.school}`}
+            </Text>
+          </Stack>
+        </Paper>
+
         {/* 附加职能权限（与角色正交，可同时赋予多个） */}
         <Paper p="sm" withBorder>
           <Stack gap="xs">

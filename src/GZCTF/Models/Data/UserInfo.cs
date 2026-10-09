@@ -287,6 +287,16 @@ public partial class UserInfo : IdentityUser<Guid>
         PhoneNumber = model.Phone ?? PhoneNumber;
         EmailConfirmed = model.EmailConfirmed ?? EmailConfirmed;
         Grade = model.Grade ?? Grade;
+
+        // 学校归属由平台管理员调整：空串表示清除归属，null 表示不修改。
+        // School 列声明为 NOT NULL，清除时落空串（平台的「未绑定学校」约定）。
+        // 管理员手工指派后来源标记为 Manual，避免被「登录时自动绑定」逻辑覆盖。
+        if (model.School is not null)
+        {
+            School = model.School.Trim();
+            SchoolSource = SchoolBindSource.Manual;
+        }
+
         ManagedSchools = model.ManagedSchools?.Trim() ?? ManagedSchools;
         Permissions = model.Permissions ?? Permissions;
         ManagedCategories = model.ManagedCategories?.Trim() ?? ManagedCategories;

@@ -432,15 +432,17 @@ public class AccountController(
         logger.Log(StaticLocalizer[nameof(Resources.Program.Account_UserLogined)], user, TaskStatus.Success);
 
         // 学校邮箱认证（快速登录）进入的登录请求：登录成功后自动绑定学校。
-        // 仅在用户尚未通过邀请码绑定学校时写入，避免覆盖管理员已核实的信息。
+        // 仅在用户尚未通过邀请码或管理员指派确定学校时写入，
+        // 避免覆盖管理员已核实 / 手工调整的归属。
         if (!string.IsNullOrWhiteSpace(model.SchoolSlug) &&
-            user.SchoolSource != SchoolBindSource.Invite)
+            user.SchoolSource is not (SchoolBindSource.Invite or SchoolBindSource.Manual))
         {
             var schoolSlug = model.SchoolSlug.Trim();
 
-            // 校验该学校确实存在于已启用列表中，避免任意字符串写入
-            var school = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-                .FirstOrDefault(s => string.Equals(s.Slug, schoolSlug, StringComparison.OrdinalIgnoreCase));
+            // 校验该学校确实存在且已启用，避免任意字符串写入
+            var school = await dbContext.Schools
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Enabled && s.Slug == schoolSlug, token);
 
             if (school is not null && !string.Equals(user.School, school.Slug, StringComparison.Ordinal))
             {

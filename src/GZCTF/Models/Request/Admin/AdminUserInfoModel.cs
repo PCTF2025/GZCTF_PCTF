@@ -68,6 +68,13 @@ public class AdminUserInfoModel
     public string? Grade { get; set; }
 
     /// <summary>
+    /// 所属学校短名。传空串表示清除归属，传 null 表示不修改。
+    /// 由平台管理员在用户管理界面调整，仅限 Role.Admin 调用。
+    /// </summary>
+    [MaxLength(Limits.MaxUserDataLength)]
+    public string? School { get; set; }
+
+    /// <summary>
     /// 该用户负责审核的学校短名（逗号分隔）。
     /// 设置后该用户即成为这些学校的学校负责人。
     /// </summary>

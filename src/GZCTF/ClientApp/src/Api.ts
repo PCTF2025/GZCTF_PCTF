@@ -194,6 +194,8 @@ export enum SchoolBindSource {
   None = "None",
   Sso = "Sso",
   Invite = "Invite",
+  /** 平台管理员在用户管理中直接指派 */
+  Manual = "Manual",
 }
 
 /**
@@ -1031,6 +1033,8 @@ export interface AdminUserInfoModel {
   role?: Role | null;
   /** 年级 */
   grade?: string | null;
+  /** 所属学校短名。传空串表示清除归属，传 null 表示不修改 */
+  school?: string | null;
   /** 负责审核的学校短名（逗号分隔） */
   managedSchools?: string | null;
   /** 附加职能权限位（出题人 / 出题管理员 / 学校负责人），可同时赋予多个 */

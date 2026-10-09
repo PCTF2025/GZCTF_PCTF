@@ -671,7 +671,10 @@ public enum SchoolBindSource : byte
     Sso = 0b01,
 
     /// <summary>使用邀请码手动绑定</summary>
-    Invite = 0b10
+    Invite = 0b10,
+
+    /// <summary>平台管理员在用户管理中直接指派</summary>
+    Manual = 0b100
 }
 
 /// <summary>
