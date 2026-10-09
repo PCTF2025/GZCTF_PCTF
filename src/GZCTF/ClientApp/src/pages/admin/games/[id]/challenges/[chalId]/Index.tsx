@@ -1,5 +1,6 @@
 import {
   Button,
+  Code,
   ComboboxItem,
   Grid,
   Group,
@@ -17,10 +18,17 @@ import {
 import { DateTimePicker } from '@mantine/dates'
 import { useModals } from '@mantine/modals'
 import { showNotification } from '@mantine/notifications'
-import { mdiCheck, mdiContentSaveOutline, mdiDatabaseEditOutline, mdiDeleteOutline, mdiEyeOutline } from '@mdi/js'
+import {
+  mdiCheck,
+  mdiContentSaveOutline,
+  mdiDatabaseEditOutline,
+  mdiDeleteOutline,
+  mdiEyeOutline,
+  mdiPackageVariantClosed,
+} from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
-import { FC, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { HintList } from '@Components/HintList'
@@ -37,6 +45,7 @@ import {
   useChallengeTypeLabelMap,
   ChallengeCategoryList,
 } from '@Utils/Shared'
+import { useConfig } from '@Hooks/useConfig'
 import { useEditChallenge, useEditChallenges } from '@Hooks/useEdit'
 import { useGame } from '@Hooks/useGame'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
@@ -72,6 +81,28 @@ const GameChallengeEdit: FC = () => {
   const networkModeLabelMap = useNetworkModeMap()
 
   const { t } = useTranslation()
+
+  const { config } = useConfig()
+
+  /// 镜像地址前缀：平台统一提供，出题人只需填写镜像名（后缀）。
+  /// 未配置前缀时输入框回退为完整地址模式。
+  const imagePrefix = config?.containerImagePrefix ?? ''
+
+  /// 输入框展示值：有前缀时只显示后缀部分
+  const imageSuffix = useMemo(() => {
+    const full = challengeInfo.containerImage ?? ''
+    if (!imagePrefix) return full
+    return full.startsWith(imagePrefix) ? full.slice(imagePrefix.length) : full
+  }, [challengeInfo.containerImage, imagePrefix])
+
+  /// 后缀变化时拼回完整地址
+  const onImageSuffixChange = (suffix: string) => {
+    const trimmed = suffix.trim()
+    setChallengeInfo({
+      ...challengeInfo,
+      containerImage: imagePrefix ? `${imagePrefix}${trimmed}` : trimmed,
+    })
+  }
 
   useSyncOnChange([challenge], () => {
     if (challenge) {
@@ -496,14 +527,32 @@ const GameChallengeEdit: FC = () => {
           <Grid columns={12}>
             <Grid.Col span={8}>
               <Group justify="space-between" align="flex-end">
-                <TextInput
-                  label={t('admin.content.games.challenges.container_image')}
-                  disabled={disabled}
-                  value={challengeInfo.containerImage ?? ''}
-                  required
-                  onChange={(e) => setChallengeInfo({ ...challengeInfo, containerImage: e.target.value })}
-                  classNames={{ root: misc.flexGrow }}
-                />
+                {imagePrefix ? (
+                  <TextInput
+                    label={t('admin.content.games.challenges.container_image')}
+                    description={
+                      <>
+                        仅需填写镜像名，前缀固定为 <Code>{imagePrefix}</Code>
+                      </>
+                    }
+                    disabled={disabled}
+                    value={imageSuffix}
+                    required
+                    leftSection={<Icon path={mdiPackageVariantClosed} size={0.9} />}
+                    onChange={(e) => onImageSuffixChange(e.currentTarget.value)}
+                    classNames={{ root: misc.flexGrow }}
+                  />
+                ) : (
+                  <TextInput
+                    label={t('admin.content.games.challenges.container_image')}
+                    description="平台未配置镜像仓库，请填写完整镜像地址"
+                    disabled={disabled}
+                    value={challengeInfo.containerImage ?? ''}
+                    required
+                    onChange={(e) => setChallengeInfo({ ...challengeInfo, containerImage: e.target.value })}
+                    classNames={{ root: misc.flexGrow }}
+                  />
+                )}
                 <NumberInput
                   label={t('admin.content.games.challenges.service_port.label')}
                   min={1}

@@ -2594,6 +2594,8 @@ export interface ClientConfig {
   renewalWindow?: number;
   /** 登录页外部登录（SSO）区配置，未启用时为 null */
   sso?: ClientSsoConfig | null;
+  /** 镜像地址固定前缀；出题人填写镜像时只需填后缀。为空表示未配置 */
+  containerImagePrefix?: string | null;
 }
 
 /** 学校统一身份认证（SSO）区配置 */

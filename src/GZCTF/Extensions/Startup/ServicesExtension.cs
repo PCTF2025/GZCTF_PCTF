@@ -35,6 +35,9 @@ internal static class ServicesExtension
             builder.AddConfig<ContainerProvider>();
             builder.AddConfig<SsoConfig>();
             builder.AddConfig<TrackConfig>();
+            // 节名保持为 ContainerRegistry（而非类型名），便于书写环境变量
+            builder.Services.Configure<ContainerRegistryConfig>(
+                builder.Configuration.GetSection("ContainerRegistry"));
 
             builder.Services.Configure<RegistrySet<RegistryConfig>>(builder.Configuration.GetSection("Registries"));
 

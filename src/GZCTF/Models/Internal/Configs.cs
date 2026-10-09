@@ -359,6 +359,12 @@ public partial class ClientConfig
     /// </summary>
     public ClientTrackConfig? Tracks { get; set; }
 
+    /// <summary>
+    /// 镜像地址固定前缀，出题人填写镜像时只需填后缀。
+    /// 为空表示平台未配置仓库前缀，前端回退为完整地址输入。
+    /// </summary>
+    public string? ContainerImagePrefix { get; set; }
+
     [JsonIgnore]
     public DateTimeOffset UpdateTimeUtc { get; set; } = DateTimeOffset.UtcNow;
 
@@ -370,11 +376,13 @@ public partial class ClientConfig
             serviceProvider.GetRequiredService<IOptionsSnapshot<ManagedConfig>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<SsoConfig>>().Value,
             serviceProvider.GetRequiredService<IOptionsSnapshot<TrackConfig>>().Value,
+            serviceProvider.GetRequiredService<IOptionsSnapshot<ContainerRegistryConfig>>().Value,
             serviceProvider);
 
     private static ClientConfig FromConfigs(GlobalConfig globalConfig, ContainerPolicy containerPolicy,
         ContainerProvider containerProvider, ManagedConfig managedConfig, SsoConfig ssoConfig,
-        TrackConfig trackConfig, IServiceProvider? serviceProvider = null) =>
+        TrackConfig trackConfig, ContainerRegistryConfig registryConfig,
+        IServiceProvider? serviceProvider = null) =>
         new()
         {
             Title = globalConfig.Title,
@@ -390,7 +398,9 @@ public partial class ClientConfig
             // 学校列表以数据库为准（管理端在「学校设置」里维护），
             // 数据库没有记录时才回退到 appsettings 中的 SsoConfig.Schools 配置串。
             Sso = ClientSsoConfig.FromConfig(ssoConfig, serviceProvider),
-            Tracks = ClientTrackConfig.FromConfig(trackConfig)
+            Tracks = ClientTrackConfig.FromConfig(trackConfig),
+            // 镜像地址前缀：仅做拼接，不下发任何仓库凭据
+            ContainerImagePrefix = registryConfig.NormalizedPrefix is { Length: > 0 } p ? p : null
         };
 }
 
@@ -782,6 +792,48 @@ public class RegistryConfig
 
     public bool Valid => !string.IsNullOrEmpty(UserName) &&
                          !string.IsNullOrEmpty(Password);
+}
+
+/// <summary>
+/// 镜像地址前缀配置。
+///
+/// 出题人推送的镜像都位于同一仓库的固定命名空间下
+/// （如 crpi-xxx.cn-beijing.personal.cr.aliyuncs.com/pctf2026/），
+/// 因此界面只需让出题人填写后缀，前缀由本配置统一拼接。
+///
+/// 注意：此处不保存仓库凭据，平台不访问镜像仓库，
+/// 仅做地址拼接，避免暴露仓库中其他镜像的信息。
+/// </summary>
+public class ContainerRegistryConfig
+{
+    /// <summary>
+    /// 仓库域名，如 crpi-xxx.cn-beijing.personal.cr.aliyuncs.com
+    /// </summary>
+    public string? ServerAddress { get; set; }
+
+    /// <summary>
+    /// 命名空间（组织名），如 pctf2026
+    /// </summary>
+    public string? Namespace { get; set; }
+
+    public bool Valid => !string.IsNullOrWhiteSpace(ServerAddress);
+
+    /// <summary>
+    /// 规整后的地址前缀，始终以 / 结尾；未配置时为空串
+    /// </summary>
+    public string NormalizedPrefix
+    {
+        get
+        {
+            if (!Valid)
+                return string.Empty;
+
+            var host = ServerAddress!.Trim().TrimEnd('/');
+            var ns = Namespace?.Trim().Trim('/');
+
+            return string.IsNullOrEmpty(ns) ? $"{host}/" : $"{host}/{ns}/";
+        }
+    }
 }
 
 #endregion
