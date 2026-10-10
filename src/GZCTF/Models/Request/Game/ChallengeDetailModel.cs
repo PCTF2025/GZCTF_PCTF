@@ -86,6 +86,20 @@ public class ChallengeDetailModel
             {
                 InstanceEntry = gameInstance.Container?.Entry,
                 CloseTime = gameInstance.Container?.ExpectStopAt,
+                // 单题多靶机：装载了多容器时下发给前端，前端按靶机列表展示各入口；
+                // 单靶机题目此字段为 null，前端保持原有单一入口渲染。
+                InstanceEntries = gameInstance.IsMultiContainer
+                    ? gameInstance.Containers
+                        .OrderBy(c => c.GroupOrder)
+                        .Select(c => new ContainerEntryModel
+                        {
+                            Name = c.GroupName,
+                            Entry = c.Entry,
+                            CloseTime = c.ExpectStopAt,
+                            Status = c.Status
+                        })
+                        .ToList()
+                    : null,
                 Url = gameInstance.AttachmentUrl,
                 FileSize = gameInstance.Attachment?.FileSize
             }

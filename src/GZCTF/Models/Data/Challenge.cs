@@ -71,6 +71,41 @@ public class Challenge
     public string? ContainerImage { get; set; } = string.Empty;
 
     /// <summary>
+    /// 附加靶机镜像。
+    ///
+    /// 单题多靶机模式：一道题可以同时启动多个互相配合的容器
+    /// （例如 Web 前端 + 数据库、多节点集群等），
+    /// 选手启动实例时会一次性创建全部容器，各自有独立入口。
+    ///
+    /// 主镜像仍保存在 ContainerImage 中，本字段只存放附加靶机，
+    /// 未使用该模式时为空列表，与原有行为完全一致。
+    /// </summary>
+    public List<ExtraContainerImage> ExtraContainerImages { get; set; } = [];
+
+    /// <summary>
+    /// 附加靶机数量上限
+    /// </summary>
+    public const int MaxExtraContainerImages = 5;
+
+    /// <summary>
+    /// 规范化附加靶机列表：剔除空镜像、裁剪名称、按上限截断
+    /// </summary>
+    public static List<ExtraContainerImage> NormalizeExtraImages(IEnumerable<ExtraContainerImage>? images) =>
+        images is null
+            ? []
+            : images
+                .Where(i => !string.IsNullOrWhiteSpace(i.Image))
+                .Take(MaxExtraContainerImages)
+                .Select(i => new ExtraContainerImage
+                {
+                    Name = string.IsNullOrWhiteSpace(i.Name) ? null : i.Name.Trim(),
+                    Image = i.Image.Trim(),
+                    ExposePort = i.ExposePort > 0 ? i.ExposePort : 80,
+                    EnableTrafficCapture = i.EnableTrafficCapture
+                })
+                .ToList();
+
+    /// <summary>
     /// Memory limit (MB)
     /// </summary>
     public int? MemoryLimit { get; set; } = 64;

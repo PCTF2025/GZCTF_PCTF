@@ -1332,7 +1332,9 @@ public class GameController(
                 return BadRequest(
                     new RequestResponse(localizer[nameof(Resources.Program.Game_ContainerAlreadyCreated)]));
 
-            await containerRepository.DestroyContainer(instance.Container, token);
+            // 单题多靶机：重建实例时须清掉整组的旧容器，否则附加靶机会残留占用资源
+            foreach (var old in instance.Containers)
+                await containerRepository.DestroyContainer(old, token);
         }
 
         return await gameInstanceRepository.CreateContainer(instance, context.Participation!.Team, context.User!,
@@ -1392,8 +1394,10 @@ public class GameController(
             return BadRequest(
                 new RequestResponse(localizer[nameof(Resources.Program.Game_ContainerExtensionNotAvailable)]));
 
-        await containerRepository.ExtendLifetime(instance.Container,
-            TimeSpan.FromMinutes(containerPolicy.Value.ExtensionDuration), token);
+        // 单题多靶机：整组容器同步续期，避免出现部分靶机提前失效
+        foreach (var container in instance.Containers)
+            await containerRepository.ExtendLifetime(container,
+                TimeSpan.FromMinutes(containerPolicy.Value.ExtensionDuration), token);
 
         return Ok(ContainerInfoModel.FromContainer(instance.Container));
     }
@@ -1444,7 +1448,13 @@ public class GameController(
 
         var destroyId = instance.Container.LogId;
 
-        if (!await containerRepository.DestroyContainer(instance.Container, token))
+        // 单题多靶机：删除实例时销毁整组容器
+        var ok = true;
+
+        foreach (var container in instance.Containers)
+            ok &= await containerRepository.DestroyContainer(container, token);
+
+        if (!ok)
             return BadRequest(new RequestResponse(localizer[nameof(Resources.Program.Game_ContainerDeletionFailed)]));
 
         instance.LastContainerOperation = DateTimeOffset.UtcNow;

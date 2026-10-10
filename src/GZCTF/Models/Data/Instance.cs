@@ -43,5 +43,24 @@ public class Instance
     /// </summary>
     public Container? Container { get; set; }
 
+    /// <summary>
+    /// 本实例的全部容器（单题多靶机模式，按 GroupOrder 排序）。
+    ///
+    /// 非 EF 导航属性：由仓储在需要时按 GroupId 装载并填充，
+    /// 避免为一个可选特性改动既有的 one-to-one 映射。
+    /// 单靶机题目与历史数据只有 Container 一个容器。
+    /// </summary>
+    [NotMapped]
+    [JsonIgnore]
+    public List<Container> Containers { get; set; } = [];
+
+    /// <summary>
+    /// 实例是否为多靶机
+    /// </summary>
+    [NotMapped]
+    [JsonIgnore]
+    public bool IsMultiContainer => Containers.Count > 1;
+
+
     #endregion
 }

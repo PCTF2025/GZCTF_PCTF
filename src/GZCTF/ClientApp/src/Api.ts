@@ -1605,6 +1605,8 @@ export interface ChallengeEditDetailModel {
    * @minLength 1
    */
   containerImage: string;
+  /** 附加靶机镜像（单题多靶机） */
+  extraContainerImages: ExtraContainerImage[];
   /**
    * Memory limit (MB)
    * @format int32
@@ -1788,6 +1790,8 @@ export interface ChallengeUpdateModel {
   submissionLimit?: number | null;
   /** Container image name and tag */
   containerImage?: string | null;
+  /** 附加靶机镜像（单题多靶机）；传空数组清空，null 保持原值 */
+  extraContainerImages?: ExtraContainerImage[] | null;
   /**
    * Memory limit (MB)
    * @format int32
@@ -2486,6 +2490,36 @@ export interface ChallengeDetailModel {
   week?: number | null;
 }
 
+/** 单题多靶机模式下的单个靶机入口 */
+export interface ContainerEntryModel {
+  /** 靶机名称（如 Web、数据库）；未命名时按序号展示 */
+  name?: string | null;
+  /** 靶机连接地址 */
+  entry?: string | null;
+  /**
+   * 该靶机的关闭时间
+   * @format uint64
+   */
+  closeTime?: number | null;
+  /** 靶机状态 */
+  status: ContainerStatus;
+}
+
+/** 附加靶机镜像配置（出题人编辑） */
+export interface ExtraContainerImage {
+  /** 靶机名称，用于区分各入口 */
+  name?: string | null;
+  /** 镜像名与 tag */
+  image: string;
+  /**
+   * 容器暴露端口
+   * @format int32
+   */
+  exposePort: number;
+  /** 是否启用流量捕获 */
+  enableTrafficCapture: boolean;
+}
+
 export interface ClientFlagContext {
   /**
    * Close time of the challenge instance
@@ -2494,6 +2528,8 @@ export interface ClientFlagContext {
   closeTime?: number | null;
   /** Connection method of the challenge instance */
   instanceEntry?: string | null;
+  /** 单题多靶机模式下各靶机的独立入口；单靶机题目为空 */
+  instanceEntries?: ContainerEntryModel[] | null;
   /** Attachment URL */
   url?: string | null;
   /**

@@ -1,5 +1,6 @@
 ﻿using GZCTF.Models.Internal;
 using GZCTF.Repositories.Interface;
+using GZCTF.Utils;
 using GZCTF.Services.Container.Manager;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -47,6 +48,8 @@ public class GameInstanceRepository(
         if (instance.IsLoaded)
         {
             await transaction.RollbackAsync(token);
+            // 已加载过的实例同样需要装载容器组，否则多靶机详情会退化成单入口
+            await LoadContainersAsync(instance, token);
             return instance;
         }
 
@@ -103,7 +106,42 @@ public class GameInstanceRepository(
             return null;
         }
 
+        await LoadContainersAsync(instance, token);
+
         return instance;
+    }
+
+    /// <summary>
+    /// 装载实例的容器集合（单题多靶机）。
+    ///
+    /// Containers 是 NotMapped 的辅助属性，需要显式查询：
+    /// 若主容器带有 GroupId，则取出同组全部容器并按顺序排列；
+    /// 否则（单靶机题目与历史数据）仅使用主容器。
+    /// </summary>
+    private async Task LoadContainersAsync(GameInstance instance, CancellationToken token = default)
+    {
+        if (instance.Container is null)
+        {
+            instance.Containers = [];
+            return;
+        }
+
+        var groupId = instance.Container.GroupId;
+
+        if (groupId is null)
+        {
+            instance.Containers = [instance.Container];
+            return;
+        }
+
+        var group = await Context.Containers
+            .Where(c => c.GroupId == groupId &&
+                        c.Status != ContainerStatus.Destroyed)
+            .OrderBy(c => c.GroupOrder)
+            .ToListAsync(token);
+
+        // 主容器可能因状态变化未出现在结果中，仍需保证列表非空
+        instance.Containers = group.Count > 0 ? group : [instance.Container];
     }
 
     public Task<GameInstance?> GetInstanceForSubmission(Participation team, int challengeId,
@@ -163,23 +201,14 @@ public class GameInstanceRepository(
         await Context.Entry(gameInstance).Reference(e => e.FlagContext).LoadAsync(token);
 
         var challenge = gameInstance.Challenge;
-        var container = await service.CreateContainerAsync(new ContainerConfig
-        {
-            TeamId = team.Id.ToString(),
-            UserId = user.Id,
-            ChallengeId = gameInstance.ChallengeId,
-            GameId = challenge.GameId,
-            Flag = gameInstance.FlagContext?.Flag, // static challenge has no specific flag
-            Image = challenge.ContainerImage,
-            CPUCount = challenge.CPUCount ?? 1,
-            MemoryLimit = challenge.MemoryLimit ?? 64,
-            StorageLimit = challenge.StorageLimit ?? 256,
-            NetworkMode = challenge.NetworkMode ?? NetworkMode.Open,
-            EnableTrafficCapture = challenge.EnableTrafficCapture && game.IsActive,
-            ExposedPort = challenge.ExposePort ??
-                          throw new ArgumentException(
-                              localizer[nameof(Resources.Program.InstanceRepository_InvalidPort)])
-        }, token);
+
+        // 单题多靶机：主镜像 + 附加靶机依次创建，同一实例下共享一个 GroupId。
+        // 未配置附加靶机时行为与原来完全一致（只创建主容器）。
+        var extraImages = challenge.ExtraContainerImages;
+        var groupId = Guid.NewGuid();
+        var container = await CreateOneAsync(
+            BuildConfig(challenge, gameInstance, team, user, challenge.ContainerImage, challenge.ExposePort,
+                challenge.EnableTrafficCapture, game.IsActive), groupId, null, 0, token);
 
         if (container is null)
         {
@@ -190,9 +219,47 @@ public class GameInstanceRepository(
             return new TaskResult<Container>(TaskStatus.Failed);
         }
 
-        // update the ExpectStopAt with config
-        container.ExpectStopAt = container.StartedAt.AddMinutes(containerPolicy.Value.DefaultLifetime);
+        // 附加靶机创建失败时回滚已创建的容器，避免选手拿到残缺的多靶机实例
+        var created = new List<Container> { container };
+        var order = 1;
 
+
+        foreach (var extra in extraImages)
+        {
+            if (string.IsNullOrWhiteSpace(extra.Image) || extra.ExposePort <= 0)
+                continue;
+
+            var extraContainer = await CreateOneAsync(
+                BuildConfig(challenge, gameInstance, team, user, extra.Image, extra.ExposePort,
+                    extra.EnableTrafficCapture, game.IsActive), groupId, extra.Name, order, token);
+
+            if (extraContainer is null)
+            {
+                logger.SystemLog(
+                    string.Format(
+                        StaticLocalizer[nameof(Resources.Program.InstanceRepository_ContainerCreationFailed)],
+                        $"{challenge.Title}（附加靶机 {extra.Name ?? extra.Image}）"),
+                    TaskStatus.Failed, LogLevel.Warning);
+
+                foreach (var done in created)
+                    await containerRepository.DestroyContainer(done, token);
+
+                // 附加靶机若已进入变更追踪但未落库，回滚时一并剥离，避免残留脏实体
+                foreach (var done in created)
+                    Context.Entry(done).State = EntityState.Detached;
+
+                return new TaskResult<Container>(TaskStatus.Failed);
+            }
+
+            created.Add(extraContainer);
+            order++;
+        }
+
+        // 附加靶机先落库拿到主键，避免只存在于内存中的容器导致列表丢失
+        if (created.Count > 1)
+            await Context.SaveChangesAsync(token);
+
+        gameInstance.Containers = created;
         gameInstance.Container = container;
         gameInstance.LastContainerOperation = DateTimeOffset.UtcNow;
 
@@ -215,19 +282,89 @@ public class GameInstanceRepository(
         return new TaskResult<Container>(TaskStatus.Success, gameInstance.Container);
     }
 
+    /// <summary>
+    /// 按题目配置组装一个容器的创建参数
+    /// </summary>
+    private ContainerConfig BuildConfig(GameChallenge challenge, GameInstance gameInstance, Team team,
+        UserInfo user, string? image, int? exposePort, bool trafficCapture, bool gameActive) =>
+        new()
+        {
+            TeamId = team.Id.ToString(),
+            UserId = user.Id,
+            ChallengeId = gameInstance.ChallengeId,
+            GameId = challenge.GameId,
+            Flag = gameInstance.FlagContext?.Flag, // static challenge has no specific flag
+            Image = image ?? string.Empty,
+            CPUCount = challenge.CPUCount ?? 1,
+            MemoryLimit = challenge.MemoryLimit ?? 64,
+            StorageLimit = challenge.StorageLimit ?? 256,
+            NetworkMode = challenge.NetworkMode ?? NetworkMode.Open,
+            EnableTrafficCapture = trafficCapture && gameActive,
+            ExposedPort = exposePort ??
+                          throw new ArgumentException(
+                              localizer[nameof(Resources.Program.InstanceRepository_InvalidPort)])
+        };
+
+    /// <summary>
+    /// 创建单个容器，并写入靶机组信息（groupId / 名称 / 顺序）
+    /// </summary>
+    private async Task<Container?> CreateOneAsync(ContainerConfig config, Guid groupId, string? groupName,
+        int groupOrder, CancellationToken token)
+    {
+        var container = await service.CreateContainerAsync(config, token);
+
+        if (container is null)
+            return null;
+
+        // 按配置更新预期停止时间
+        container.ExpectStopAt = container.StartedAt.AddMinutes(containerPolicy.Value.DefaultLifetime);
+        container.GroupId = groupId;
+        container.GroupName = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim();
+        container.GroupOrder = groupOrder;
+
+        // 主容器通过 gameInstance.Container 建立外键关系后由外层统一保存；
+        // 附加靶机不挂在任何被追踪的导航属性上，必须显式加入变更追踪，否则会被丢弃。
+        if (groupOrder > 0)
+            Context.Containers.Add(container);
+
+        return container;
+    }
+
     public async Task DestroyAllContainers(GameChallenge challenge, CancellationToken token = default)
     {
-        foreach (var container in await Context.GameInstances
-                     .Include(i => i.Container)
-                     .Where(i => i.Challenge == challenge && i.ContainerId != null)
-                     .Select(i => i.Container)
-                     .ToArrayAsync(token))
-        {
-            if (container is null)
-                continue;
+        // 主容器：沿用既有查询
+        var containers = await Context.GameInstances
+            .Include(i => i.Container)
+            .Where(i => i.Challenge == challenge && i.ContainerId != null)
+            .Select(i => i.Container)
+            .ToArrayAsync(token);
 
-            await containerRepository.DestroyContainer(container, token);
+        // 附加靶机：同一实例下共享 GroupId 的其余容器
+        var groupIds = await Context.GameInstances
+            .Where(i => i.Challenge == challenge && i.Container != null && i.Container.GroupId != null)
+            .Select(i => i.Container!.GroupId!.Value)
+            .Distinct()
+            .ToArrayAsync(token);
+
+        List<Container> extras = [];
+
+        if (groupIds.Length > 0)
+        {
+            extras = await Context.Containers
+                .Where(c => c.GroupId != null && groupIds.Contains(c.GroupId.Value) && c.Status != ContainerStatus.Destroyed)
+                .ToListAsync(token);
         }
+
+        // 去重后统一销毁，避免主容器被重复处理
+        var targets = containers
+            .Where(c => c is not null)
+            .Select(c => c!)
+            .Concat(extras)
+            .GroupBy(c => c.Id)
+            .Select(g => g.First());
+
+        foreach (var container in targets)
+            await containerRepository.DestroyContainer(container, token);
     }
 
     public async Task<CheatCheckInfo> CheckCheat(Submission submission, CancellationToken token = default)

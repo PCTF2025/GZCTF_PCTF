@@ -148,6 +148,25 @@ public class Container
     public GameInstance? GameInstance { get; set; }
 
     /// <summary>
+    /// 靶机组标识（单题多靶机）。
+    ///
+    /// 同一实例下由多镜像创建的容器共享一个 GroupId，
+    /// 首个容器为 GroupId 对应组的「主容器」，其余为附加靶机。
+    /// 单靶机题目与历史数据此字段为 null，按单容器处理。
+    /// </summary>
+    public Guid? GroupId { get; set; }
+
+    /// <summary>
+    /// 靶机在组内的展示名称（如 Web、数据库）；主容器为 null
+    /// </summary>
+    public string? GroupName { get; set; }
+
+    /// <summary>
+    /// 靶机在组内的顺序，主容器为 0
+    /// </summary>
+    public int GroupOrder { get; set; }
+
+    /// <summary>
     /// Game challenge instance object ID
     /// </summary>
     public int? GameInstanceId { get; set; }

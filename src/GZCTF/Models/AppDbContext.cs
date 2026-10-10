@@ -68,6 +68,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         var listConverter = GetJsonConverter<List<string>>();
         var listComparer = GetEnumerableComparer<List<string>, string>();
 
+        // ExtraContainerImage 只作为 JSON 载荷，不是独立实体
+        builder.Ignore<ExtraContainerImage>();
+
+        // 历史数据与迁移默认值为空串，反序列化需兜底为空列表。
+        // 注意：ValueConverter 的参数是表达式树，不能使用集合表达式（[]），须显式构造 List。
+        var extraImageConverter = new ValueConverter<List<ExtraContainerImage>, string>(
+            v => JsonSerializer.Serialize(v ?? new List<ExtraContainerImage>(), JsonOptions),
+            v => string.IsNullOrWhiteSpace(v)
+                ? new List<ExtraContainerImage>()
+                : JsonSerializer.Deserialize<List<ExtraContainerImage>>(v, JsonOptions) ??
+                  new List<ExtraContainerImage>());
+        var extraImageComparer = new ValueComparer<List<ExtraContainerImage>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (acc, i) => HashCode.Combine(acc, i.Image, i.Name, i.ExposePort)),
+            v => v.ToList());
+
         builder.Entity<School>(entity =>
         {
             // 短名是登录路由标识，必须唯一
@@ -235,6 +251,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
 
         builder.Entity<Container>(entity =>
         {
+            // 旧单容器关联：保留 Container / ContainerId 作为「首个容器」的快捷引用
             entity.HasOne(e => e.GameInstance)
                 .WithOne(e => e.Container)
                 .HasForeignKey<GameInstance>(e => e.ContainerId)
@@ -244,6 +261,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
                 .WithOne(e => e.Container)
                 .HasForeignKey<ExerciseInstance>(e => e.ContainerId)
                 .OnDelete(DeleteBehavior.SetNull);
+
         });
 
         builder.Entity<GameChallenge>(entity =>
@@ -252,6 +270,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
                 .HasConversion(listConverter)
                 .Metadata
                 .SetValueComparer(listComparer);
+
+            // 单题多靶机：附加靶机镜像以 JSON 列存储
+            entity.Property(e => e.ExtraContainerImages)
+                .HasConversion(extraImageConverter)
+                .Metadata
+                .SetValueComparer(extraImageComparer);
 
             entity.Property(e => e.NetworkMode)
                 .HasConversion<byte>()

@@ -71,6 +71,11 @@ public class ChallengeUpdateModel
     public string? ContainerImage { get; set; }
 
     /// <summary>
+    /// 附加靶机镜像（单题多靶机）。传空数组表示清空；null 表示保持原值。
+    /// </summary>
+    public List<ExtraContainerImage>? ExtraContainerImages { get; set; }
+
+    /// <summary>
     /// Memory limit (MB)
     /// </summary>
     [Range(32, 1048576, ErrorMessageResourceName = nameof(Resources.Program.Model_OutOfRange),

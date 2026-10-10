@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Code,
   ComboboxItem,
@@ -6,6 +7,7 @@ import {
   Group,
   Input,
   NumberInput,
+  Paper,
   Select,
   Slider,
   Stack,
@@ -25,6 +27,8 @@ import {
   mdiDeleteOutline,
   mdiEyeOutline,
   mdiPackageVariantClosed,
+  mdiPlus,
+  mdiServerNetwork,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
@@ -49,7 +53,13 @@ import { useConfig } from '@Hooks/useConfig'
 import { useEditChallenge, useEditChallenges } from '@Hooks/useEdit'
 import { useGame } from '@Hooks/useGame'
 import { useSyncOnChange } from '@Hooks/useSyncOnChange'
-import api, { ChallengeCategory, ChallengeType, ChallengeUpdateModel, NetworkMode } from '@Api'
+import api, {
+  ChallengeCategory,
+  ChallengeType,
+  ChallengeUpdateModel,
+  ExtraContainerImage,
+  NetworkMode,
+} from '@Api'
 import misc from '@Styles/Misc.module.css'
 
 const GameChallengeEdit: FC = () => {
@@ -84,9 +94,32 @@ const GameChallengeEdit: FC = () => {
 
   const { config } = useConfig()
 
+  /// 与服务端 Challenge.MaxExtraContainerImages 保持一致
+  const MAX_EXTRA_IMAGES = 5
+
   /// 镜像地址前缀：平台统一提供，出题人只需填写镜像名（后缀）。
   /// 未配置前缀时输入框回退为完整地址模式。
   const imagePrefix = config?.containerImagePrefix ?? ''
+
+  /// 附加靶机（单题多靶机）：一道题可同时启动多个互相配合的容器
+  const extraImages = challengeInfo.extraContainerImages ?? []
+
+  const setExtraImages = (next: ExtraContainerImage[]) =>
+    setChallengeInfo({ ...challengeInfo, extraContainerImages: next })
+
+  const addExtraImage = () =>
+    setExtraImages([...extraImages, { name: '', image: '', exposePort: 80, enableTrafficCapture: false }])
+
+  const updateExtraImage = (index: number, patch: Partial<ExtraContainerImage>) =>
+    setExtraImages(extraImages.map((it, i) => (i === index ? { ...it, ...patch } : it)))
+
+  const removeExtraImage = (index: number) => setExtraImages(extraImages.filter((_, i) => i !== index))
+
+  /// 附加靶机的镜像名同样只填后缀，统一走前缀拼接
+  const extraSuffix = (image: string) => {
+    if (!imagePrefix) return image
+    return image.startsWith(imagePrefix) ? image.slice(imagePrefix.length) : image
+  }
 
   /// 输入框展示值：有前缀时只显示后缀部分
   const imageSuffix = useMemo(() => {
@@ -591,6 +624,101 @@ const GameChallengeEdit: FC = () => {
                   instanceEntry: challenge?.testContainer?.entry,
                 }}
               />
+            </Grid.Col>
+
+            {/* 单题多靶机：附加靶机与主容器一同启动，选手获得多个独立入口 */}
+            <Grid.Col span={12}>
+              <Paper withBorder p="md" radius="md">
+                <Group justify="space-between" mb={extraImages.length > 0 ? 'sm' : 0}>
+                  <div>
+                    <Group gap="xs">
+                      <Icon path={mdiServerNetwork} size={0.9} />
+                      <Text fw={600}>附加靶机</Text>
+                      <Badge size="sm" variant="light" color={extraImages.length > 0 ? 'teal' : 'gray'}>
+                        {extraImages.length} / {MAX_EXTRA_IMAGES}
+                      </Badge>
+                    </Group>
+                    <Text size="xs" c="dimmed" mt={4}>
+                      一道题可同时启动多个互相配合的容器（如 Web + 数据库）。选手启动实例时全部创建，
+                      每个靶机有独立入口。留空则不启用。
+                    </Text>
+                  </div>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<Icon path={mdiPlus} size={0.8} />}
+                    disabled={disabled || extraImages.length >= MAX_EXTRA_IMAGES}
+                    onClick={addExtraImage}
+                  >
+                    添加靶机
+                  </Button>
+                </Group>
+
+                <Stack gap="sm">
+                  {extraImages.map((item, index) => (
+                    <Paper key={index} withBorder p="sm" radius="sm">
+                      <Grid columns={12} align="flex-end">
+                        <Grid.Col span={3}>
+                          <TextInput
+                            label="名称"
+                            placeholder={`靶机 ${index + 2}`}
+                            size="xs"
+                            disabled={disabled}
+                            value={item.name ?? ''}
+                            onChange={(e) => updateExtraImage(index, { name: e.currentTarget.value })}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={5}>
+                          <TextInput
+                            label="镜像"
+                            description={imagePrefix ? '只填镜像名，前缀同上' : '填写完整镜像地址'}
+                            size="xs"
+                            required
+                            disabled={disabled}
+                            value={extraSuffix(item.image)}
+                            onChange={(e) =>
+                              updateExtraImage(index, {
+                                image: imagePrefix
+                                  ? `${imagePrefix}${e.currentTarget.value.trim()}`
+                                  : e.currentTarget.value.trim(),
+                              })
+                            }
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={2}>
+                          <NumberInput
+                            label="端口"
+                            size="xs"
+                            min={1}
+                            max={65535}
+                            required
+                            disabled={disabled}
+                            value={item.exposePort}
+                            onChange={(e) => {
+                              const number = getInputNumber(e)
+                              if (isNaN(number)) return
+                              updateExtraImage(index, { exposePort: number })
+                            }}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={2}>
+                          <Button
+                            fullWidth
+                            variant="light"
+                            color="red"
+                            size="xs"
+                            leftSection={<Icon path={mdiDeleteOutline} size={0.8} />}
+                            disabled={disabled}
+                            onClick={() => removeExtraImage(index)}
+                          >
+                            移除
+                          </Button>
+                        </Grid.Col>
+                      </Grid>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Paper>
             </Grid.Col>
             <Grid.Col span={2}>
               <Select

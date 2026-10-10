@@ -20,6 +20,7 @@ import duration from 'dayjs/plugin/duration'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { InstanceEntry } from '@Components/InstanceEntry'
+import { MultiInstanceEntry } from '@Components/MultiInstanceEntry'
 import { ContentPlaceholder, InlineMarkdown, Markdown } from '@Components/MarkdownRenderer'
 import { useLanguage } from '@Utils/I18n'
 import { ChallengeCategoryItemProps } from '@Utils/Shared'
@@ -215,15 +216,31 @@ export const ChallengeModal: FC<ChallengeModalProps> = (props) => {
 
   const withInstance = isContainer && challenge?.context
 
+  // 单题多靶机：后端下发多个入口时改用多靶机列表展示，单靶机题目保持原样
+  const multiEntries = challenge?.context?.instanceEntries ?? []
+  const isMulti = multiEntries.length > 1
+
   const instance = withInstance && (
-    <InstanceEntry
-      label={`${challenge.title} @ ${gameTitle}`}
-      context={challenge.context!}
-      onCreate={onCreate}
-      onExtend={onExtend}
-      onDestroy={onDestroy}
-      disabled={disabled}
-    />
+    <>
+      {isMulti ? (
+        <MultiInstanceEntry
+          label={`${challenge.title} @ ${gameTitle}`}
+          context={challenge.context!}
+          onCreate={onCreate}
+          onExtend={onExtend}
+          onDestroy={onDestroy}
+        />
+      ) : (
+        <InstanceEntry
+          label={`${challenge.title} @ ${gameTitle}`}
+          context={challenge.context!}
+          onCreate={onCreate}
+          onExtend={onExtend}
+          onDestroy={onDestroy}
+          disabled={disabled}
+        />
+      )}
+    </>
   )
 
   const attemptsInfo = useMemo(() => {

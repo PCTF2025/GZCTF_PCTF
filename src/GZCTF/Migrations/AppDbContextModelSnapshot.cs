@@ -150,6 +150,15 @@ namespace GZCTF.Migrations
                     b.Property<int?>("GameInstanceId")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GroupName")
+                        .HasColumnType("text");
+
+                    b.Property<int>("GroupOrder")
+                        .HasColumnType("integer");
+
                     b.Property<string>("IP")
                         .IsRequired()
                         .HasColumnType("text");
@@ -634,6 +643,10 @@ namespace GZCTF.Migrations
 
                     b.Property<int?>("ExposePort")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ExtraContainerImages")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("FileName")
                         .HasColumnType("text");

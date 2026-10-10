@@ -91,6 +91,11 @@ public class ChallengeEditDetailModel
     public string? ContainerImage { get; set; } = string.Empty;
 
     /// <summary>
+    /// 附加靶机镜像（单题多靶机）
+    /// </summary>
+    public List<ExtraContainerImage> ExtraContainerImages { get; set; } = [];
+
+    /// <summary>
     /// Memory limit (MB)
     /// </summary>
     public int? MemoryLimit { get; set; } = 64;
@@ -172,6 +177,7 @@ public class ChallengeEditDetailModel
             Hints = chal.Hints ?? [],
             IsEnabled = chal.IsEnabled,
             ContainerImage = chal.ContainerImage,
+            ExtraContainerImages = chal.ExtraContainerImages,
             MemoryLimit = chal.MemoryLimit,
             CPUCount = chal.CPUCount,
             StorageLimit = chal.StorageLimit,

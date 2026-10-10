@@ -77,6 +77,9 @@ public class GameChallenge : Challenge
         MemoryLimit = model.MemoryLimit ?? MemoryLimit;
         StorageLimit = model.StorageLimit ?? StorageLimit;
         ContainerImage = model.ContainerImage?.Trim() ?? ContainerImage;
+        // 单题多靶机：附加靶机列表整体替换；过滤空镜像并限制数量上限
+        if (model.ExtraContainerImages is not null)
+            ExtraContainerImages = NormalizeExtraImages(model.ExtraContainerImages);
         ExposePort = model.ExposePort ?? ExposePort;
         NetworkMode = model.NetworkMode ?? NetworkMode;
         OriginalScore = model.OriginalScore ?? OriginalScore;
