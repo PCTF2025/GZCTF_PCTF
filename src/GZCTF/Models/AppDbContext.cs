@@ -84,6 +84,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
             v => v.Aggregate(0, (acc, i) => HashCode.Combine(acc, i.Image, i.Name, i.ExposePort)),
             v => v.ToList());
 
+        // 靶机拓扑同样只是 JSON 载荷，不作为独立实体
+        builder.Ignore<TopologyNode>();
+        builder.Ignore<TopologyEdge>();
+
+        var topoNodeConverter = new ValueConverter<List<TopologyNode>, string>(
+            v => JsonSerializer.Serialize(v ?? new List<TopologyNode>(), JsonOptions),
+            v => string.IsNullOrWhiteSpace(v)
+                ? new List<TopologyNode>()
+                : JsonSerializer.Deserialize<List<TopologyNode>>(v, JsonOptions) ??
+                  new List<TopologyNode>());
+        // HashCode.Combine 最多接受 8 个参数，坐标与标志位分两级折叠
+        var topoNodeComparer = new ValueComparer<List<TopologyNode>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (acc, i) => HashCode.Combine(acc,
+                HashCode.Combine(i.Id, i.Image, i.Name, i.ExposePort, i.IsEntry, i.EnableTrafficCapture),
+                i.X, i.Y)),
+            v => v.ToList());
+
+        var topoEdgeConverter = new ValueConverter<List<TopologyEdge>, string>(
+            v => JsonSerializer.Serialize(v ?? new List<TopologyEdge>(), JsonOptions),
+            v => string.IsNullOrWhiteSpace(v)
+                ? new List<TopologyEdge>()
+                : JsonSerializer.Deserialize<List<TopologyEdge>>(v, JsonOptions) ??
+                  new List<TopologyEdge>());
+        var topoEdgeComparer = new ValueComparer<List<TopologyEdge>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (acc, i) => HashCode.Combine(acc, i.Id, i.From, i.To, i.Label)),
+            v => v.ToList());
+
         builder.Entity<School>(entity =>
         {
             // 短名是登录路由标识，必须唯一
@@ -276,6 +305,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
                 .HasConversion(extraImageConverter)
                 .Metadata
                 .SetValueComparer(extraImageComparer);
+
+            // 靶机拓扑：节点与连线各以 JSON 列存储
+            entity.Property(e => e.TopologyNodes)
+                .HasConversion(topoNodeConverter)
+                .Metadata
+                .SetValueComparer(topoNodeComparer);
+
+            entity.Property(e => e.TopologyEdges)
+                .HasConversion(topoEdgeConverter)
+                .Metadata
+                .SetValueComparer(topoEdgeComparer);
 
             entity.Property(e => e.NetworkMode)
                 .HasConversion<byte>()

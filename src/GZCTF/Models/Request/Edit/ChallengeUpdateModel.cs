@@ -76,6 +76,16 @@ public class ChallengeUpdateModel
     public List<ExtraContainerImage>? ExtraContainerImages { get; set; }
 
     /// <summary>
+    /// 靶机拓扑节点（单题多靶机可视化编排）。传空数组表示清空；null 表示保持原值。
+    /// </summary>
+    public List<TopologyNode>? TopologyNodes { get; set; }
+
+    /// <summary>
+    /// 靶机拓扑连线，与 TopologyNodes 一同提交。传空数组表示清空；null 表示保持原值。
+    /// </summary>
+    public List<TopologyEdge>? TopologyEdges { get; set; }
+
+    /// <summary>
     /// Memory limit (MB)
     /// </summary>
     [Range(32, 1048576, ErrorMessageResourceName = nameof(Resources.Program.Model_OutOfRange),

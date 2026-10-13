@@ -691,6 +691,14 @@ namespace GZCTF.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TopologyEdges")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TopologyNodes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<byte>("Type")
                         .HasColumnType("smallint");
 
@@ -1016,8 +1024,8 @@ namespace GZCTF.Migrations
                         .HasColumnType("character varying(512)");
 
                     b.Property<string>("InviteCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Name")
                         .IsRequired()

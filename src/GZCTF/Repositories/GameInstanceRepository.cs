@@ -202,13 +202,14 @@ public class GameInstanceRepository(
 
         var challenge = gameInstance.Challenge;
 
-        // 单题多靶机：主镜像 + 附加靶机依次创建，同一实例下共享一个 GroupId。
-        // 未配置附加靶机时行为与原来完全一致（只创建主容器）。
-        var extraImages = challenge.ExtraContainerImages;
+        // 单题多靶机：主镜像 + 其余靶机依次创建，同一实例下共享一个 GroupId。
+        // 优先采用可视化拓扑编排；未配置拓扑时回退到「主镜像 + 附加靶机列表」的星形结构，
+        // 两者都未配置时行为与原来完全一致（只创建主容器）。
+        var nodes = BuildNodeList(challenge);
         var groupId = Guid.NewGuid();
         var container = await CreateOneAsync(
-            BuildConfig(challenge, gameInstance, team, user, challenge.ContainerImage, challenge.ExposePort,
-                challenge.EnableTrafficCapture, game.IsActive), groupId, null, 0, token);
+            BuildConfig(challenge, gameInstance, team, user, nodes[0].Image, nodes[0].ExposePort,
+                nodes[0].EnableTrafficCapture, game.IsActive), groupId, nodes[0].Name, 0, token);
 
         if (container is null)
         {
@@ -224,7 +225,7 @@ public class GameInstanceRepository(
         var order = 1;
 
 
-        foreach (var extra in extraImages)
+        foreach (var extra in nodes.Skip(1))
         {
             if (string.IsNullOrWhiteSpace(extra.Image) || extra.ExposePort <= 0)
                 continue;
@@ -280,6 +281,55 @@ public class GameInstanceRepository(
             TaskStatus.Success);
 
         return new TaskResult<Container>(TaskStatus.Success, gameInstance.Container);
+    }
+
+    /// <summary>
+    /// 把题目的拓扑编排解析成有序的靶机节点列表（首项为主靶机）。
+    ///
+    /// 三种来源按优先级回退：
+    /// 1. TopologyNodes 非空 —— 采用可视化拓扑，入口节点排在最前，其余按画布纵向位置排序；
+    /// 2. ContainerImage 非空 —— 采用「主镜像 + ExtraContainerImages」的星形结构；
+    /// 3. 兜底 —— 仅主镜像（历史行为）。
+    ///
+    /// 拓扑中的连线仅用于题面展示，不参与容器创建。
+    /// </summary>
+    private static List<ExtraContainerImage> BuildNodeList(GameChallenge challenge)
+    {
+        var nodes = challenge.TopologyNodes;
+
+        if (nodes.Count > 0)
+        {
+            var ordered = nodes
+                .OrderByDescending(n => n.IsEntry)
+                .ThenBy(n => n.Y)
+                .ThenBy(n => n.X)
+                .Select(n => new ExtraContainerImage
+                {
+                    Name = n.Name,
+                    Image = n.Image,
+                    ExposePort = n.ExposePort,
+                    EnableTrafficCapture = n.EnableTrafficCapture
+                })
+                .ToList();
+
+            if (ordered.Count > 0)
+                return ordered;
+        }
+
+        var fallback = new List<ExtraContainerImage>
+        {
+            new()
+            {
+                Name = null,
+                Image = challenge.ContainerImage ?? string.Empty,
+                ExposePort = challenge.ExposePort ?? 0,
+                EnableTrafficCapture = challenge.EnableTrafficCapture
+            }
+        };
+
+        fallback.AddRange(challenge.ExtraContainerImages);
+
+        return fallback;
     }
 
     /// <summary>

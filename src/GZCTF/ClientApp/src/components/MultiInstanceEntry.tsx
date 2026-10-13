@@ -4,6 +4,7 @@ import { Icon } from '@mdi/react'
 import { FC } from 'react'
 import { ClientFlagContext, ContainerStatus } from '@Api'
 import { InstanceEntry } from './InstanceEntry'
+import { TopologyGraph } from './TopologyGraph'
 
 interface MultiInstanceEntryProps {
   context: ClientFlagContext
@@ -25,6 +26,7 @@ const STATUS_META: Record<ContainerStatus, { label: string; color: string }> = {
 /// 因此倒计时与续期/销毁按钮只用一组，逐个靶机只展示各自的连接入口。
 export const MultiInstanceEntry: FC<MultiInstanceEntryProps> = ({ context, label, onCreate, onExtend, onDestroy }) => {
   const entries = context.instanceEntries ?? []
+  const topology = context.instanceTopology ?? null
 
   if (entries.length === 0) {
     // 全部靶机都没起来时，回退到单入口组件，保持「创建容器」按钮行为一致
@@ -41,6 +43,16 @@ export const MultiInstanceEntry: FC<MultiInstanceEntryProps> = ({ context, label
               {label}
             </Text>
           </Group>
+        )}
+
+        {/* 拓扑图：只读图形，说明各靶机之间如何互相访问，作为题面的补充 */}
+        {topology && topology.nodes.length > 0 && entries.length > 0 && (
+          <Stack gap={4}>
+            <TopologyGraph topology={topology} />
+            <Text size="xs" c="dimmed">
+              连线表示靶机之间应当如何互相访问，仅为题面说明。
+            </Text>
+          </Stack>
         )}
 
         {entries.map((entry, index) => {

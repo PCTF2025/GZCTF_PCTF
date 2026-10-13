@@ -83,6 +83,86 @@ public class Challenge
     public List<ExtraContainerImage> ExtraContainerImages { get; set; } = [];
 
     /// <summary>
+    /// 靶机拓扑节点。
+    ///
+    /// 单题多靶机模式的进阶形态：以「节点 + 连线」描述靶机编排，
+    /// 一道题可以同时启动多个互相配合的容器，连线用于在题面中说明
+    /// 它们之间应当如何互相访问。
+    ///
+    /// 拓扑仅作编排与题面说明用途，不会下发任何网络隔离策略。
+    /// 当本字段为空时，回退到 ContainerImage + ExtraContainerImages 的星形拓扑，
+    /// 未使用该模式时与原有行为完全一致。
+    /// </summary>
+    public List<TopologyNode> TopologyNodes { get; set; } = [];
+
+    /// <summary>
+    /// 靶机拓扑连线，仅引用 TopologyNodes 中的节点 Id
+    /// </summary>
+    public List<TopologyEdge> TopologyEdges { get; set; } = [];
+
+    /// <summary>
+    /// 拓扑节点数量上限
+    /// </summary>
+    public const int MaxTopologyNodes = 8;
+
+    /// <summary>
+    /// 规范化拓扑：剔除空镜像节点、裁剪名称、修补悬空连线、按上限截断。
+    ///
+    /// 至少保留一个入口节点：若没有任何节点被标记为入口，
+    /// 则将排在最前的节点提升为入口，保证题目始终有可访问地址。
+    /// </summary>
+    public static (List<TopologyNode> Nodes, List<TopologyEdge> Edges) NormalizeTopology(
+        IEnumerable<TopologyNode>? nodes, IEnumerable<TopologyEdge>? edges)
+    {
+        var list = nodes is null
+            ? []
+            : nodes
+                .Where(n => !string.IsNullOrWhiteSpace(n.Image) && !string.IsNullOrWhiteSpace(n.Id))
+                .Take(MaxTopologyNodes)
+                .Select(n => new TopologyNode
+                {
+                    Id = n.Id.Trim(),
+                    Name = string.IsNullOrWhiteSpace(n.Name) ? null : n.Name.Trim(),
+                    Image = n.Image.Trim(),
+                    ExposePort = n.ExposePort > 0 ? n.ExposePort : 80,
+                    IsEntry = n.IsEntry,
+                    EnableTrafficCapture = n.EnableTrafficCapture,
+                    X = double.IsFinite(n.X) ? n.X : 0,
+                    Y = double.IsFinite(n.Y) ? n.Y : 0
+                })
+                .ToList();
+
+        if (list.Count > 0 && list.All(n => !n.IsEntry))
+            list[0].IsEntry = true;
+
+        var ids = list.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+
+        var links = edges is null
+            ? []
+            : edges
+                .Where(e => !string.IsNullOrWhiteSpace(e.From) && !string.IsNullOrWhiteSpace(e.To))
+                .Where(e => ids.Contains(e.From.Trim()) && ids.Contains(e.To.Trim()))
+                .Where(e => !string.Equals(e.From.Trim(), e.To.Trim(), StringComparison.Ordinal))
+                .Select(e => new TopologyEdge
+                {
+                    Id = string.IsNullOrWhiteSpace(e.Id)
+                        ? $"{e.From.Trim()}--{e.To.Trim()}"
+                        : e.Id.Trim(),
+                    From = e.From.Trim(),
+                    To = e.To.Trim(),
+                    Label = string.IsNullOrWhiteSpace(e.Label) ? null : e.Label.Trim()
+                })
+                // 去重：同一对节点的重复连线只保留一条
+                .GroupBy(e => string.CompareOrdinal(e.From, e.To) <= 0
+                    ? $"{e.From}|{e.To}"
+                    : $"{e.To}|{e.From}")
+                .Select(g => g.First())
+                .ToList();
+
+        return (list, links);
+    }
+
+    /// <summary>
     /// 附加靶机数量上限
     /// </summary>
     public const int MaxExtraContainerImages = 5;

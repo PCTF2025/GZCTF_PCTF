@@ -15,6 +15,7 @@ import {
   Text,
   Textarea,
   TextInput,
+  Tabs,
   Title,
 } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
@@ -32,7 +33,7 @@ import {
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { HintList } from '@Components/HintList'
@@ -59,7 +60,10 @@ import api, {
   ChallengeUpdateModel,
   ExtraContainerImage,
   NetworkMode,
+  TopologyEdge,
+  TopologyNode,
 } from '@Api'
+import { TopologyEditor } from '@Components/admin/TopologyEditor'
 import misc from '@Styles/Misc.module.css'
 
 const GameChallengeEdit: FC = () => {
@@ -115,6 +119,25 @@ const GameChallengeEdit: FC = () => {
 
   const removeExtraImage = (index: number) => setExtraImages(extraImages.filter((_, i) => i !== index))
 
+  /// 与服务端 Challenge.MaxTopologyNodes 保持一致
+  const MAX_TOPOLOGY_NODES = 8
+
+  /// 靶机拓扑（单题多靶机可视化编排）。
+  /// 拓扑非空时，容器创建改以拓扑为准，附加靶机列表仅作兼容保留。
+  const topologyNodes = challengeInfo.topologyNodes ?? []
+  const topologyEdges = challengeInfo.topologyEdges ?? []
+
+  const setTopology = (next: { nodes: TopologyNode[]; edges: TopologyEdge[] }) =>
+    setChallengeInfo({ ...challengeInfo, topologyNodes: next.nodes, topologyEdges: next.edges })
+
+  /// 容器编排视图：「拓扑」为图形化编排，「列表」为兼容的简单列表
+  const [topoView, setTopoView] = useState<'topology' | 'list'>('topology')
+
+  /// 已有拓扑编排的题目直接落到拓扑视图；否则先看简单列表，降低上手成本
+  useEffect(() => {
+    if (topologyNodes.length > 0) setTopoView('topology')
+  }, [])
+  
   /// 附加靶机的镜像名同样只填后缀，统一走前缀拼接
   const extraSuffix = (image: string) => {
     if (!imagePrefix) return image
@@ -626,33 +649,53 @@ const GameChallengeEdit: FC = () => {
               />
             </Grid.Col>
 
-            {/* 单题多靶机：附加靶机与主容器一同启动，选手获得多个独立入口 */}
+            {/* 单题多靶机：靶机编排。拓扑视图用于可视化编排，列表视图保持简单易用 */}
             <Grid.Col span={12}>
               <Paper withBorder p="md" radius="md">
-                <Group justify="space-between" mb={extraImages.length > 0 ? 'sm' : 0}>
-                  <div>
-                    <Group gap="xs">
-                      <Icon path={mdiServerNetwork} size={0.9} />
-                      <Text fw={600}>附加靶机</Text>
-                      <Badge size="sm" variant="light" color={extraImages.length > 0 ? 'teal' : 'gray'}>
-                        {extraImages.length} / {MAX_EXTRA_IMAGES}
-                      </Badge>
+                <Tabs value={topoView} onChange={(v) => setTopoView((v as 'topology' | 'list') ?? 'topology')}>
+                  <Group justify="space-between" align="flex-start" wrap="nowrap">
+                    <div>
+                      <Group gap="xs">
+                        <Icon path={mdiServerNetwork} size={0.9} />
+                        <Text fw={600}>靶机编排</Text>
+                        <Badge size="sm" variant="light" color={topologyNodes.length > 0 ? 'teal' : 'gray'}>
+                          {topologyNodes.length > 0
+                            ? `${topologyNodes.length} 个靶机 / ${topologyEdges.length} 条连线`
+                            : `${extraImages.length} / ${MAX_EXTRA_IMAGES} 附加靶机`}
+                        </Badge>
+                      </Group>
+                      <Text size="xs" c="dimmed" mt={4}>
+                        一道题可同时启动多个互相配合的容器（如 Web + 数据库）。选手启动实例时全部创建，
+                        每个靶机有独立入口。
+                        {topologyNodes.length > 0 && ' 已启用拓扑编排，容器按拓扑创建，连线仅作题面说明。'}
+                      </Text>
+                    </div>
+                    <Tabs.List>
+                      <Tabs.Tab value="topology">拓扑视图</Tabs.Tab>
+                      <Tabs.Tab value="list">列表视图</Tabs.Tab>
+                    </Tabs.List>
+                  </Group>
+
+                  <Tabs.Panel value="topology" pt="md">
+                    <TopologyEditor
+                      value={{ nodes: topologyNodes, edges: topologyEdges }}
+                      onChange={setTopology}
+                      imagePrefix={imagePrefix}
+                    />
+                  </Tabs.Panel>
+
+                  <Tabs.Panel value="list" pt="md">
+                    <Group justify="flex-end" mb={extraImages.length > 0 ? 'sm' : 0}>
+                      <Button
+                        variant="light"
+                        size="xs"
+                        leftSection={<Icon path={mdiPlus} size={0.8} />}
+                        disabled={disabled || extraImages.length >= MAX_EXTRA_IMAGES}
+                        onClick={addExtraImage}
+                      >
+                        添加靶机
+                      </Button>
                     </Group>
-                    <Text size="xs" c="dimmed" mt={4}>
-                      一道题可同时启动多个互相配合的容器（如 Web + 数据库）。选手启动实例时全部创建，
-                      每个靶机有独立入口。留空则不启用。
-                    </Text>
-                  </div>
-                  <Button
-                    variant="light"
-                    size="xs"
-                    leftSection={<Icon path={mdiPlus} size={0.8} />}
-                    disabled={disabled || extraImages.length >= MAX_EXTRA_IMAGES}
-                    onClick={addExtraImage}
-                  >
-                    添加靶机
-                  </Button>
-                </Group>
 
                 <Stack gap="sm">
                   {extraImages.map((item, index) => (
@@ -717,7 +760,9 @@ const GameChallengeEdit: FC = () => {
                       </Grid>
                     </Paper>
                   ))}
-                </Stack>
+                    </Stack>
+                  </Tabs.Panel>
+                </Tabs>
               </Paper>
             </Grid.Col>
             <Grid.Col span={2}>

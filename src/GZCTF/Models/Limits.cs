@@ -63,9 +63,16 @@ public static class Limits
     public const int GameKeyLength = 63;
 
     /// <summary>
-    /// 邀请 Token 长度
+    /// 邀请 Token 长度（Guid "N" 格式，32 位无连字符）
     /// </summary>
     public const int InviteTokenLength = 32;
+
+    /// <summary>
+    /// 学校报名邀请码长度。
+    /// 学校邀请码允许直接粘贴带连字符的标准 UUID（36 位），
+    /// 因此单独放宽，不受 InviteTokenLength 限制。
+    /// </summary>
+    public const int SchoolInviteCodeLength = 64;
 
     /// <summary>
     /// 最大 IP 长度

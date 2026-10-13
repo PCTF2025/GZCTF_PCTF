@@ -100,8 +100,76 @@ public class ChallengeDetailModel
                         })
                         .ToList()
                     : null,
+                // 靶机拓扑：只读图形，连线仅作题面说明，平台不施加网络隔离
+                InstanceTopology = BuildTopology(gameInstance.Challenge, gameInstance),
                 Url = gameInstance.AttachmentUrl,
                 FileSize = gameInstance.Attachment?.FileSize
             }
         };
+
+    /// <summary>
+    /// 组装只读拓扑视图。
+    ///
+    /// 节点按创建顺序与实例容器对齐（InstanceIndex），前端借此把图形与入口卡片关联起来；
+    /// 未配置拓扑的题目返回 null。
+    /// </summary>
+    private static TopologyGraphModel? BuildTopology(GameChallenge challenge, GameInstance gameInstance)
+    {
+        if (challenge.TopologyNodes.Count == 0)
+            return null;
+
+        var containers = gameInstance.Containers
+            .OrderBy(c => c.GroupOrder)
+            .ToList();
+
+        var nodes = new List<TopologyNodeModel>();
+        var used = new HashSet<int>();
+
+        foreach (var n in challenge.TopologyNodes)
+        {
+            // 节点顺序即创建顺序：入口在最前，其余按画布纵向位置排列。
+            // 这里按名称与已创建的容器对齐，便于前端把图形与入口卡片关联起来。
+            var index = -1;
+
+            for (var i = 0; i < containers.Count; i++)
+            {
+                if (used.Contains(i))
+                    continue;
+
+                if (string.Equals(containers[i].GroupName, n.Name, StringComparison.Ordinal))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index >= 0)
+                used.Add(index);
+
+            nodes.Add(new TopologyNodeModel
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ExposePort = n.ExposePort,
+                IsEntry = n.IsEntry,
+                InstanceIndex = index,
+                X = n.X,
+                Y = n.Y
+            });
+        }
+
+        return new TopologyGraphModel
+        {
+            Nodes = nodes,
+            Links = challenge.TopologyEdges
+                .Select(e => new TopologyLinkModel
+                {
+                    Id = e.Id,
+                    From = e.From,
+                    To = e.To,
+                    Label = e.Label
+                })
+                .ToList()
+        };
+    }
 }

@@ -80,6 +80,20 @@ public class GameChallenge : Challenge
         // 单题多靶机：附加靶机列表整体替换；过滤空镜像并限制数量上限
         if (model.ExtraContainerImages is not null)
             ExtraContainerImages = NormalizeExtraImages(model.ExtraContainerImages);
+        // 靶机拓扑：节点与连线整体替换；由拓扑推导主镜像，保证 ContainerImage 始终可用
+        if (model.TopologyNodes is not null)
+        {
+            var (nodes, edges) = NormalizeTopology(model.TopologyNodes, model.TopologyEdges);
+            TopologyNodes = nodes;
+            TopologyEdges = edges;
+
+            if (nodes.Count > 0)
+            {
+                var entry = nodes.FirstOrDefault(n => n.IsEntry) ?? nodes[0];
+                ContainerImage = entry.Image.Trim();
+                ExposePort = entry.ExposePort;
+            }
+        }
         ExposePort = model.ExposePort ?? ExposePort;
         NetworkMode = model.NetworkMode ?? NetworkMode;
         OriginalScore = model.OriginalScore ?? OriginalScore;

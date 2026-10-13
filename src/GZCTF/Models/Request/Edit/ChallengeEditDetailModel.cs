@@ -96,6 +96,16 @@ public class ChallengeEditDetailModel
     public List<ExtraContainerImage> ExtraContainerImages { get; set; } = [];
 
     /// <summary>
+    /// 靶机拓扑节点（单题多靶机可视化编排）
+    /// </summary>
+    public List<TopologyNode> TopologyNodes { get; set; } = [];
+
+    /// <summary>
+    /// 靶机拓扑连线
+    /// </summary>
+    public List<TopologyEdge> TopologyEdges { get; set; } = [];
+
+    /// <summary>
     /// Memory limit (MB)
     /// </summary>
     public int? MemoryLimit { get; set; } = 64;
@@ -178,6 +188,8 @@ public class ChallengeEditDetailModel
             IsEnabled = chal.IsEnabled,
             ContainerImage = chal.ContainerImage,
             ExtraContainerImages = chal.ExtraContainerImages,
+            TopologyNodes = chal.TopologyNodes,
+            TopologyEdges = chal.TopologyEdges,
             MemoryLimit = chal.MemoryLimit,
             CPUCount = chal.CPUCount,
             StorageLimit = chal.StorageLimit,
