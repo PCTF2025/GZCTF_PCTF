@@ -14,6 +14,7 @@ using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
 using GZCTF.Services.Config;
 using GZCTF.Storage.Interface;
+using GZCTF.Utils;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -222,9 +223,9 @@ public class GameController(
             if (autoDivisionId is > 0)
             {
                 model.DivisionId = autoDivisionId;
-                logger.LogInformation(
-                    "按学校自动分配赛区：user={User} school={School} grade={Grade} group={Group} division={Division}",
-                    user.UserName, school!.Name, user.Grade, school.ResolveGroupName(user.Grade), autoDivisionId);
+                logger.Log(
+                    $"按学校自动分配赛区：user={user.UserName} school={school!.Name} grade={user.Grade} group={school.ResolveGroupName(user.Grade)} division={autoDivisionId}",
+                    user, TaskStatus.Success);
             }
         }
 
@@ -1571,7 +1572,7 @@ public class GameController(
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync(token);
 
-        logger.LogInformation("个人赛自动建队：team={Team} user={User}", team.Name, user.UserName);
+        logger.Log($"个人赛自动建队：team={team.Name} user={user.UserName}", user, TaskStatus.Success);
 
         return team;
     }

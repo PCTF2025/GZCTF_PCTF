@@ -7,6 +7,7 @@ using GZCTF.Models.Internal;
 using GZCTF.Models.Request.Account;
 using GZCTF.Services;
 using GZCTF.Services.Mail;
+using GZCTF.Utils;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -96,7 +97,7 @@ public class SsoController(
 
         if (string.IsNullOrWhiteSpace(identifier))
         {
-            logger.LogWarning("CAS 认证失败：school={School} 未获取到用户标识", school.Name);
+            logger.Log($"CAS 认证失败：school={school.Name} 未获取到用户标识", HttpContext, TaskStatus.Denied, LogLevel.Warning);
             return BadRequest(new RequestResponse("认证失败，未获取到用户信息"));
         }
 
@@ -136,8 +137,7 @@ public class SsoController(
             return BadRequest(new RequestResponse(first?.Description ?? "用户操作失败"));
         }
 
-        logger.LogInformation("学校 SSO 登录成功：school={School} user={UserName} id={Identifier}",
-            school.Name, user.UserName, identifier);
+        logger.Log($"学校 SSO 登录成功：school={school.Name} user={user.UserName} id={identifier}", user, TaskStatus.Success);
 
         return Redirect($"{Request.Scheme}://{Request.Host}{ssoConfig.Value.RedirectPath}");
     }
@@ -331,7 +331,7 @@ public class SsoController(
         if (!enqueued)
             return BadRequest(new RequestResponse("验证码邮件发送失败，请稍后重试或联系赛事管理员"));
 
-        logger.LogInformation("已发送学校 {School} 的登录验证码至 {Email}", school.Name, email);
+        logger.Log($"已发送学校 {school.Name} 的登录验证码至 {email}", HttpContext, TaskStatus.Success);
 
         return Ok(new RequestResponse($"验证码已发送至 {email}，10 分钟内有效", StatusCodes.Status200OK));
     }
@@ -493,8 +493,7 @@ public class SsoController(
         // 免密码登录：用已验证的邮箱身份直接签发 Cookie
         await signInManager.SignInAsync(user, isPersistent: true);
 
-        logger.LogInformation("学校 {School} 验证码登录成功：user={User} created={Created}",
-            school.Name, user.UserName, created);
+        logger.Log($"学校 {school.Name} 验证码登录成功：user={user.UserName} created={created}", user, TaskStatus.Success);
 
         return Ok(new SchoolCodeLoginResult
         {
@@ -633,7 +632,7 @@ public class SsoController(
         if (!string.IsNullOrWhiteSpace(expected) &&
             !string.Equals(expected, model.InviteCode?.Trim(), StringComparison.Ordinal))
         {
-            logger.LogWarning("学校邀请码校验失败：school={School} user={User}", school.Slug, user.UserName);
+            logger.Log($"学校邀请码校验失败：school={school.Slug} user={user.UserName}", user, TaskStatus.Denied, LogLevel.Warning);
             return BadRequest(new RequestResponse("邀请码不正确，请联系赛事管理员获取"));
         }
 
@@ -658,7 +657,7 @@ public class SsoController(
             return BadRequest(new RequestResponse(first?.Description ?? "绑定失败，请稍后重试"));
         }
 
-        logger.LogInformation("邀请码绑定学校成功：school={School} user={User}", school.Slug, user.UserName);
+        logger.Log($"邀请码绑定学校成功：school={school.Slug} user={user.UserName}", user, TaskStatus.Success);
 
         return Ok(new RequestResponse($"已绑定 {school.Name}", StatusCodes.Status200OK));
     }

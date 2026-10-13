@@ -158,8 +158,7 @@ public class VerifyController(
 
         await dbContext.SaveChangesAsync(token);
 
-        logger.LogInformation("学籍审核通过：user={User} school={School} by={Viewer}",
-            target.UserName, target.School, viewer.UserName);
+        logger.Log($"学籍审核通过：user={target.UserName} school={target.School} by={viewer.UserName}", viewer, TaskStatus.Success);
 
         return Ok(new RequestResponse($"已通过 {target.RealName}（{target.StdNumber}）的学籍审核", StatusCodes.Status200OK));
     }
@@ -184,8 +183,8 @@ public class VerifyController(
 
         await dbContext.SaveChangesAsync(token);
 
-        logger.LogInformation("学籍审核驳回：user={User} school={School} by={Viewer} reason={Reason}",
-            target.UserName, target.School, viewer.UserName, target.VerifyNote);
+        logger.Log($"学籍审核驳回：user={target.UserName} school={target.School} by={viewer.UserName} reason={target.VerifyNote}",
+            viewer, TaskStatus.Denied);
 
         return Ok(new RequestResponse($"已驳回 {target.RealName}（{target.StdNumber}）的学籍审核", StatusCodes.Status200OK));
     }
@@ -231,8 +230,8 @@ public class VerifyController(
 
         await dbContext.SaveChangesAsync(token);
 
-        logger.LogInformation("学籍批量审核：approved={Approved} skipped={Skipped} by={Viewer}",
-            approved, skipped, viewer.UserName);
+        logger.Log($"学籍批量审核：approved={approved} skipped={skipped} by={viewer.UserName}",
+            viewer, skipped > 0 ? TaskStatus.Duplicate : TaskStatus.Success);
 
         return Ok(new RequestResponse(
             skipped > 0

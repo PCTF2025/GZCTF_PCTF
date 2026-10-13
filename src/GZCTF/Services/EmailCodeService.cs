@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using GZCTF.Utils;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace GZCTF.Services;
@@ -64,7 +65,7 @@ public class EmailCodeService(IDistributedCache cache, ILogger<EmailCodeService>
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
         }, token);
 
-        logger.LogInformation("已为 {Email} 生成学校 {Slug} 的登录验证码", email, slug);
+        logger.Log($"已为 {email} 生成学校 {slug} 的登录验证码", "Anonymous", null, TaskStatus.Success);
 
         return code;
     }
