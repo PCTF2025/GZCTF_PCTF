@@ -61,6 +61,12 @@ public class AccountPolicy
     /// Email domain list, separated by commas
     /// </summary>
     public string EmailDomainList { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 允许无邀请码注册（归入「社会」组）。
+    /// 关闭后必须持有效学校邀请码，或经学校邮箱认证入口方可注册。
+    /// </summary>
+    public bool AllowSocialRegister { get; set; } = true;
 }
 
 /// <summary>

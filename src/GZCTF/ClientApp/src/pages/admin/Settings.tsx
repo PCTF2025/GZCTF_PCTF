@@ -277,6 +277,20 @@ const Configs: FC = () => {
               }
             />
             <Switch
+              checked={accountPolicy?.allowSocialRegister ?? true}
+              disabled={disabled}
+              label={SwitchLabel(
+                '允许无邀请码注册（社会组）',
+                '关闭后，注册必须持有效学校邀请码，或经学校邮箱认证入口进入'
+              )}
+              onChange={(e) =>
+                setAccountPolicy({
+                  ...accountPolicy,
+                  allowSocialRegister: e.currentTarget.checked,
+                })
+              }
+            />
+            <Switch
               checked={accountPolicy?.emailConfirmationRequired ?? false}
               disabled={disabled}
               label={SwitchLabel(

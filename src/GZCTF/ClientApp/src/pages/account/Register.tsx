@@ -130,8 +130,20 @@ const Register: FC = () => {
       return
     }
 
+    // 学校邀请码为注册前提（社会组注册已暂时关闭）。
+    // 经学校邮箱认证入口进入时学校已确定，无需邀请码。
+    if (!schoolSlug && !inviteCode.trim()) {
+      showNotification({
+        color: 'red',
+        title: '需要学校邀请码',
+        message: '当前仅开放持邀请码的学校注册，请向所在学校获取邀请码',
+        icon: <Icon path={mdiClose} size={1} />,
+      })
+      return
+    }
+
     // 学籍信息为报名主办赛道的前提，注册时一并校验。
-    // 学校不再单独必填：由邀请码自动匹配，匹配不到则归入「社会」组。
+    // 学校不再单独必填：由邀请码自动匹配。
     if (!realName.trim() || !stdNumber.trim() || !grade) {
       showNotification({
         color: 'orange',
@@ -268,8 +280,13 @@ const Register: FC = () => {
       />
       <Divider label="学籍信息（报名主办赛道需经学校审核）" labelPosition="center" my="xs" />
       <TextInput
-        label="学校邀请码（选填）"
-        description="填写学校下发的邀请码将自动绑定该学校；留空或填写不正确时归入「社会」组，不影响正常参赛"
+        required={!schoolSlug}
+        label="学校邀请码"
+        description={
+          schoolSlug
+            ? '已通过学校邮箱认证入口进入，无需填写邀请码'
+            : '必填：请填写学校下发的邀请码，将自动绑定该学校。未持邀请码暂无法注册'
+        }
         placeholder="如 PCTF2026-XXXX"
         w="100%"
         disabled={disabled || Boolean(schoolSlug)}

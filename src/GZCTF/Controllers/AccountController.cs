@@ -8,6 +8,7 @@ using GZCTF.Repositories.Interface;
 using GZCTF.Services;
 using GZCTF.Services.Config;
 using GZCTF.Services.Mail;
+using GZCTF.Utils;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -114,7 +115,19 @@ public class AccountController(
             {
                 user.School = school.Slug;
                 user.SchoolSource = SchoolBindSource.Invite;
-                logger.LogInformation("注册时凭邀请码绑定学校：school={School} user={User}", school.Slug, user.UserName);
+                logger.Log($"注册时凭邀请码绑定学校：school={school.Slug} user={user.UserName}", user, TaskStatus.Success);
+            }
+            else if (!accountPolicy.Value.AllowSocialRegister)
+            {
+                // 社会组注册已关闭：无邀请码或邀请码无效一律拒绝
+                logger.Log(
+                    $"注册被拒绝（社会组注册已关闭，邀请码无效或缺省）：user={user.UserName} inviteCode={(string.IsNullOrWhiteSpace(inviteCode) ? "(空)" : inviteCode)}",
+                    user, TaskStatus.Denied, LogLevel.Warning);
+
+                return BadRequest(new RequestResponse(
+                    string.IsNullOrWhiteSpace(inviteCode)
+                        ? "当前仅开放持邀请码的学校注册，请向所在学校获取邀请码后重试"
+                        : "邀请码不正确，请向所在学校确认后重试"));
             }
             else
             {
@@ -122,7 +135,7 @@ public class AccountController(
                 user.School = SocialSchoolSlug;
 
                 if (!string.IsNullOrWhiteSpace(inviteCode))
-                    logger.LogInformation("注册邀请码未匹配到学校，归入社会：user={User}", user.UserName);
+                    logger.Log($"注册邀请码未匹配到学校，归入社会：user={user.UserName}", user, TaskStatus.NotFound, LogLevel.Warning);
             }
         }
 
@@ -450,7 +463,7 @@ public class AccountController(
                 user.SchoolSource = SchoolBindSource.Sso;
                 await userManager.UpdateAsync(user);
 
-                logger.LogInformation("登录时自动绑定学校：school={School} user={User}", school.Slug, user.UserName);
+                logger.Log($"登录时自动绑定学校：school={school.Slug} user={user.UserName}", user, TaskStatus.Success);
             }
         }
 

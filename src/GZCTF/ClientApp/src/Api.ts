@@ -669,6 +669,8 @@ export interface AccountPolicy {
   emailConfirmationRequired?: boolean;
   /** Email domain list, separated by commas */
   emailDomainList?: string;
+  /** 允许无邀请码注册（归入「社会」组） */
+  allowSocialRegister?: boolean;
 }
 
 /** Global settings */
@@ -1607,6 +1609,10 @@ export interface ChallengeEditDetailModel {
   containerImage: string;
   /** 附加靶机镜像（单题多靶机） */
   extraContainerImages: ExtraContainerImage[];
+  /** 靶机拓扑节点 */
+  topologyNodes: TopologyNode[];
+  /** 靶机拓扑连线 */
+  topologyEdges: TopologyEdge[];
   /**
    * Memory limit (MB)
    * @format int32
@@ -1792,6 +1798,10 @@ export interface ChallengeUpdateModel {
   containerImage?: string | null;
   /** 附加靶机镜像（单题多靶机）；传空数组清空，null 保持原值 */
   extraContainerImages?: ExtraContainerImage[] | null;
+  /** 靶机拓扑节点，传空数组表示清空 */
+  topologyNodes?: TopologyNode[] | null;
+  /** 靶机拓扑连线，传空数组表示清空 */
+  topologyEdges?: TopologyEdge[] | null;
   /**
    * Memory limit (MB)
    * @format int32
@@ -2520,6 +2530,74 @@ export interface ExtraContainerImage {
   enableTrafficCapture: boolean;
 }
 
+/** 靶机拓扑节点（出题人编辑） */
+export interface TopologyNode {
+  /** 节点标识，由前端生成，连线两端引用此值 */
+  id: string;
+  /** 靶机名称 */
+  name?: string | null;
+  /** 镜像名与 tag */
+  image: string;
+  /**
+   * 容器暴露端口
+   * @format int32
+   */
+  exposePort: number;
+  /** 是否把入口地址下发给选手 */
+  isEntry: boolean;
+  /** 是否启用流量捕获 */
+  enableTrafficCapture: boolean;
+  /** 画布横坐标 */
+  x: number;
+  /** 画布纵坐标 */
+  y: number;
+}
+
+/** 靶机拓扑连线（出题人编辑） */
+export interface TopologyEdge {
+  /** 连线标识 */
+  id: string;
+  /** 起点节点 id */
+  from: string;
+  /** 终点节点 id */
+  to: string;
+  /** 连线说明（协议或访问方式） */
+  label?: string | null;
+}
+
+/** 拓扑节点（下发给选手的只读视图） */
+export interface TopologyNodeModel {
+  id: string;
+  name?: string | null;
+  /** @format int32 */
+  exposePort: number;
+  /** 是否为入口靶机 */
+  isEntry: boolean;
+  /**
+   * 与实例列表对齐的序号，-1 表示未创建
+   * @format int32
+   */
+  instanceIndex: number;
+  /** @format double */
+  x: number;
+  /** @format double */
+  y: number;
+}
+
+/** 拓扑连线（下发给选手的只读视图） */
+export interface TopologyLinkModel {
+  id: string;
+  from: string;
+  to: string;
+  label?: string | null;
+}
+
+/** 题目靶机拓扑（只读展示） */
+export interface TopologyGraphModel {
+  nodes: TopologyNodeModel[];
+  links: TopologyLinkModel[];
+}
+
 export interface ClientFlagContext {
   /**
    * Close time of the challenge instance
@@ -2530,6 +2608,8 @@ export interface ClientFlagContext {
   instanceEntry?: string | null;
   /** 单题多靶机模式下各靶机的独立入口；单靶机题目为空 */
   instanceEntries?: ContainerEntryModel[] | null;
+  /** 靶机拓扑（只读图形，仅用于题面展示） */
+  instanceTopology?: TopologyGraphModel | null;
   /** Attachment URL */
   url?: string | null;
   /**
