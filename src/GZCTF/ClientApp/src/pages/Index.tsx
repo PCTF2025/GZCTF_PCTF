@@ -1,11 +1,14 @@
 import { Badge, Box, Button, Card, Center, Group, Image, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { mdiBookOpenPageVariantOutline, mdiChevronRight, mdiFlagCheckered, mdiShieldCrownOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
-import { FC } from 'react'
+import dayjs from 'dayjs'
+import { CSSProperties, FC, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { WithNavBar } from '@Components/WithNavbar'
 import { useConfig } from '@Hooks/useConfig'
+import { useGame } from '@Hooks/useGame'
 import { usePageTitle } from '@Hooks/usePageTitle'
+import { getTrackStatus, TrackState } from '@Utils/TrackStatus'
 import { SITE_LINKS } from '@Utils/SiteLinks'
 import logoImage from '@Resources/pctf-logo.png'
 import dkdunLogo from '@Resources/dkdun-logo.png'
@@ -45,12 +48,34 @@ const Home: FC = () => {
   usePageTitle()
   const { config } = useConfig()
 
+  /// 赛道绑定的赛事 Id（0 表示后台未绑定）
+  const officialGameId = config?.tracks?.officialGameId ?? 0
+  const publicGameId = config?.tracks?.publicGameId ?? 0
+
+  /// 拉取主办赛道赛事详情，用于判断「报名中 / 已发布第 N 周」
+  const { game: officialGame } = useGame(officialGameId)
+
+  /// 每分钟刷新一次，跨越发布时间点时状态自动切换
+  const [now, setNow] = useState(() => dayjs())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(dayjs()), 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
+
   /// 后台已把赛道绑定到具体赛事时，首页卡片直达赛事详情页
   const trackLink = (track: TrackEntry) => {
-    const bound = track.key === 'official' ? config?.tracks?.officialGameId : config?.tracks?.publicGameId
-    // 0 表示后台未绑定该赛道
+    const bound = track.key === 'official' ? officialGameId : publicGameId
     return bound && bound > 0 ? `/games/${bound}` : track.fallbackLink
   }
+
+  /// 各赛道当前状态
+  const statusOf = (track: TrackEntry) =>
+    getTrackStatus(
+      track.key,
+      track.key === 'official' ? officialGame : undefined,
+      track.key === 'official' ? officialGameId > 0 : publicGameId > 0,
+      now
+    )
 
   return (
     <WithNavBar minWidth={0} withFooter withHeader stickyHeader>
@@ -72,41 +97,69 @@ const Home: FC = () => {
         <Stack gap="md">
           <Title order={3}>选择赛道</Title>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
-            {TRACKS.map((track) => (
-              <Card
-                key={track.key}
-                withBorder
-                radius="md"
-                padding="xl"
-                component={Link}
-                to={trackLink(track)}
-                style={{ textDecoration: 'none' }}
-              >
+            {TRACKS.map((track) => {
+              const st = statusOf(track)
+              /// 尚未开放（敬请期待）或已结束的赛道不可点击进入
+              const locked = st.state === TrackState.Coming || st.state === TrackState.Ended
+
+              const cardProps = {
+                key: track.key,
+                withBorder: true as const,
+                radius: 'md' as const,
+                padding: 'xl' as const,
+                style: { textDecoration: 'none', opacity: locked ? 0.6 : 1 },
+              }
+
+              const body = (
                 <Stack gap="sm">
                   <Group justify="space-between" align="flex-start">
                     <Group gap="sm">
                       <Icon path={track.icon} size={1.6} />
                       <Title order={4}>{track.title}</Title>
                     </Group>
-                    <Badge color={track.color} variant="light">
-                      进入
+                    <Badge color={st.color} variant="light">
+                      {st.badge}
                     </Badge>
                   </Group>
                   <Text size="sm" c="dimmed">
                     {track.description}
                   </Text>
-                  <Button
-                    variant="light"
-                    color={track.color}
-                    rightSection={<Icon path={mdiChevronRight} size={0.8} />}
-                    w="fit-content"
-                    mt="xs"
-                  >
-                    查看赛事
-                  </Button>
+                  <Text size="xs" c="dimmed">
+                    {st.hint}
+                  </Text>
+                  {locked ? (
+                    <Button
+                      variant="light"
+                      color="gray"
+                      disabled
+                      rightSection={<Icon path={mdiChevronRight} size={0.8} />}
+                      w="fit-content"
+                      mt="xs"
+                    >
+                      尚未开放
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="light"
+                      color={track.color}
+                      rightSection={<Icon path={mdiChevronRight} size={0.8} />}
+                      w="fit-content"
+                      mt="xs"
+                    >
+                      查看赛事
+                    </Button>
+                  )}
                 </Stack>
-              </Card>
-            ))}
+              )
+
+              return locked ? (
+                <Card {...cardProps}>{body}</Card>
+              ) : (
+                <Card {...cardProps} component={Link} to={trackLink(track)}>
+                  {body}
+                </Card>
+              )
+            })}
           </SimpleGrid>
 
           {/* PCTF Wiki 文档入口 */}
