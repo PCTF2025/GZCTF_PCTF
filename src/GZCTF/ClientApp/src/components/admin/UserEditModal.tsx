@@ -10,6 +10,7 @@ import {
   Group,
   Modal,
   ModalProps,
+  MultiSelect,
   Paper,
   Radio,
   Select,
@@ -91,12 +92,44 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
     () =>
       (schoolSettings?.schools ?? [])
         .filter((s) => s.slug)
-        .map((s) => ({ value: s.slug, label: `${s.name}（${s.slug}）` })),
+        .map((s) => ({ value: s.slug, label: s.name })),
     [schoolSettings]
   )
 
-  /// 学校负责人负责的学校（逗号分隔字符串）
+  /// 学校短名 → 全称，用于展示历史数据里已下架学校的名称
+  const schoolNameMap = useMemo(
+    () => new Map(schoolOptions.map((o) => [o.value, o.label])),
+    [schoolOptions]
+  )
+
+  /// 学校负责人负责的学校（逗号分隔短名字符串，与后端存储格式一致）
   const [schoolDraft, setSchoolDraft] = useState('')
+
+  /// 已负责的学校（短名数组，用于多选下拉）
+  const managedSchoolList = useMemo(
+    () =>
+      schoolDraft
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
+    [schoolDraft]
+  )
+
+  /// 下拉数据：学校全称展示；若历史数据中的短名已不在学校列表里，
+  /// 补一条「全称（短名）」项，避免选择框显示为空导致保存时被清掉。
+  const managedSchoolData = useMemo(() => {
+    const known = new Set(schoolOptions.map((o) => o.value))
+    const missing = managedSchoolList
+      .filter((slug) => !known.has(slug))
+      .map((slug) => ({ value: slug, label: `${schoolNameMap.get(slug) ?? slug}（已下架）` }))
+    return [...schoolOptions, ...missing]
+  }, [schoolOptions, schoolNameMap, managedSchoolList])
+
+  /// 展示用摘要（把短名换成全称，便于管理员确认）
+  const managedSchoolSummary = useMemo(
+    () => managedSchoolList.map((slug) => schoolNameMap.get(slug) ?? slug).join('、'),
+    [managedSchoolList, schoolNameMap]
+  )
 
   useSyncOnChange([user], () => setSchoolDraft(user.managedSchools ?? ''))
 
@@ -266,17 +299,28 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
               </Box>
             )}
 
-            {/* 学校负责人：负责的学校短名 */}
+            {/* 学校负责人：负责审核的学校（多选，展示学校全称，底层仍存短名） */}
             {hasPermission(permissions, UserPermission.SchoolManager) && (
-              <TextInput
-                label="负责审核的学校短名"
-                description="多个学校以英文逗号分隔，例如 testu,ppsuc；留空则该权限不生效"
-                placeholder="testu,ppsuc"
-                w="100%"
-                value={schoolDraft}
-                disabled={disabled || isSelf}
-                onChange={(event) => setSchoolDraft(event.target.value.replace(/\s/g, ''))}
-              />
+              <>
+                <MultiSelect
+                  label="负责审核的学校"
+                  description="可多选；留空则该权限不生效"
+                  placeholder={schoolOptions.length === 0 ? '暂无可选学校' : '选择该负责人审核的学校'}
+                  nothingFoundMessage="没有匹配的学校"
+                  data={managedSchoolData}
+                  value={managedSchoolList}
+                  disabled={disabled || isSelf}
+                  clearable
+                  searchable
+                  w="100%"
+                  onChange={(values) => setSchoolDraft(values.join(','))}
+                />
+                {managedSchoolList.length > 0 && (
+                  <Text size="xs" c="dimmed">
+                    将负责：{managedSchoolSummary}
+                  </Text>
+                )}
+              </>
             )}
           </Stack>
         </Paper>

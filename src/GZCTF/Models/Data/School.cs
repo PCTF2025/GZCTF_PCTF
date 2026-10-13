@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using GZCTF.Models.Internal;
@@ -66,8 +66,9 @@ public class School
     /// <summary>
     /// 报名邀请码。非快速登录的用户需要输入邀请码才能绑定本校；
     /// 留空表示免邀请码绑定。
+    /// 允许标准 UUID（36 位带连字符），故使用独立的长度上限。
     /// </summary>
-    [MaxLength(Limits.InviteTokenLength)]
+    [MaxLength(Limits.SchoolInviteCodeLength)]
     public string? InviteCode { get; set; }
 
     /// <summary>

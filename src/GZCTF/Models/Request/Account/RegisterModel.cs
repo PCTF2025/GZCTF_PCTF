@@ -44,7 +44,7 @@ public class RegisterModel : ModelWithCaptcha
     /// 学校报名邀请码（可选）。填写后自动匹配对应学校并绑定归属；
     /// 留空或匹配不到时，学校归属记为「社会」。
     /// </summary>
-    [MaxLength(Limits.InviteTokenLength)]
+    [MaxLength(Limits.SchoolInviteCodeLength)]
     public string? InviteCode { get; set; }
 
     /// <summary>

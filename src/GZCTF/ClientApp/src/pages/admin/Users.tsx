@@ -77,7 +77,10 @@ const DUTY_META: { bit: UserPermission; label: string; color: string }[] = [
 ]
 
 /// 负责人类型（及授权方向）徽章组
-const DutyBadges: FC<{ user: UserInfoModel }> = ({ user }) => {
+const DutyBadges: FC<{ user: UserInfoModel; schoolNames?: Map<string, string> }> = ({
+  user,
+  schoolNames,
+}) => {
   const bits = user.permissions ?? UserPermission.None
   const categories = (user.managedCategories ?? '')
     .split(',')
@@ -87,6 +90,8 @@ const DutyBadges: FC<{ user: UserInfoModel }> = ({ user }) => {
     .split(',')
     .map((c) => c.trim())
     .filter(Boolean)
+  /// 短名转全称，未收录的短名原样展示
+  const schoolLabels = schools.map((slug) => schoolNames?.get(slug) ?? slug)
 
   const duties = DUTY_META.filter((m) => hasPermission(bits, m.bit))
 
@@ -118,7 +123,7 @@ const DutyBadges: FC<{ user: UserInfoModel }> = ({ user }) => {
           label={
             d.bit === UserPermission.SchoolManager
               ? schools.length > 0
-                ? `负责审核：${schools.join('、')}`
+                ? `负责审核：${schoolLabels.join('、')}`
                 : '负责审核学校'
               : categories.length > 0
                 ? `授权方向：${categories.join('、')}`
@@ -176,7 +181,7 @@ const Users: FC = () => {
     () =>
       (schoolSettings?.schools ?? [])
         .filter((s) => s.slug)
-        .map((s) => ({ value: s.slug, label: `${s.name}（${s.slug}）` })),
+        .map((s) => ({ value: s.slug, label: s.name })),
     [schoolSettings]
   )
   const clipboard = useClipboard()
@@ -435,7 +440,7 @@ const Users: FC = () => {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <DutyBadges user={user} />
+                      <DutyBadges user={user} schoolNames={schoolNameMap} />
                     </Table.Td>
                     <Table.Td>
                       <VerifyBadge user={user} />

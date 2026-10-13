@@ -106,7 +106,7 @@ public class SchoolEditModel
     [MaxLength(Limits.MaxUrlLength)]
     public string? IconUrl { get; set; }
 
-    [MaxLength(Limits.InviteTokenLength)]
+    [MaxLength(Limits.SchoolInviteCodeLength)]
     public string? InviteCode { get; set; }
 
     public bool Enabled { get; set; } = true;
@@ -163,7 +163,7 @@ public class SchoolInviteBatchModel
     public string Slug { get; set; } = string.Empty;
 
     /// <summary>邀请码，留空表示该校免邀请码绑定</summary>
-    [MaxLength(Limits.InviteTokenLength)]
+    [MaxLength(Limits.SchoolInviteCodeLength)]
     public string? InviteCode { get; set; }
 }
 
