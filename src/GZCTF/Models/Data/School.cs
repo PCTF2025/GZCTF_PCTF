@@ -27,7 +27,7 @@ public class School
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 学校短名（路由标识），全局唯一，用于 /api/account/sso/login/{slug}
+    /// 学校标识（即学校名称），全局唯一，用于 /api/account/sso/login/{slug}
     /// </summary>
     [Required]
     [MaxLength(Limits.MaxSchoolSlugLength)]

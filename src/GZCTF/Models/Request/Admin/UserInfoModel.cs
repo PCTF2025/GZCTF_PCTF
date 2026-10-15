@@ -73,7 +73,7 @@ public class UserInfoModel
     public bool? EmailConfirmed { get; set; }
 
     /// <summary>
-    /// 学校短名
+    /// 学校标识（即学校名称）
     /// </summary>
     public string? School { get; set; }
 
@@ -98,7 +98,7 @@ public class UserInfoModel
     public string? VerifyNote { get; set; }
 
     /// <summary>
-    /// 该用户负责审核的学校短名（逗号分隔），非空即为学校负责人
+    /// 该用户负责审核的学校（逗号分隔），非空即为学校负责人
     /// </summary>
     public string? ManagedSchools { get; set; }
 

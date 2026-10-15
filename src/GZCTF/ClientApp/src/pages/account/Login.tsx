@@ -151,7 +151,7 @@ const Login: FC = () => {
         userName: uname,
         password: await encryptApiData(t, pwd, config.apiPublicKey),
         challenge: token,
-        // 学校邮箱认证（快速登录）进入时携带学校短名，登录成功后由后端自动绑定学校
+        // 学校邮箱认证（快速登录）进入时携带学校标识，登录成功后由后端自动绑定学校
         schoolSlug: pendingSchool || undefined,
       })
 

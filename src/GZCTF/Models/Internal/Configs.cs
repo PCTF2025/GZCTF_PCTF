@@ -492,7 +492,7 @@ public partial class ClientSsoConfig
 
     /// <summary>
     /// 解析 CSV 形式的学校列表，每行字段以 | 分隔：
-    /// 学校名称|短名|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
+    /// 学校名称|标识|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
     /// </summary>
     internal static List<ClientSsoSchool> ParseSchools(string? raw)
     {
@@ -520,7 +520,7 @@ public partial class ClientSsoConfig
             if (string.IsNullOrWhiteSpace(slug))
                 slug = Slugify(name);
 
-            // 短名去重，避免多所学校路由冲突
+            // 标识去重，避免多所学校路由冲突
             var unique = slug;
             var idx = 2;
             while (!usedSlugs.Add(unique))
@@ -548,7 +548,7 @@ public partial class ClientSsoConfig
     }
 
     /// <summary>
-    /// 解析学校邀请码 CSV：`学校短名:邀请码`，多项以逗号或换行分隔。
+    /// 解析学校邀请码 CSV：`学校标识:邀请码`，多项以逗号或换行分隔。
     /// 例：cppu:PCTF2026CPPU,demo:PCTF2026DEMO
     /// </summary>
     internal static List<(string Slug, string Code)> ParseInviteCodes(string? raw)
@@ -565,7 +565,7 @@ public partial class ClientSsoConfig
     }
 
     /// <summary>
-    /// 由学校名称生成路由短名：保留字母数字，中文等按名称哈希兜底
+    /// 由学校名称生成路由标识：保留字母数字与中文，其余按名称哈希兜底
     /// </summary>
     static string Slugify(string name)
     {
@@ -610,7 +610,7 @@ public partial class ClientSsoSchool
     /// <summary>学校名称（展示用）</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>路由短名，用于 /api/account/sso/login/{slug}</summary>
+    /// <summary>路由标识（学校名称），用于 /api/account/sso/login/{slug}</summary>
     public string Slug { get; set; } = string.Empty;
 
     /// <summary>认证模式</summary>
@@ -675,12 +675,12 @@ public class SsoConfig
 
     /// <summary>
     /// 学校列表，每所学校一行，字段以 | 分隔：
-    /// 学校名称|短名|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
+    /// 学校名称|标识|认证模式(cas/email)|登录地址|校验地址|图标URL|邮箱后缀(逗号分隔)|启用(1/0)
     ///
     /// 说明：
     ///   - 认证模式 cas   ：登录地址 = CAS 登录页；校验地址 = CAS serviceValidate 接口
     ///   - 认证模式 email ：登录地址留空时走站内邮箱登录；邮箱后缀用于归属校验，如 cppu.edu.cn,stu.cppu.edu.cn
-    ///   - 短名留空时自动由学校名称生成，用于路由 /api/account/sso/login/{短名}
+    ///   - 标识留空时自动由学校名称生成，用于路由 /api/account/sso/login/{标识}
     ///
     /// 示例：
     /// 中国人民警察大学|cppu|cas|https://sso.cppu.edu.cn/tpass/login|https://sso.cppu.edu.cn/tpass/serviceValidate||cppu.edu.cn|1
@@ -696,7 +696,7 @@ public class SsoConfig
 
     /// <summary>
     /// 各学校的报名邀请码，用于非快速登录用户手动绑定学校。
-    /// 格式为 CSV：`学校短名:邀请码`，多项用逗号分隔。
+    /// 格式为 CSV：`学校标识:邀请码`，多项用逗号分隔。
     /// 例：cppu:PCTF2026CPPU,demo:PCTF2026DEMO
     /// 未列出的学校不校验邀请码（留空即免邀请码绑定）。
     /// 注：GZCTF 配置机制不支持数组类型，故用 CSV 字符串存储。

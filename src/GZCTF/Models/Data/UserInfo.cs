@@ -65,7 +65,7 @@ public partial class UserInfo : IdentityUser<Guid>
     public string StdNumber { get; set; } = string.Empty;
 
     /// <summary>
-    /// 已绑定的学校短名（对应 SsoConfig.Schools 中的 slug）
+    /// 已绑定的学校（对应 Schools 表中的标识，即学校名称）
     /// 学校统一身份认证（快速登录）时自动写入；普通注册时通过邀请码绑定。
     /// </summary>
     [MaxLength(Limits.MaxUserDataLength)]
@@ -104,7 +104,7 @@ public partial class UserInfo : IdentityUser<Guid>
     public DateTimeOffset? VerifiedAtUtc { get; set; }
 
     /// <summary>
-    /// 该用户作为「学校管理员」负责的学校短名（多个以逗号分隔）。
+    /// 该用户作为「学校管理员」负责的学校（多个以逗号分隔）。
     /// 非空时，该用户可审核这些学校学生的学籍信息。
     /// 与 Role 正交：不改变用户的角色权限，仅授予对应学校的审核权。
     /// </summary>
@@ -144,7 +144,7 @@ public partial class UserInfo : IdentityUser<Guid>
         (HasPermission(UserPermission.SchoolManager) || Permissions == UserPermission.None);
 
     /// <summary>
-    /// 该用户负责审核的学校短名集合
+    /// 该用户负责审核的学校集合
     /// </summary>
     [NotMapped]
     [MemoryPackIgnore]

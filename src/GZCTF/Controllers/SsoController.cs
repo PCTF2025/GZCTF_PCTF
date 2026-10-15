@@ -41,7 +41,7 @@ public class SsoController(
     /// CAS 模式：重定向到该学校的统一认证登录页。
     /// 邮箱模式：直接返回引导信息，前端就地切换到邮箱登录表单。
     /// </remarks>
-    /// <param name="slug">学校短名</param>
+    /// <param name="slug">学校标识（即学校名称）</param>
     [HttpGet("login/{slug}")]
     public IActionResult Login(string slug)
     {
@@ -74,7 +74,7 @@ public class SsoController(
     /// <summary>
     /// CAS 回调：校验票据并完成登录
     /// </summary>
-    /// <param name="slug">学校短名</param>
+    /// <param name="slug">学校标识（即学校名称）</param>
     /// <param name="ticket">CAS 票据</param>
     [HttpGet("callback")]
     public async Task<IActionResult> Callback(
@@ -145,7 +145,7 @@ public class SsoController(
     /// <summary>
     /// 校验邮箱 / 账号是否属于指定学校（邮箱模式使用）
     /// </summary>
-    /// <param name="slug">学校短名</param>
+    /// <param name="slug">学校标识（即学校名称）</param>
     /// <param name="account">邮箱或学号</param>
     [HttpGet("verify")]
     public IActionResult Verify([FromQuery] string? slug, [FromQuery] string? account)
@@ -291,7 +291,7 @@ public class SsoController(
     /// 校验邮箱后缀属于该校后，发送 6 位数字验证码。
     /// 同一邮箱 60 秒内不可重发，每小时最多 8 次。
     /// </remarks>
-    /// <param name="model">含学校短名与邮箱</param>
+    /// <param name="model">含学校标识与邮箱</param>
     /// <param name="token"></param>
     [HttpPost("sendCode")]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status200OK)]
@@ -343,7 +343,7 @@ public class SsoController(
     /// 前端据此决定「一键注册」还是「一键登录」的按钮文案与后续字段。
     /// 校验通过后验证码不失效，仍需在 loginWithCode 中再次提交。
     /// </remarks>
-    /// <param name="model">含学校短名、邮箱与验证码</param>
+    /// <param name="model">含学校标识、邮箱与验证码</param>
     /// <param name="token"></param>
     [HttpPost("checkCode")]
     [ProducesResponseType(typeof(SchoolCodeCheckResult), StatusCodes.Status200OK)]
@@ -391,7 +391,7 @@ public class SsoController(
     /// 邮箱未注册时自动创建账号（随机密码，仅验证码登录），并绑定学校；
     /// 已注册时直接登录并补齐学校绑定。首次需提供真实姓名与学号。
     /// </remarks>
-    /// <param name="model">含学校短名、邮箱、验证码、真实姓名、学号与年级</param>
+    /// <param name="model">含学校标识、邮箱、验证码、真实姓名、学号与年级</param>
     /// <param name="token"></param>
     [HttpPost("loginWithCode")]
     [ProducesResponseType(typeof(SchoolCodeLoginResult), StatusCodes.Status200OK)]
@@ -605,7 +605,7 @@ public class SsoController(
     /// </summary>
     /// <remarks>
     /// 未使用快速登录的用户，可用管理员下发的邀请码绑定学校。
-    /// 邀请码格式为 `学校短名:邀请码`，或直接用全局邀请码。
+    /// 邀请码格式为 `学校名称:邀请码`，或直接用全局邀请码。
     /// </remarks>
     /// <param name="model">绑定请求</param>
     /// <param name="token"></param>
@@ -663,7 +663,7 @@ public class SsoController(
     }
 
     /// <summary>
-    /// 按短名查找已启用学校。
+    /// 按学校名称查找已启用学校。
     ///
     /// 优先读取数据库中的 Schools 表（学校设置页维护），
     /// 表为空时回退到旧的 SsoConfig.Schools 配置串，

@@ -110,7 +110,7 @@ public static class Limits
     public const int MaxSchoolNameLength = 64;
 
     /// <summary>
-    /// 学校短名最大长度
+    /// 学校标识最大长度
     /// </summary>
     public const int MaxSchoolSlugLength = 32;
 

@@ -34,7 +34,7 @@ public class RegisterModel : ModelWithCaptcha
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
-    /// 学校短名（可选）。来自学校邮箱认证（快速登录）入口，
+    /// 学校标识（可选）。来自学校邮箱认证（快速登录）入口，
     /// 注册时直接绑定该学校，无需邀请码。
     /// </summary>
     [MaxLength(Limits.MaxUserDataLength)]

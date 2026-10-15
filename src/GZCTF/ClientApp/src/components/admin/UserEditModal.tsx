@@ -51,7 +51,7 @@ interface UserEditModalProps extends ModalProps {
   mutateUser: (user: UserInfoModel) => void
 }
 
-/// 「社会」学校短名，与后端 AccountController.SocialSchoolSlug 保持一致
+/// 「社会」学校标识，与后端 AccountController.SocialSchoolSlug 保持一致
 const SOCIAL_SCHOOL_SLUG = 'social'
 
 export const UserEditModal: FC<UserEditModalProps> = (props) => {
@@ -96,16 +96,16 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
     [schoolSettings]
   )
 
-  /// 学校短名 → 全称，用于展示历史数据里已下架学校的名称
+  /// 学校标识 → 全称，用于展示历史数据里已下架学校的名称
   const schoolNameMap = useMemo(
     () => new Map(schoolOptions.map((o) => [o.value, o.label])),
     [schoolOptions]
   )
 
-  /// 学校负责人负责的学校（逗号分隔短名字符串，与后端存储格式一致）
+  /// 学校负责人负责的学校（逗号分隔标识字符串，与后端存储格式一致）
   const [schoolDraft, setSchoolDraft] = useState('')
 
-  /// 已负责的学校（短名数组，用于多选下拉）
+  /// 已负责的学校（标识数组，用于多选下拉）
   const managedSchoolList = useMemo(
     () =>
       schoolDraft
@@ -115,8 +115,8 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
     [schoolDraft]
   )
 
-  /// 下拉数据：学校全称展示；若历史数据中的短名已不在学校列表里，
-  /// 补一条「全称（短名）」项，避免选择框显示为空导致保存时被清掉。
+  /// 下拉数据：学校全称展示；若历史数据中的标识已不在学校列表里，
+  /// 补一条「全称（标识）」项，避免选择框显示为空导致保存时被清掉。
   const managedSchoolData = useMemo(() => {
     const known = new Set(schoolOptions.map((o) => o.value))
     const missing = managedSchoolList
@@ -125,7 +125,7 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
     return [...schoolOptions, ...missing]
   }, [schoolOptions, schoolNameMap, managedSchoolList])
 
-  /// 展示用摘要（把短名换成全称，便于管理员确认）
+  /// 展示用摘要（把标识换成全称，便于管理员确认）
   const managedSchoolSummary = useMemo(
     () => managedSchoolList.map((slug) => schoolNameMap.get(slug) ?? slug).join('、'),
     [managedSchoolList, schoolNameMap]
@@ -299,7 +299,7 @@ export const UserEditModal: FC<UserEditModalProps> = (props) => {
               </Box>
             )}
 
-            {/* 学校负责人：负责审核的学校（多选，展示学校全称，底层仍存短名） */}
+            {/* 学校负责人：负责审核的学校（多选，展示学校全称，底层仍存标识） */}
             {hasPermission(permissions, UserPermission.SchoolManager) && (
               <>
                 <MultiSelect

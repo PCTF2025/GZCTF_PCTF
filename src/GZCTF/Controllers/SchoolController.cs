@@ -1,4 +1,4 @@
-﻿using GZCTF.Middlewares;
+using GZCTF.Middlewares;
 using GZCTF.Models;
 using GZCTF.Models.Data;
 using GZCTF.Models.Request.Account;
@@ -80,17 +80,26 @@ public class SchoolController(
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] SchoolEditModel model, CancellationToken token)
     {
-        var slug = NormalizeSlug(model.Slug, model.Name);
+        var name = model.Name.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new RequestResponse("学校名称不能为空"));
+
+        if (await dbContext.Schools.AnyAsync(s => s.Name == name, token))
+            return BadRequest(new RequestResponse($"学校「{name}」已存在"));
+
+        // 短名不再由管理员填写：统一以学校全称作为标识，保证各处一致。
+        var slug = NormalizeSlug(null, name);
 
         if (string.IsNullOrWhiteSpace(slug))
-            return BadRequest(new RequestResponse("无法生成有效的学校短名，请手动指定"));
+            return BadRequest(new RequestResponse("无法生成有效的学校标识，请检查学校名称"));
 
         if (await dbContext.Schools.AnyAsync(s => s.Slug == slug, token))
-            return BadRequest(new RequestResponse($"学校短名「{slug}」已被占用"));
+            return BadRequest(new RequestResponse($"学校「{name}」的标识已被占用"));
 
         var school = new School
         {
-            Name = model.Name.Trim(),
+            Name = name,
             Slug = slug,
             AuthType = ParseAuthType(model.AuthType),
             CasLoginUrl = model.CasLoginUrl?.Trim(),
@@ -128,19 +137,26 @@ public class SchoolController(
         if (school is null)
             return NotFound(new RequestResponse("学校不存在", StatusCodes.Status404NotFound));
 
-        // 改短名时校验唯一性
-        if (!string.IsNullOrWhiteSpace(model.Slug))
-        {
-            var slug = NormalizeSlug(model.Slug, model.Name);
+        var newName = model.Name.Trim();
 
-            if (slug != school.Slug &&
-                await dbContext.Schools.AnyAsync(s => s.Slug == slug && s.Id != id, token))
-                return BadRequest(new RequestResponse($"学校短名「{slug}」已被占用"));
+        if (string.IsNullOrWhiteSpace(newName))
+            return BadRequest(new RequestResponse("学校名称不能为空"));
 
-            school.Slug = slug;
-        }
+        if (await dbContext.Schools.AnyAsync(s => s.Name == newName && s.Id != id, token))
+            return BadRequest(new RequestResponse($"学校「{newName}」已存在"));
 
-        school.Name = model.Name.Trim();
+        // 短名跟随学校全称自动同步，管理员无需（也无法）单独指定。
+        var newSlug = NormalizeSlug(null, newName);
+
+        if (string.IsNullOrWhiteSpace(newSlug))
+            return BadRequest(new RequestResponse("无法生成有效的学校标识，请检查学校名称"));
+
+        if (newSlug != school.Slug &&
+            await dbContext.Schools.AnyAsync(s => s.Slug == newSlug && s.Id != id, token))
+            return BadRequest(new RequestResponse($"学校「{newName}」的标识已被占用"));
+
+        school.Slug = newSlug;
+        school.Name = newName;
         school.AuthType = ParseAuthType(model.AuthType);
         school.CasLoginUrl = model.CasLoginUrl?.Trim();
         school.CasValidateUrl = model.CasValidateUrl?.Trim();
@@ -320,7 +336,7 @@ public class SchoolController(
     }
 
     /// <summary>
-    /// 生成学校短名：优先用显式值，否则由名称推导（保留字母数字）
+    /// 生成学校标识：由学校名称推导（保留字母数字与中文）
     /// </summary>
     internal static string NormalizeSlug(string? preferred, string name)
     {

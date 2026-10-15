@@ -5,7 +5,7 @@ namespace GZCTF.Models.Request.Account;
 /// <summary>
 /// 学校选项（审核界面筛选用）
 /// </summary>
-/// <param name="Slug">学校短名</param>
+/// <param name="Slug">学校标识（即学校名称）</param>
 /// <param name="Name">学校名称</param>
 public record VerifySchoolOption(string Slug, string Name);
 
@@ -23,7 +23,7 @@ public class VerifyItemModel
     public string? StdNumber { get; set; }
     /// <summary>年级</summary>
     public string? Grade { get; set; }
-    /// <summary>学校短名</summary>
+    /// <summary>学校标识（即学校名称）</summary>
     public string? School { get; set; }
     /// <summary>学校名称</summary>
     public string? SchoolName { get; set; }
@@ -96,7 +96,7 @@ public class VerifyPermissionModel
 /// </summary>
 public class SchoolCodeSendModel
 {
-    /// <summary>学校短名</summary>
+    /// <summary>学校标识（即学校名称）</summary>
     [Required]
     [MaxLength(Limits.MaxUserDataLength)]
     public string SchoolSlug { get; set; } = string.Empty;
@@ -113,7 +113,7 @@ public class SchoolCodeSendModel
 /// </summary>
 public class SchoolCodeLoginModel
 {
-    /// <summary>学校短名</summary>
+    /// <summary>学校标识（即学校名称）</summary>
     [Required]
     [MaxLength(Limits.MaxUserDataLength)]
     public string SchoolSlug { get; set; } = string.Empty;
@@ -181,7 +181,7 @@ public class SchoolCodeLoginResult
     /// <summary>登录后的用户名</summary>
     public string? UserName { get; set; }
 
-    /// <summary>绑定的学校短名</summary>
+    /// <summary>绑定的学校</summary>
     public string? School { get; set; }
 
     /// <summary>绑定的学校名称</summary>

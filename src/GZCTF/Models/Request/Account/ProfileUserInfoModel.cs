@@ -46,7 +46,7 @@ public class ProfileUserInfoModel
     public string? StdNumber { get; set; }
 
     /// <summary>
-    /// 已绑定的学校短名（未绑定时为 null）
+    /// 已绑定的学校（未绑定时为 null）
     /// </summary>
     public string? School { get; set; }
 
@@ -76,7 +76,7 @@ public class ProfileUserInfoModel
     public bool IsSchoolAdmin { get; set; }
 
     /// <summary>
-    /// 该用户负责审核的学校短名列表
+    /// 该用户负责审核的学校列表
     /// </summary>
     public List<string> ManagedSchools { get; set; } = [];
 

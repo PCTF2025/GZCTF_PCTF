@@ -53,7 +53,6 @@ import { showErrorMsg } from '@Utils/Shared'
 /// 空表单
 const emptyForm = (): SchoolEditModel => ({
   name: '',
-  slug: '',
   authType: 'email',
   casLoginUrl: '',
   casValidateUrl: '',
@@ -166,7 +165,6 @@ const SchoolSettings: FC = () => {
     setEditing(s)
     setForm({
       name: s.name,
-      slug: s.slug,
       authType: s.authType,
       casLoginUrl: s.casLoginUrl ?? '',
       casValidateUrl: s.casValidateUrl ?? '',
@@ -199,7 +197,6 @@ const SchoolSettings: FC = () => {
     try {
       const payload: SchoolEditModel = {
         ...form,
-        slug: form.slug?.trim() || null,
         casLoginUrl: form.casLoginUrl?.trim() || null,
         casValidateUrl: form.casValidateUrl?.trim() || null,
         emailDomains: form.emailDomains?.trim() || null,
@@ -374,10 +371,10 @@ const SchoolSettings: FC = () => {
             />
             <Divider label="CAS 对接信息" labelPosition="left" />
             <Text size="sm" c="dimmed">
-              配置学校 CAS 侧「服务地址 / 回调地址」时填写以下地址。平台已在回调中附带学校短名。
+              配置学校 CAS 侧「服务地址 / 回调地址」时填写以下地址。平台已在回调中附带学校名称。
             </Text>
             <Group gap="xs">
-              <Code style={{ flex: 1, wordBreak: 'break-all' }}>{`${callbackUrl}?slug=<学校短名>`}</Code>
+              <Code style={{ flex: 1, wordBreak: 'break-all' }}>{`${callbackUrl}?slug=<学校名称>`}</Code>
               <CopyButton value={callbackUrl}>
                 {({ copied, copy }) => (
                   <Tooltip label={copied ? '已复制' : '复制回调地址'}>
@@ -456,9 +453,6 @@ const SchoolSettings: FC = () => {
                   </Group>
 
                   <Group gap="xs">
-                    <Badge size="xs" variant="outline" leftSection={<Icon path={mdiAccountMultipleOutline} size={0.6} />}>
-                      短名 {s.slug}
-                    </Badge>
                     <Badge size="xs" variant="outline">
                       {s.userCount} 名学生
                     </Badge>
@@ -545,13 +539,6 @@ const SchoolSettings: FC = () => {
                 placeholder="如：中国人民警察大学"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-              />
-              <TextInput
-                label="学校短名"
-                description="路由与绑定标识，留空由名称自动生成"
-                placeholder="cppu"
-                value={form.slug ?? ''}
-                onChange={(e) => setForm({ ...form, slug: e.currentTarget.value })}
               />
             </SimpleGrid>
 

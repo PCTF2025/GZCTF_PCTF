@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using GZCTF.Models.Data;
 
 namespace GZCTF.Models.Request.Account;
@@ -85,12 +85,6 @@ public class SchoolEditModel
     [MaxLength(Limits.MaxSchoolNameLength)]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 学校短名（路由标识）。留空时由名称自动生成。
-    /// </summary>
-    [MaxLength(Limits.MaxSchoolSlugLength)]
-    public string? Slug { get; set; }
-
     /// <summary>认证模式：cas / email</summary>
     public string AuthType { get; set; } = "email";
 
@@ -158,7 +152,7 @@ public class SchoolDivisionOptionModel
 /// </summary>
 public class SchoolInviteBatchModel
 {
-    /// <summary>学校短名</summary>
+    /// <summary>学校标识（即学校名称）</summary>
     [Required]
     public string Slug { get; set; } = string.Empty;
 

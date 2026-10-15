@@ -40,7 +40,7 @@ public class AccountController(
     IStringLocalizer<Program> localizer) : ControllerBase
 {
     /// <summary>
-    /// 「社会」学校归属的短名。
+    /// 「社会」学校归属的标识。
     /// 注册时未填邀请码、或邀请码匹配不到任何学校的学生归入该组，
     /// 既能在审核列表里与在校生区分，也不影响其正常参赛。
     /// </summary>
@@ -85,7 +85,7 @@ public class AccountController(
         var user = new UserInfo { UserName = userName, Email = model.Email, Role = Role.User };
 
         // 学校归属的三种来源，按优先级依次判定：
-        //   1. 学校邮箱认证入口带来的短名 —— 直接绑定，无需邀请码；
+        //   1. 学校邮箱认证入口带来的学校 —— 直接绑定，无需邀请码；
         //   2. 报名邀请码 —— 匹配到哪所学校就绑定哪所；
         //   3. 以上都没有或邀请码匹配不上 —— 记为「社会」（自由参赛者）。
         if (!string.IsNullOrWhiteSpace(model.SchoolSlug))

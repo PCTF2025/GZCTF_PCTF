@@ -963,7 +963,6 @@ export interface SchoolDetailModel {
 /** 管理端：新增 / 编辑学校 */
 export interface SchoolEditModel {
   name: string;
-  slug?: string | null;
   authType?: string | null;
   casLoginUrl?: string | null;
   casValidateUrl?: string | null;

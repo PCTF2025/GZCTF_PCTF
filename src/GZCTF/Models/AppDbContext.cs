@@ -115,7 +115,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
 
         builder.Entity<School>(entity =>
         {
-            // 短名是登录路由标识，必须唯一
+            // 学校标识（即学校名称）是登录路由标识，必须唯一
             entity.HasIndex(e => e.Slug).IsUnique();
         });
         builder.Entity<UserInfo>(entity =>

@@ -6,7 +6,7 @@ namespace GZCTF.Models.Request.Account;
 /// 学校选项（用于注册 / 报名时的学校选择）
 /// </summary>
 /// <param name="Name">学校名称</param>
-/// <param name="Slug">学校短名，绑定与展示用</param>
+/// <param name="Slug">学校标识（即学校名称），绑定与展示用</param>
 /// <param name="Mode">认证模式：cas / email</param>
 /// <param name="EmailSuffixes">允许的邮箱后缀，邮箱模式下用于前端提示</param>
 /// <param name="InviteCodeRequired">该校绑定是否需要邀请码（供前端提示必填）</param>
@@ -24,7 +24,7 @@ public record SchoolOptionModel(
 public class SchoolBindModel
 {
     /// <summary>
-    /// 目标学校短名
+    /// 目标学校标识
     /// </summary>
     [Required(ErrorMessageResourceName = nameof(Resources.Program.Model_ContentRequired),
         ErrorMessageResourceType = typeof(Resources.Program))]

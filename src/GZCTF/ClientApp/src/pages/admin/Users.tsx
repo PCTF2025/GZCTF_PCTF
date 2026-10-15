@@ -90,7 +90,7 @@ const DutyBadges: FC<{ user: UserInfoModel; schoolNames?: Map<string, string> }>
     .split(',')
     .map((c) => c.trim())
     .filter(Boolean)
-  /// 短名转全称，未收录的短名原样展示
+  /// 学校标识转全称，未收录的标识原样展示
   const schoolLabels = schools.map((slug) => schoolNames?.get(slug) ?? slug)
 
   const duties = DUTY_META.filter((m) => hasPermission(bits, m.bit))
@@ -161,13 +161,13 @@ const Users: FC = () => {
   /// 学校列表（数据库为准，含已停用的「社会」组）
   const { data: schoolSettings } = api.school.useSchoolSettings()
 
-  /// 学校短名 → 名称
+  /// 学校标识 → 名称
   const schoolNameMap = useMemo(
     () => new Map((schoolSettings?.schools ?? []).map((s) => [s.slug, s.name])),
     [schoolSettings]
   )
 
-  /// 学校短名 → 展示名（未知短名原样回显）
+  /// 学校标识 → 展示名（未知标识原样回显）
   const schoolLabel = useCallback(
     (slug?: string | null) => {
       if (!slug) return '—'

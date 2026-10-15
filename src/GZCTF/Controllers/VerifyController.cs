@@ -32,7 +32,7 @@ public class VerifyController(
     /// <remarks>
     /// 学校管理员只能看到自己负责学校的学生；系统管理员可通过 school 参数筛选任意学校。
     /// </remarks>
-    /// <param name="school">按学校短名筛选（可选）</param>
+    /// <param name="school">按学校标识筛选（可选）</param>
     /// <param name="status">按审核状态筛选（可选，默认待审核）</param>
     /// <param name="count">分页数量</param>
     /// <param name="skip">跳过条数</param>

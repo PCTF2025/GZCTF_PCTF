@@ -66,7 +66,7 @@ const emptySchool = (index: number): SchoolRow => ({
   enabled: true,
 })
 
-/// 把后端 CSV 行解析为编辑态（字段顺序：名称|短名|模式|登录地址|校验地址|图标|邮箱后缀|启用）
+/// 把后端 CSV 行解析为编辑态（字段顺序：名称|标识|模式|登录地址|校验地址|图标|邮箱后缀|启用）
 const parseSchools = (raw?: string | null): SchoolRow[] => {
   if (!raw) return []
 
@@ -97,6 +97,13 @@ const parseSchools = (raw?: string | null): SchoolRow[] => {
     })
 }
 
+/// 由学校名称推导标识（与后端 NormalizeSlug 同规则，保留中文）
+const deriveSlug = (name: string): string =>
+  Array.from(name.trim().toLowerCase())
+    .filter((c) => /[\p{L}\p{N}]/u.test(c) || c === '-' || c === '_')
+    .join('')
+    .replace(/^[-_]+|[-_]+$/g, '')
+
 /// 编辑态回写为后端 CSV
 const serializeSchools = (rows: SchoolRow[]): string =>
   rows
@@ -104,7 +111,7 @@ const serializeSchools = (rows: SchoolRow[]): string =>
     .map((r) =>
       [
         r.name.trim(),
-        r.slug.trim(),
+        deriveSlug(r.name),
         r.mode === SsoAuthMode.Email ? 'email' : 'cas',
         r.loginUrl.trim(),
         r.validateUrl.trim(),
@@ -324,13 +331,6 @@ const LoginSettings: FC = () => {
                           required
                           onChange={(e) => update(school.key, { name: e.currentTarget.value })}
                         />
-                        <TextInput
-                          label="路由短名"
-                          description="留空自动生成"
-                          placeholder="cppu"
-                          value={school.slug}
-                          onChange={(e) => update(school.key, { slug: e.currentTarget.value })}
-                        />
                         <Stack gap={4}>
                           <Text size="sm" fw={500}>
                             认证模式
@@ -404,7 +404,7 @@ const LoginSettings: FC = () => {
                       <Divider />
                       <Text size="xs" c="dimmed">
                         登录入口：
-                        <Code>{`${origin}/api/account/sso/login/${school.slug || '(自动生成)'}`}</Code>
+                        <Code>{`${origin}/api/account/sso/login/${deriveSlug(school.name) || '(请先填学校名称)'}`}</Code>
                       </Text>
                     </Stack>
                   </Card>
@@ -421,14 +421,14 @@ const LoginSettings: FC = () => {
               <Title order={4}>学校报名邀请码</Title>
               <Text size="sm" c="dimmed">
                 未使用快速登录（学校统一身份认证）的参赛者，需凭邀请码绑定学校后方可报名主办赛道。
-                每所学校一行，格式为「学校短名:邀请码」；未列出的学校不校验邀请码。
+                每所学校一行，格式为「学校名称:邀请码」；未列出的学校不校验邀请码。
               </Text>
             </Box>
 
             <Textarea
               label="邀请码列表"
-              description="每行一条，例如：cppu:PCTF2026CPPU"
-              placeholder={'cppu:PCTF2026CPPU\ndemo:PCTF2026DEMO'}
+              description="每行一条，例如：中国人民警察大学:PCTF2026CPPU"
+              placeholder={'中国人民警察大学:PCTF2026CPPU\n中国人民公安大学:PCTF2026CPPU2'}
               value={schoolInviteCodes}
               disabled={!enabled}
               autosize
@@ -447,12 +447,12 @@ const LoginSettings: FC = () => {
                     .split(/[,\n;]/)
                     .map((item) => item.trim())
                     .filter(Boolean)
-                    .find((item) => item.split(':')[0]?.trim().toLowerCase() === s.slug.trim().toLowerCase())
+                    .find((item) => item.split(':')[0]?.trim().toLowerCase() === deriveSlug(s.name).toLowerCase())
 
                   return (
                     <Group key={s.key} gap="xs">
                       <Badge size="sm" variant="light">
-                        {s.slug || '(无短名)'}
+                        {s.name || '(未命名)'}
                       </Badge>
                       <Text size="xs" c={matched ? 'teal' : 'dimmed'}>
                         {matched ? `已设邀请码：${matched.split(':')[1] ?? ''}` : '未设邀请码（该校可免邀请码绑定）'}
@@ -470,10 +470,10 @@ const LoginSettings: FC = () => {
           <Stack gap="xs">
             <Title order={4}>对接信息</Title>
             <Text size="sm" c="dimmed">
-              配置学校 CAS 侧「服务地址 / 回调地址」时填写以下地址。平台已在回调中附带学校短名。
+              配置学校 CAS 侧「服务地址 / 回调地址」时填写以下地址。平台已在回调中附带学校名称。
             </Text>
             <Group gap="xs">
-              <Code style={{ flex: 1, wordBreak: 'break-all' }}>{`${callbackUrl}?slug=<学校短名>`}</Code>
+              <Code style={{ flex: 1, wordBreak: 'break-all' }}>{`${callbackUrl}?slug=<学校名称>`}</Code>
               <CopyButton value={callbackUrl}>
                 {({ copied, copy }) => (
                   <Tooltip label={copied ? '已复制' : '复制回调地址'}>
