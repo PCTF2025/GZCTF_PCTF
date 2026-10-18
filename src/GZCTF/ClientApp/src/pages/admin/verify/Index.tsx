@@ -74,7 +74,12 @@ const VerifyPage: FC = () => {
 
   /// 学校下拉：系统管理员可筛选全部，学校管理员只能看到自己负责的学校
   const schoolOptions = useMemo(
-    () => (data?.availableSchools ?? []).map((s) => ({ value: s.slug, label: `${s.name}（${s.slug}）` })),
+    () =>
+      (data?.availableSchools ?? []).map((s) => ({
+        // 标识即学校名称，无需在后缀里重复展示
+        value: s.slug,
+        label: s.name || s.slug,
+      })),
     [data]
   )
 

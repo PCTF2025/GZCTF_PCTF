@@ -115,16 +115,21 @@ public class VerifyController(
             })
             .ToListAsync(token);
 
-        // 附上学校名称，便于前端直接展示
-        var schoolNames = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-            .ToDictionary(s => s.Slug, s => s.Name, StringComparer.OrdinalIgnoreCase);
+        // 附上学校名称，便于前端直接展示。
+        // 注意：学校以数据库 Schools 表为准，不能读旧的 SsoConfig:Schools CSV（那份数据已过时）。
+        var schoolNames = await dbContext.Schools.AsNoTracking()
+            .ToDictionaryAsync(s => s.Slug, s => s.Name, StringComparer.OrdinalIgnoreCase, token);
 
         foreach (var item in items)
             item.SchoolName = schoolNames.GetValueOrDefault(item.School ?? string.Empty) ?? item.School;
 
         // 学校管理员可在界面上的学校下拉中看到自己负责的学校
         var availableSchools = viewer.Role >= Role.Admin
-            ? schoolNames.Select(kv => new VerifySchoolOption(kv.Key, kv.Value)).ToList()
+            ? await dbContext.Schools.AsNoTracking()
+                .Where(s => s.Enabled)
+                .OrderBy(s => s.Order).ThenBy(s => s.Name)
+                .Select(s => new VerifySchoolOption(s.Slug, s.Name))
+                .ToListAsync(token)
             : viewer.ManagedSchoolList
                 .Select(slug => new VerifySchoolOption(slug, schoolNames.GetValueOrDefault(slug) ?? slug))
                 .ToList();
@@ -246,15 +251,15 @@ public class VerifyController(
     [HttpGet("Permission")]
     [RequireUser]
     [ProducesResponseType(typeof(VerifyPermissionModel), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Permission()
+    public async Task<IActionResult> Permission(CancellationToken token = default)
     {
         var viewer = await userManager.GetUserAsync(User);
         if (viewer is null)
             return Unauthorized(new RequestResponse("请先登录"));
 
         var managed = viewer.ManagedSchoolList;
-        var schoolNames = ClientSsoConfig.ParseSchools(ssoConfig.Value.Schools)
-            .ToDictionary(s => s.Slug, s => s.Name, StringComparer.OrdinalIgnoreCase);
+        var schoolNames = await dbContext.Schools.AsNoTracking()
+            .ToDictionaryAsync(s => s.Slug, s => s.Name, StringComparer.OrdinalIgnoreCase, token);
 
         return Ok(new VerifyPermissionModel
         {
