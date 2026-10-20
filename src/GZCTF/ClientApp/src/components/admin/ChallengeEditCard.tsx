@@ -11,7 +11,7 @@ import {
   useMantineColorScheme,
   useMantineTheme,
 } from '@mantine/core'
-import { mdiDatabaseEditOutline, mdiLockOutline, mdiPuzzleEditOutline } from '@mdi/js'
+import { mdiDatabaseEditOutline, mdiEyeOutline, mdiLockOutline, mdiPuzzleEditOutline } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,6 +50,8 @@ export const ChallengeEditCard: FC<ChallengeEditCardProps> = ({ challenge, onTog
 
   // 出题人能看到全部题目，但非本人（且非被授权方向）的题目为只读
   const canEdit = challenge.canEdit !== false
+  // 同方向交叉查看：可进入详情页查看与测题，但不能修改
+  const canTest = challenge.canTest === true
 
   return (
     <Card shadow="sm" p="sm" opacity={canEdit ? 1 : 0.65}>
@@ -94,6 +96,18 @@ export const ChallengeEditCard: FC<ChallengeEditCardProps> = ({ challenge, onTog
               </ActionIcon>
             </Tooltip>
           </>
+        ) : canTest ? (
+          // 同方向交叉查看：可进入详情页查看与测题，但不可修改
+          <Tooltip
+            label={challenge.authorName ? `由 ${challenge.authorName} 创建，可查看与测题` : '可查看与测题'}
+            position="left"
+            offset={10}
+            classNames={classes}
+          >
+            <ActionIcon c="dimmed" component={Link} to={`/admin/games/${id}/challenges/${challenge.id}`}>
+              <Icon path={mdiEyeOutline} size={1} />
+            </ActionIcon>
+          </Tooltip>
         ) : (
           <Tooltip
             label={challenge.authorName ? `由 ${challenge.authorName} 创建，你无权修改` : '你无权修改该题目'}

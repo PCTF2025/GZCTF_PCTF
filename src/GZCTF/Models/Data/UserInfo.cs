@@ -234,9 +234,53 @@ public partial class UserInfo : IdentityUser<Guid>
             : ManagedCategoryList;
 
     /// <summary>
-    /// 是否可管理指定题目。
+    /// 是否被明确授权了指定方向。
+    /// 与 <see cref="CanAuthorInCategory"/> 不同：这里不做「未配置即不限制」的
+    /// 历史兼容放行 —— 交叉查看/测题必须建立在明确授权之上，
+    /// 否则任何未配置方向的出题人都能看光全站题目。
+    /// </summary>
+    public bool HasManagedCategory(ChallengeCategory category) =>
+        ManagedCategoryList.Count > 0 && ManagedCategoryList.Contains(category);
+
+    /// <summary>
+    /// 是否可查看指定题目。
+    /// 系统管理员放行全部；出题管理员放行被授权方向；
+    /// 出题人可查看自己创建的题目，并可交叉查看自己方向的题目（协作互看）。
+    /// </summary>
+    /// <param name="category">题目方向</param>
+    /// <param name="authorId">题目创建者 Id</param>
+    public bool CanViewChallenge(ChallengeCategory category, Guid? authorId)
+    {
+        if (Role >= Role.Admin)
+            return true;
+
+        if (IsChallengeManager && HasManagedCategory(category))
+            return true;
+
+        if (IsChallengeAuthor && authorId.HasValue && authorId.Value == Id)
+            return true;
+
+        // 出题人交叉查看：仅限明确授权的方向
+        if (IsChallengeAuthor && HasManagedCategory(category))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// 是否可对该题目测题（创建/销毁测试容器）。
+    /// 能看就能测，与查看权限保持一致。
+    /// </summary>
+    /// <param name="category">题目方向</param>
+    /// <param name="authorId">题目创建者 Id</param>
+    public bool CanTestChallenge(ChallengeCategory category, Guid? authorId) =>
+        CanViewChallenge(category, authorId);
+
+    /// <summary>
+    /// 是否可管理指定题目（修改内容 / 删除 / 附件 / flag）。
     /// 系统管理员放行全部；出题管理员放行被授权方向；
     /// 出题人放行自己创建的题目（自己已有的题目不受方向变更影响）。
+    /// 注意：出题人对自己方向的他人题目只有查看与测题权限，不能修改或删除。
     /// </summary>
     /// <param name="category">题目方向</param>
     /// <param name="authorId">题目创建者 Id</param>

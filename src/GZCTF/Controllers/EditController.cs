@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 using GZCTF.Extensions;
 using GZCTF.Middlewares;
@@ -108,6 +108,33 @@ public class EditController(
             return null;
 
         return new ObjectResult(new RequestResponse("你只能管理自己创建的题目，或被授权方向下的题目"))
+        {
+            StatusCode = StatusCodes.Status403Forbidden
+        };
+    }
+
+    /// <summary>
+    /// 校验是否可查看该题目。
+    /// 比 <see cref="EnsureCanManageChallengeAsync"/> 宽松：被授权方向的出题人
+    /// 可交叉查看他人题目（只读 + 可测题），但不能修改。
+    /// </summary>
+    private async Task<IActionResult?> EnsureCanViewChallengeAsync(GameChallenge? challenge,
+        CancellationToken token)
+    {
+        if (challenge is null)
+            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Game_ChallengeNotFound)],
+                StatusCodes.Status404NotFound));
+
+        var user = await GetCurrentUserAsync(token);
+
+        if (user is null)
+            return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
+                StatusCodes.Status401Unauthorized));
+
+        if (user.CanViewChallenge(challenge.Category, challenge.AuthorId))
+            return null;
+
+        return new ObjectResult(new RequestResponse("你只能查看自己创建的题目，或被授权方向下的题目"))
         {
             StatusCode = StatusCodes.Status403Forbidden
         };
@@ -741,6 +768,10 @@ public class EditController(
             model.CanEdit = currentUser is not null &&
                             currentUser.CanManageChallenge(c.Category, c.AuthorId);
 
+            // 能看/能测：同方向的题目可交叉查看与测题，但不可修改
+            model.CanTest = currentUser is not null &&
+                            currentUser.CanViewChallenge(c.Category, c.AuthorId);
+
             if (scoreboard is not null && scoreboard.ChallengeMap.TryGetValue(c.Id, out var challengeInfo))
                 model.Score = challengeInfo.Score;
             return model;
@@ -781,14 +812,40 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+        // 查看权限：本人题目 / 被授权方向 / 管理员。
+        // 同方向他人题目可查看与测题，但只是只读视角。
+        if (await EnsureCanViewChallengeAsync(challenge, token) is { } denied)
             return denied;
 
+        var user = await GetCurrentUserAsync(token);
+
+        // 只有能管理该题目的人才加载并看到 flag 明文；
+        // 交叉查看者不返回 flag，避免泄露他人题目的答案。
+        var canManage = user is not null &&
+                        user.CanManageChallenge(challenge.Category, challenge.AuthorId);
+
         // Do not load flags for dynamic containers
-        if (challenge.Type != ChallengeType.DynamicContainer)
+        if (canManage && challenge.Type != ChallengeType.DynamicContainer)
             await challengeRepository.LoadFlags(challenge, token);
 
         var result = ChallengeEditDetailModel.FromChallenge(challenge);
+
+        result.CanTest = true; // 能进到这里即可测题
+        result.CanEdit = canManage;
+
+        // 交叉查看时需要知道题目归属
+        if (challenge.AuthorId.HasValue)
+            result.AuthorName = await dbContext.Users
+                .Where(u => u.Id == challenge.AuthorId.Value)
+                .Select(u => u.UserName)
+                .FirstOrDefaultAsync(token);
+
+        if (!canManage)
+        {
+            result.Flags = [];
+            result.FlagTemplate = null;
+        }
+
         var scoreboard = await gameRepository.TryGetScoreboard(id, token);
 
         if (scoreboard is not null && scoreboard.ChallengeMap.TryGetValue(cId, out var challengeInfo))
@@ -909,7 +966,7 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+        if (await EnsureCanViewChallengeAsync(challenge, token) is { } denied)
             return denied;
 
         if (!challenge.Type.IsContainer())
@@ -969,7 +1026,7 @@ public class EditController(
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
 
-        if (await EnsureCanManageChallengeAsync(challenge, token) is { } denied)
+        if (await EnsureCanViewChallengeAsync(challenge, token) is { } denied)
             return denied;
 
         if (challenge.TestContainer is null)

@@ -1599,6 +1599,12 @@ export interface ChallengeEditDetailModel {
   attachment?: Attachment | null;
   /** Test container */
   testContainer?: ContainerInfoModel | null;
+  /** 当前登录用户是否可编辑该题目 */
+  canEdit?: boolean;
+  /** 当前登录用户是否可查看并测题 */
+  canTest?: boolean;
+  /** 题目创建者用户名，便于交叉查看时辨认归属 */
+  authorName?: string | null;
   /** Challenge Flag information */
   flags: FlagInfoModel[];
   /**
@@ -1755,6 +1761,8 @@ export interface ChallengeInfoModel {
   week?: number | null;
   /** 当前登录用户是否可编辑该题目（出题人可见全部题目，但只能改自己的） */
   canEdit?: boolean;
+  /** 当前登录用户是否可查看并测题（同方向交叉查看，不可修改） */
+  canTest?: boolean;
   /** 题目创建者用户名 */
   authorName?: string | null;
 }

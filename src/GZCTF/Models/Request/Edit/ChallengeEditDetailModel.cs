@@ -79,6 +79,22 @@ public class ChallengeEditDetailModel
     public ContainerInfoModel? TestContainer { get; set; }
 
     /// <summary>
+    /// 当前登录用户是否可编辑该题目。
+    /// 出题人对自己方向下的他人题目只有查看与测题权限，不能修改。
+    /// </summary>
+    public bool CanEdit { get; set; }
+
+    /// <summary>
+    /// 当前登录用户是否可查看并测题（能看即可创建测试容器）。
+    /// </summary>
+    public bool CanTest { get; set; }
+
+    /// <summary>
+    /// 题目创建者用户名，便于交叉查看时辨认归属。
+    /// </summary>
+    public string? AuthorName { get; set; }
+
+    /// <summary>
     /// Challenge Flag information
     /// </summary>
     [Required]

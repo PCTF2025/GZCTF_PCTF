@@ -1,4 +1,5 @@
 import {
+  Alert,
   Badge,
   Button,
   Code,
@@ -81,6 +82,10 @@ const GameChallengeEdit: FC = () => {
   )
 
   const [disabled, setDisabled] = useState(false)
+
+  // 同方向交叉查看：可查看与测题，但表单只读
+  const readOnly = challenge?.canEdit === false
+  const locked = disabled || readOnly
 
   const [minRate, setMinRate] = useState((challenge?.minScoreRate ?? 0.25) * 100)
   const [category, setCategory] = useState<string | null>(challenge?.category ?? ChallengeCategory.Misc)
@@ -298,7 +303,7 @@ const GameChallengeEdit: FC = () => {
           </Title>
           <Group wrap="nowrap" justify="right">
             <Button
-              disabled={disabled}
+              disabled={locked}
               color="red"
               leftSection={<Icon path={mdiDeleteOutline} size={1} />}
               variant="outline"
@@ -320,14 +325,13 @@ const GameChallengeEdit: FC = () => {
               {t('admin.button.challenges.delete')}
             </Button>
             <Button
-              disabled={disabled}
               leftSection={<Icon path={mdiEyeOutline} size={1} />}
               onClick={() => setPreviewOpened(true)}
             >
               {t('admin.button.challenges.preview')}
             </Button>
             <Button
-              disabled={disabled}
+              disabled={locked}
               component={Link}
               leftSection={<Icon path={mdiDatabaseEditOutline} size={1} />}
               to={`/admin/games/${numId}/challenges/${numCId}/flags`}
@@ -335,7 +339,7 @@ const GameChallengeEdit: FC = () => {
               {t('admin.button.challenges.edit_more')}
             </Button>
             <Button
-              disabled={disabled}
+              disabled={locked}
               leftSection={<Icon path={mdiContentSaveOutline} size={1} />}
               onClick={() =>
                 onUpdate({
@@ -352,11 +356,19 @@ const GameChallengeEdit: FC = () => {
       }
     >
       <Stack>
+        {readOnly && (
+          <Alert color="blue" variant="light" title="只读视角">
+            该题目由
+            {challenge?.authorName ? ` ${challenge.authorName} ` : '其他出题人'}
+            创建，与你同属一个方向。你可以查看题目内容并启动测试容器，但不能修改配置、附件或
+            Flag，也无法删除该题目。
+          </Alert>
+        )}
         <Grid columns={3}>
           <Grid.Col span={1}>
             <TextInput
               label={t('admin.content.games.challenges.title')}
-              disabled={disabled}
+              disabled={locked}
               value={challengeInfo.title ?? ''}
               required
               onChange={(e) => setChallengeInfo({ ...challengeInfo, title: e.target.value })}
@@ -374,7 +386,7 @@ const GameChallengeEdit: FC = () => {
               }
               placeholder="Type"
               value={type}
-              disabled={disabled}
+              disabled={locked}
               readOnly
               renderOption={ChallengeTypeItem}
               data={Object.entries(ChallengeType).map((type) => {
@@ -389,7 +401,7 @@ const GameChallengeEdit: FC = () => {
               label={t('admin.content.games.challenges.category')}
               placeholder="Category"
               value={category}
-              disabled={disabled}
+              disabled={locked}
               onChange={(e) => {
                 setCategory(e)
                 setChallengeInfo({ ...challengeInfo, category: e as ChallengeCategory })
@@ -408,7 +420,7 @@ const GameChallengeEdit: FC = () => {
                 description="1-5 周受时间限制，挑战题/其他题不受限"
                 placeholder="未归类"
                 clearable
-                disabled={disabled}
+                disabled={locked}
                 value={challengeInfo.week ? String(challengeInfo.week) : null}
                 data={[
                   ...[1, 2, 3, 4, 5].map((week) => ({
@@ -441,7 +453,7 @@ const GameChallengeEdit: FC = () => {
               }
               value={challengeInfo?.content ?? ''}
               autosize
-              disabled={disabled}
+              disabled={locked}
               minRows={5}
               maxRows={5}
               onChange={(e) => setChallengeInfo({ ...challengeInfo, content: e.target.value })}
@@ -455,7 +467,7 @@ const GameChallengeEdit: FC = () => {
                 placeholder={t('admin.content.games.challenges.submission_limit.placeholder')}
                 min={0}
                 max={10000}
-                disabled={disabled}
+                disabled={locked}
                 stepHoldDelay={500}
                 stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                 value={challengeInfo?.submissionLimit || undefined}
@@ -471,7 +483,7 @@ const GameChallengeEdit: FC = () => {
                 size="sm"
                 value={deadline?.toDate()}
                 valueFormat="L LT"
-                disabled={disabled}
+                disabled={locked}
                 clearable
                 onChange={(e) => {
                   setDeadline(e ? dayjs(e) : null)
@@ -491,7 +503,7 @@ const GameChallengeEdit: FC = () => {
                   </Group>
                 }
                 hints={challengeInfo?.hints ?? []}
-                disabled={disabled}
+                disabled={locked}
                 height={180}
                 onChangeHint={(hints) => setChallengeInfo({ ...challengeInfo, hints })}
               />
@@ -504,7 +516,7 @@ const GameChallengeEdit: FC = () => {
                   label={t('admin.content.games.challenges.score')}
                   min={0}
                   required
-                  disabled={disabled}
+                  disabled={locked}
                   stepHoldDelay={500}
                   stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                   value={challengeInfo?.originalScore ?? 500}
@@ -521,7 +533,7 @@ const GameChallengeEdit: FC = () => {
                   step={0.2}
                   min={0.1}
                   required
-                  disabled={disabled}
+                  disabled={locked}
                   value={challengeInfo?.difficulty ?? 100}
                   stepHoldDelay={500}
                   stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
@@ -539,7 +551,7 @@ const GameChallengeEdit: FC = () => {
                       min_score: ((value / 100) * (challengeInfo?.originalScore ?? 500)).toFixed(0),
                     })
                   }
-                  disabled={disabled}
+                  disabled={locked}
                   value={minRate}
                   marks={[
                     { value: 20, label: '20%' },
@@ -551,7 +563,7 @@ const GameChallengeEdit: FC = () => {
                 />
               </Input.Wrapper>
               <Switch
-                disabled={disabled}
+                disabled={locked}
                 checked={!challengeInfo?.disableBloodBonus}
                 label={SwitchLabel(
                   t('admin.content.games.challenges.blood_bonus.label'),
@@ -574,7 +586,7 @@ const GameChallengeEdit: FC = () => {
           <TextInput
             label={t('admin.content.games.challenges.attachment_name.label')}
             description={t('admin.content.games.challenges.attachment_name.description')}
-            disabled={disabled}
+            disabled={locked}
             value={challengeInfo.fileName ?? 'attachment'}
             onChange={(e) => setChallengeInfo({ ...challengeInfo, fileName: e.target.value })}
           />
@@ -591,7 +603,7 @@ const GameChallengeEdit: FC = () => {
                         仅需填写镜像名，前缀固定为 <Code>{imagePrefix}</Code>
                       </>
                     }
-                    disabled={disabled}
+                    disabled={locked}
                     value={imageSuffix}
                     required
                     leftSection={<Icon path={mdiPackageVariantClosed} size={0.9} />}
@@ -602,7 +614,7 @@ const GameChallengeEdit: FC = () => {
                   <TextInput
                     label={t('admin.content.games.challenges.container_image')}
                     description="平台未配置镜像仓库，请填写完整镜像地址"
-                    disabled={disabled}
+                    disabled={locked}
                     value={challengeInfo.containerImage ?? ''}
                     required
                     onChange={(e) => setChallengeInfo({ ...challengeInfo, containerImage: e.target.value })}
@@ -615,7 +627,7 @@ const GameChallengeEdit: FC = () => {
                   max={65535}
                   w="8rem"
                   required
-                  disabled={disabled}
+                  disabled={locked}
                   stepHoldDelay={500}
                   stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                   value={challengeInfo.exposePort ?? 80}
@@ -706,7 +718,7 @@ const GameChallengeEdit: FC = () => {
                             label="名称"
                             placeholder={`靶机 ${index + 2}`}
                             size="xs"
-                            disabled={disabled}
+                            disabled={locked}
                             value={item.name ?? ''}
                             onChange={(e) => updateExtraImage(index, { name: e.currentTarget.value })}
                           />
@@ -717,7 +729,7 @@ const GameChallengeEdit: FC = () => {
                             description={imagePrefix ? '只填镜像名，前缀同上' : '填写完整镜像地址'}
                             size="xs"
                             required
-                            disabled={disabled}
+                            disabled={locked}
                             value={extraSuffix(item.image)}
                             onChange={(e) =>
                               updateExtraImage(index, {
@@ -735,7 +747,7 @@ const GameChallengeEdit: FC = () => {
                             min={1}
                             max={65535}
                             required
-                            disabled={disabled}
+                            disabled={locked}
                             value={item.exposePort}
                             onChange={(e) => {
                               const number = getInputNumber(e)
@@ -751,7 +763,7 @@ const GameChallengeEdit: FC = () => {
                             color="red"
                             size="xs"
                             leftSection={<Icon path={mdiDeleteOutline} size={0.8} />}
-                            disabled={disabled}
+                            disabled={locked}
                             onClick={() => removeExtraImage(index)}
                           >
                             移除
@@ -771,7 +783,7 @@ const GameChallengeEdit: FC = () => {
                 label={t('admin.content.games.challenges.network_mode.label')}
                 description={t('admin.content.games.challenges.network_mode.description')}
                 value={networkMode ?? NetworkMode.Open}
-                disabled={disabled}
+                disabled={locked}
                 onChange={(e) => {
                   setNetworkMode(e)
                   setChallengeInfo({ ...challengeInfo, networkMode: e as NetworkMode })
@@ -790,7 +802,7 @@ const GameChallengeEdit: FC = () => {
                 min={1}
                 max={1024}
                 required
-                disabled={disabled}
+                disabled={locked}
                 stepHoldDelay={500}
                 stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                 value={challengeInfo.cpuCount ?? 1}
@@ -808,7 +820,7 @@ const GameChallengeEdit: FC = () => {
                 min={32}
                 max={1048576}
                 required
-                disabled={disabled}
+                disabled={locked}
                 stepHoldDelay={500}
                 stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                 value={challengeInfo.memoryLimit ?? 32}
@@ -826,7 +838,7 @@ const GameChallengeEdit: FC = () => {
                 min={0}
                 max={1048576}
                 required
-                disabled={disabled}
+                disabled={locked}
                 stepHoldDelay={500}
                 stepHoldInterval={(t) => Math.max(1000 / t ** 2, 25)}
                 value={challengeInfo.storageLimit ?? 32}
@@ -839,7 +851,7 @@ const GameChallengeEdit: FC = () => {
             </Grid.Col>
             <Grid.Col span={4} display="flex" className={misc.alignCenter}>
               <Switch
-                disabled={disabled}
+                disabled={locked}
                 checked={challengeInfo.enableTrafficCapture ?? false}
                 label={SwitchLabel(
                   t('admin.content.games.challenges.traffic_capture.label'),

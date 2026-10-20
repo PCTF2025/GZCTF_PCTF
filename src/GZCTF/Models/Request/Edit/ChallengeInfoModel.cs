@@ -68,6 +68,12 @@ public class ChallengeInfoModel
     public bool CanEdit { get; set; }
 
     /// <summary>
+    /// 当前登录用户是否可查看该题目（能看即可测题）。
+    /// 出题人对自己方向下的他人题目只有查看与测题权限，不能修改。
+    /// </summary>
+    public bool CanTest { get; set; }
+
+    /// <summary>
     /// 题目创建者用户名，便于出题人辨认归属
     /// </summary>
     public string? AuthorName { get; set; }
