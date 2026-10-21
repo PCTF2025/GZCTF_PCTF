@@ -83,7 +83,14 @@ export const ChallengePanel: FC = () => {
   /// 默认只看「当前周 + 挑战题 + 其他题」；用户手动切换后按其选择
   const defaultWeeks = useMemo(() => {
     if (!weekMode) return []
-    const current = buckets.find((b) => b.key != null && b.key <= 5 && b.isOpen)
+    // 周次只控制上题时间：已开始的周都可能开放，取最大的一周作为当前周
+    const now = dayjs()
+    const current = buckets
+      .filter((b) => b.key != null && b.key <= 5 && b.startUtc && !now.isBefore(dayjs(b.startUtc)))
+      .reduce<(typeof buckets)[number] | undefined>(
+        (latest, b) => (!latest || (b.key ?? 0) > (latest.key ?? 0) ? b : latest),
+        undefined
+      )
     const keys = [current?.key, 6, 7].filter((k): k is number => typeof k === 'number')
     return keys
   }, [weekMode, buckets])

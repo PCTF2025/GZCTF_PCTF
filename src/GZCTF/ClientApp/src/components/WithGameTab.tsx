@@ -51,7 +51,15 @@ const GameCountdown: FC<{ game?: DetailedGameInfoModel }> = ({ game }) => {
 
   // 周次模式：当前周剩余时间（与总倒计时同一区块展示）
   const buckets = game?.weekBuckets ?? []
-  const currentWeek = buckets.find((b) => b.key != null && b.key <= 5 && b.isOpen)
+  // 周次仅用于自动上题：到点即开放且不再关闭，多周可能同时开放。
+  // 「当前周」取已开始的最大周次（与 TrackStatus 一致）。
+  const startedWeeks = buckets.filter(
+    (b) => b.key != null && b.key <= 5 && b.startUtc && !now.isBefore(dayjs(b.startUtc))
+  )
+  const currentWeek = startedWeeks.reduce<(typeof buckets)[number] | undefined>(
+    (latest, b) => (!latest || (b.key ?? 0) > (latest.key ?? 0) ? b : latest),
+    undefined
+  )
 
   let weekRemain = ''
   if (game?.weekModeEnabled) {

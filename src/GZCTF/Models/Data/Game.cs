@@ -314,9 +314,11 @@ public partial class Game
     };
 
     /// <summary>
-    /// 判断某题目在当前时刻是否处于可提交状态。
-    /// 规则：未归类 / 周次未配置时间窗口 → 始终可提交（不限制）；
-    /// 配置了窗口则要求 now 落在 [Start, End] 内（任一端为 null 视为该端不限制）。
+    /// 判断某题目在当前时刻是否已开放提交。
+    /// 周次仅用于「自动上题」：到达该周开始时间后题目开放；
+    /// 一旦开放就不再关闭 —— 第二周仍可做第一周的题，以此类推。
+    /// 周结束时间不参与该判定（仅用于界面展示与周次划分）。
+    /// 未归类 / 未配置开始时间 → 始终可提交。
     /// </summary>
     public bool IsChallengeOpen(int? challengeWeek, DateTimeOffset now)
     {
@@ -327,17 +329,14 @@ public partial class Game
         if (challengeWeek is ChallengeBucket or MiscBucket)
             return true;
 
-        var (start, end) = GetWeekWindow(challengeWeek.Value);
-        if (start is null && end is null)
+        var (start, _) = GetWeekWindow(challengeWeek.Value);
+
+        // 未配置开始时间视为不限制
+        if (start is null)
             return true;
 
-        if (start is not null && now < start.Value)
-            return false;
-
-        if (end is not null && now > end.Value)
-            return false;
-
-        return true;
+        // 只做「到点开放」，不因该周结束而关闭
+        return now >= start.Value;
     }
 
     /// <summary>返回当前时刻所处的周次（1-5），不在任何已配置窗口内时返回 null</summary>

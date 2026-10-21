@@ -65,7 +65,8 @@ export const GameChallengeModal: FC<GameChallengeModalProps> = (props) => {
 
   const isLimitReached = (challenge?.limit && (challenge.attempts ?? 0) >= challenge.limit) || false
 
-  // 周次模式：题目所属周次不在开放时间窗口内时禁止提交
+  // 周次模式：周次仅用于「自动上题」——到点开放后不再关闭，
+  // 第二周仍可做第一周的题，因此这里只判断是否已到开放时间。
   const { game } = useGame(gameId)
   const effectiveWeek = challengeWeek ?? challenge?.week ?? null
   const weekClosed = useMemo(() => {
@@ -75,11 +76,8 @@ export const GameChallengeModal: FC<GameChallengeModalProps> = (props) => {
     // 未配置时间的分桶（挑战题 / 其他题）始终开放
     if (!bucket || (bucket.startUtc == null && bucket.endUtc == null)) return false
 
-    const now = dayjs()
-    if (bucket.startUtc && now.isBefore(dayjs(bucket.startUtc))) return true
-    if (bucket.endUtc && now.isAfter(dayjs(bucket.endUtc))) return true
-
-    return false
+    // 只拦「尚未开放」；该周结束后依然可做
+    return Boolean(bucket.startUtc && dayjs().isBefore(dayjs(bucket.startUtc)))
   }, [game?.weekModeEnabled, game?.weekBuckets, effectiveWeek])
 
   const onCreate = async () => {
