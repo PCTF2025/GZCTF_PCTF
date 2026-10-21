@@ -32,6 +32,62 @@ public class SchoolController(
     IStringLocalizer<Program> localizer) : ControllerBase
 {
     /// <summary>
+    /// 报名数据大屏：各校报名人数统计
+    /// </summary>
+    [RequireAdmin]
+    [HttpGet("Stats")]
+    [ProducesResponseType(typeof(SchoolStatsModel), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStats(CancellationToken token)
+    {
+        // 一次分组查询拿到各校报名数 / 通过数 / 待审数
+        var stats = await dbContext.Users
+            .Where(u => u.School != null && u.School != string.Empty)
+            .GroupBy(u => u.School!)
+            .Select(g => new
+            {
+                Slug = g.Key,
+                Total = g.Count(),
+                Approved = g.Count(u => u.VerifyStatus == VerifyStatus.Approved),
+                Pending = g.Count(u => u.VerifyStatus == VerifyStatus.Pending)
+            })
+            .ToListAsync(token);
+
+        var bySlug = stats.ToDictionary(s => s.Slug, s => s, StringComparer.OrdinalIgnoreCase);
+
+        // 列出全部学校（含已停用的，如「社会」组），保证大屏总数与真实报名数一致；
+        // 未启用但有报名的学校会带 Enabled=false，由前端标注。
+        var schools = await dbContext.Schools.AsNoTracking()
+            .Select(s => new { s.Name, s.Slug, s.Enabled })
+            .ToListAsync(token);
+
+        var items = schools
+            .Select(s =>
+            {
+                bySlug.TryGetValue(s.Slug, out var st);
+                return new SchoolStatItemModel
+                {
+                    Name = s.Name,
+                    Slug = s.Slug,
+                    UserCount = st?.Total ?? 0,
+                    ApprovedCount = st?.Approved ?? 0,
+                    PendingCount = st?.Pending ?? 0,
+                    Enabled = s.Enabled
+                };
+            })
+            .OrderByDescending(i => i.UserCount)
+            .ThenBy(i => i.Name)
+            .ToList();
+
+        return Ok(new SchoolStatsModel
+        {
+            Total = items.Sum(i => i.UserCount),
+            ApprovedTotal = items.Sum(i => i.ApprovedCount),
+            GeneratedAtUtc = DateTimeOffset.UtcNow,
+            Schools = items
+        });
+    }
+
+    /// <summary>
     /// 学校设置页聚合数据（学校列表 + 可选赛区 + 年级选项）
     /// </summary>
     [RequireAdmin]

@@ -6,6 +6,7 @@ import {
   mdiDomain,
   mdiImageMultipleOutline,
   mdiFileDocumentOutline,
+  mdiMonitorDashboard,
   mdiFlagOutline,
   mdiPackageVariantClosed,
   mdiSitemapOutline,
@@ -49,6 +50,7 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     { icon: mdiSitemapOutline, title: t('admin.tab.settings'), path: 'settings' },
     { icon: mdiDomain, title: '学校设置', path: 'schools' },
     { icon: mdiTrophyVariantOutline, title: '赛道设置', path: 'tracks' },
+    { icon: mdiMonitorDashboard, title: '报名大屏', path: 'screen' },
     { icon: mdiAccountSearchOutline, title: '学籍审核', path: 'verify' },
     { icon: mdiImageMultipleOutline, title: '素材库', path: 'assets' },
   ]

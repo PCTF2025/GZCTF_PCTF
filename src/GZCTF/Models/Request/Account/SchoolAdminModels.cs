@@ -179,3 +179,43 @@ public class SchoolResolveResult
 
     public string? Reason { get; set; }
 }
+
+/// <summary>
+/// 报名数据大屏：各校报名人数汇总
+/// </summary>
+public class SchoolStatsModel
+{
+    /// <summary>报名总人数（已绑定学校的学生）</summary>
+    public int Total { get; set; }
+
+    /// <summary>学籍审核通过总人数</summary>
+    public int ApprovedTotal { get; set; }
+
+    /// <summary>数据生成时间（UTC）</summary>
+    public DateTimeOffset GeneratedAtUtc { get; set; }
+
+    /// <summary>各校明细，按报名人数降序</summary>
+    public List<SchoolStatItemModel> Schools { get; set; } = [];
+}
+
+/// <summary>
+/// 单个学校的报名统计
+/// </summary>
+public class SchoolStatItemModel
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string Slug { get; set; } = string.Empty;
+
+    /// <summary>报名人数（绑定该校的学生总数）</summary>
+    public int UserCount { get; set; }
+
+    /// <summary>学籍审核通过人数</summary>
+    public int ApprovedCount { get; set; }
+
+    /// <summary>待审核人数</summary>
+    public int PendingCount { get; set; }
+
+    /// <summary>是否启用</summary>
+    public bool Enabled { get; set; }
+}

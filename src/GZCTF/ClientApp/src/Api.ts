@@ -986,6 +986,29 @@ export interface SchoolDivisionOptionModel {
 }
 
 /** 学校设置页聚合数据 */
+export interface SchoolStatsModel {
+  /** 报名总人数 */
+  total?: number;
+  /** 学籍审核通过总人数 */
+  approvedTotal?: number;
+  /** 数据生成时间 */
+  generatedAtUtc?: string;
+  /** 各校明细（按报名人数降序） */
+  schools?: SchoolStatItemModel[];
+}
+
+export interface SchoolStatItemModel {
+  name: string;
+  slug: string;
+  /** 报名人数 */
+  userCount?: number;
+  /** 审核通过人数 */
+  approvedCount?: number;
+  /** 待审核人数 */
+  pendingCount?: number;
+  enabled?: boolean;
+}
+
 export interface SchoolSettingsModel {
   schools: SchoolDetailModel[];
   divisions: SchoolDivisionOptionModel[];
@@ -3473,6 +3496,22 @@ export class Api<
   };
   school = {
     /**
+     * @description 报名数据大屏：各校报名人数统计
+     *
+     * @tags School
+     * @name SchoolStats
+     * @summary 各校报名人数统计
+     * @request GET:/api/school/Stats
+     */
+    schoolStats: (params: RequestParams = {}) =>
+      this.request<SchoolStatsModel, any>({
+        path: `/api/school/Stats`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
      * @description 学校设置页聚合数据（学校列表 + 可选赛区 + 年级选项）
      *
      * @tags School
@@ -3567,6 +3606,18 @@ export class Api<
     useSchoolSettings: (options?: SWRConfiguration, doFetch: boolean = true) =>
       useSWR<SchoolSettingsModel, RequestResponse>(
         doFetch ? `/api/school/settings` : null,
+        options,
+      ),
+
+    /**
+     * @description 报名数据大屏：各校报名人数统计
+     * @tags School
+     * @name useSchoolStats
+     * @request GET:/api/school/Stats
+     */
+    useSchoolStats: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<SchoolStatsModel, RequestResponse>(
+        doFetch ? `/api/school/Stats` : null,
         options,
       ),
 

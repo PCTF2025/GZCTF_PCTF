@@ -112,7 +112,7 @@ export const useAdminTabs = () => {
     if (canUpload) keys.push('assets')
     // 系统管理员保留全部后台功能
     if (isAdmin)
-      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks')
+      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks', 'screen')
 
     return { keys, canAccessAdmin: keys.length > 0 }
   }, [user])
