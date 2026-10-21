@@ -3202,6 +3202,18 @@ export class Api<
         options,
       ),
 
+    /**
+     * @description 获取可选学校列表（注册 / 报名时选择学校）
+     * @tags Sso
+     * @name useSsoSchools
+     * @request GET:/api/account/sso/schools
+     */
+    useSsoSchools: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<SchoolOptionModel[], RequestResponse>(
+        doFetch ? `/api/account/sso/schools` : null,
+        options,
+      ),
+
     mutateAccountProfile: (
       data?: ProfileUserInfoModel | Promise<ProfileUserInfoModel>,
       options?: MutatorOptions,

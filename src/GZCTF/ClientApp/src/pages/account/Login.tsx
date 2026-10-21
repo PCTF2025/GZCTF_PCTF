@@ -56,11 +56,24 @@ const Login: FC = () => {
   // 窄屏下分隔线改为横向，两栏上下堆叠
   const stacked = width < 900
 
-  // 后台配置的学校列表；未配置时不显示右栏
-  // 「仅邀请码绑定」的学校没有专属登录入口，不出现在登录页
+  // 学校列表以数据库 Schools 表为准（/api/account/sso/schools），
+  // 不再读 config.sso.schools —— 那是旧 CSV 配置，容易与后台维护的学校脱节。
   const sso = config.sso
-  const ssoSchools = (sso?.schools ?? []).filter(
-    (s) => s.name && s.slug && s.mode !== SsoAuthMode.Invite
+  const { data: schoolOptions } = api.account.useSsoSchools()
+
+  // 「仅邀请码绑定」的学校没有专属登录入口，不出现在登录页
+  const ssoSchools: ClientSsoSchool[] = useMemo(
+    () =>
+      (schoolOptions ?? [])
+        .filter((s) => s.name && s.slug && s.mode !== 'invite')
+        .map((s) => ({
+          name: s.name,
+          slug: s.slug,
+          mode: s.mode === 'cas' ? SsoAuthMode.Cas : SsoAuthMode.Email,
+          emailSuffixes: s.emailSuffixes,
+          icon: s.icon ?? undefined,
+        })),
+    [schoolOptions]
   )
 
   // 右栏状态：学校列表 / 邮箱登录表单

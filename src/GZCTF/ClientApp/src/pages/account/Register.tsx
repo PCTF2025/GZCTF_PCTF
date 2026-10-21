@@ -65,18 +65,22 @@ const Register: FC = () => {
     }
   }, [params])
 
+  // 学校列表以数据库 Schools 表为准（/api/account/sso/schools），
+  // 不再读 config.sso.schools —— 那是旧 CSV 配置，容易与后台维护的学校脱节。
+  const { data: ssoSchools } = api.account.useSsoSchools()
+
   const boundSchoolName = useMemo(() => {
     if (!schoolSlug) return ''
-    return (config.sso?.schools ?? []).find((s) => s.slug === schoolSlug)?.name ?? ''
-  }, [schoolSlug, config.sso])
+    return (ssoSchools ?? []).find((s) => s.slug === schoolSlug)?.name ?? ''
+  }, [schoolSlug, ssoSchools])
 
-  // 可选学校列表（来自后台 SSO 配置）
+  // 可选学校列表
   const schoolOptions = useMemo(
     () =>
-      (config.sso?.schools ?? [])
+      (ssoSchools ?? [])
         .filter((s) => s.name && s.slug)
-        .map((s) => ({ value: s.slug!, label: s.name! })),
-    [config.sso]
+        .map((s) => ({ value: s.slug, label: s.name })),
+    [ssoSchools]
   )
 
   // 邮箱认证进入时，学校已确定，直接回填
