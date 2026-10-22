@@ -201,7 +201,7 @@ const Screen: FC = () => {
         {/* 左右分栏：左侧地图 + 省份明细/占比，右侧学校排名 */}
         <SimpleGrid cols={{ base: 1, lg: 12 }} spacing="md" verticalSpacing="md">
           {/* 左侧 */}
-          <Stack gap="md" style={{ gridColumn: 'span 8' }}>
+          <Stack gap="md" style={{ gridColumn: 'span 7' }}>
             <Paper p="md" withBorder>
               <Group justify="space-between" mb="xs">
                 <Text fw="bold">各省报名分布</Text>
@@ -269,7 +269,7 @@ const Screen: FC = () => {
           </Stack>
 
           {/* 右侧：学校排名 */}
-          <Paper p="md" withBorder style={{ gridColumn: 'span 4' }}>
+          <Paper p="md" withBorder style={{ gridColumn: 'span 5' }}>
             <Group justify="space-between" mb="xs">
               <Text fw="bold">各校报名人数</Text>
               <Text size="xs" c="dimmed">
@@ -277,7 +277,7 @@ const Screen: FC = () => {
               </Text>
             </Group>
             <ScrollArea h="calc(100vh - 330px)" type="auto" offsetScrollbars>
-              <Stack gap="sm">
+              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" verticalSpacing="sm">
                 {schools.map((school, index) => (
                   <SchoolRow key={school.slug} school={school} rank={index + 1} maxCount={maxCount} total={total} />
                 ))}
@@ -286,7 +286,7 @@ const Screen: FC = () => {
                     暂无报名数据
                   </Text>
                 )}
-              </Stack>
+              </SimpleGrid>
             </ScrollArea>
           </Paper>
         </SimpleGrid>
@@ -337,26 +337,26 @@ const SchoolRow: FC<SchoolRowProps> = ({ school, rank, maxCount, total }) => {
   const color = rank === 1 ? 'yellow' : rank === 2 ? 'gray' : rank === 3 ? 'orange' : 'blue'
 
   return (
-    <Group gap="sm" wrap="nowrap" align="center">
+    <Group gap={8} wrap="nowrap" align="center">
       <Badge
         variant={rank <= 3 ? 'filled' : 'light'}
         color={color}
-        size="lg"
-        miw="3.1rem"
-        px={8}
+        size="md"
+        miw="2rem"
+        px={6}
         style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
       >
         {rank}
       </Badge>
 
       <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-        <Group justify="space-between" gap="xs" wrap="nowrap">
-          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        <Group justify="space-between" gap={6} wrap="nowrap">
+          <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
             <Text
               fw={600}
               truncate
               c={school.enabled === false ? 'dimmed' : undefined}
-              style={{ fontSize: 'clamp(0.95rem, 1.4vw, 1.25rem)' }}
+              style={{ fontSize: 'clamp(0.85rem, 1.05vw, 1.05rem)' }}
             >
               {school.name}
             </Text>
@@ -366,17 +366,20 @@ const SchoolRow: FC<SchoolRowProps> = ({ school, rank, maxCount, total }) => {
               </Badge>
             )}
           </Group>
-          <Group gap={6} wrap="nowrap">
-            <Text fw="bold" style={{ fontSize: 'clamp(1.05rem, 1.8vw, 1.5rem)', fontVariantNumeric: 'tabular-nums' }}>
+          <Group gap={4} wrap="nowrap">
+            <Text
+              fw="bold"
+              style={{ fontSize: 'clamp(0.95rem, 1.25vw, 1.2rem)', fontVariantNumeric: 'tabular-nums' }}
+            >
               {count}
             </Text>
-            <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
               {shareRate.toFixed(1)}%
             </Text>
           </Group>
         </Group>
 
-        <Progress value={barRate} size="md" radius="xl" color={color} />
+        <Progress value={barRate} size="sm" radius="xl" color={color} />
       </Stack>
     </Group>
   )
