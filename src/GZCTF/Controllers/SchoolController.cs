@@ -71,7 +71,8 @@ public class SchoolController(
                     UserCount = st?.Total ?? 0,
                     ApprovedCount = st?.Approved ?? 0,
                     PendingCount = st?.Pending ?? 0,
-                    Enabled = s.Enabled
+                    Enabled = s.Enabled,
+                    Province = InferProvince(s.Name)
                 };
             })
             .OrderByDescending(i => i.UserCount)
@@ -389,6 +390,58 @@ public class SchoolController(
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         return string.Join(',', grades);
+    }
+
+    /// <summary>
+    /// 省级行政区短名（用于大屏省份统计）
+    /// </summary>
+    private static readonly string[] ProvinceNames =
+    [
+        "北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江",
+        "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南",
+        "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州",
+        "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆",
+        "香港", "澳门", "台湾"
+    ];
+
+    /// <summary>
+    /// 校名中出现城市名时用于推断省份（如「南京警察学院」→ 江苏）
+    /// </summary>
+    private static readonly Dictionary<string, string> CityProvinces = new()
+    {
+        ["南京"] = "江苏", ["郑州"] = "河南", ["廊坊"] = "河北", ["沈阳"] = "辽宁",
+        ["武汉"] = "湖北", ["西安"] = "陕西", ["成都"] = "四川", ["广州"] = "广东",
+        ["杭州"] = "浙江", ["济南"] = "山东", ["长沙"] = "湖南", ["合肥"] = "安徽",
+        ["昆明"] = "云南", ["哈尔滨"] = "黑龙江", ["乌鲁木齐"] = "新疆"
+    };
+
+    /// <summary>
+    /// 由校名推断所属省份。
+    /// 优先级：校名含省名 → 含城市名 → 特殊校名 → 其他。
+    /// 识别不到时归入「其他」，大屏上单列显示。
+    /// </summary>
+    private static string InferProvince(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "其他";
+
+        foreach (var province in ProvinceNames)
+            if (name.Contains(province, StringComparison.Ordinal))
+                return province;
+
+        foreach (var (city, province) in CityProvinces)
+            if (name.Contains(city, StringComparison.Ordinal))
+                return province;
+
+        // 校名不含地名、但校址所在地明确的部属院校
+        if (name.Contains("中国人民警察大学", StringComparison.Ordinal))
+            return "河北";
+        if (name.Contains("中国人民公安大学", StringComparison.Ordinal))
+            return "北京";
+        if (name.Contains("中国刑事警察学院", StringComparison.Ordinal))
+            return "辽宁";
+
+        return "其他";
     }
 
     /// <summary>

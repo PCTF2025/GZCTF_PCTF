@@ -8,6 +8,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "noEmit": true,
+    "resolveJsonModule": true,
     "paths": {
       "@Api": ["./src/Api.ts"],
       "@App": ["./src/App"],

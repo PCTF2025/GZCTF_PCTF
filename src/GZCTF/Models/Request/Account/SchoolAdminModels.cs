@@ -218,4 +218,7 @@ public class SchoolStatItemModel
 
     /// <summary>是否启用</summary>
     public bool Enabled { get; set; }
+
+    /// <summary>所属省份（短名，如「江苏」），无法识别时为「其他」</summary>
+    public string Province { get; set; } = "其他";
 }

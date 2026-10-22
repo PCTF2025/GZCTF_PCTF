@@ -1007,6 +1007,8 @@ export interface SchoolStatItemModel {
   /** 待审核人数 */
   pendingCount?: number;
   enabled?: boolean;
+  /** 所属省份（短名，如「江苏」），无法识别时为「其他」 */
+  province?: string;
 }
 
 export interface SchoolSettingsModel {
