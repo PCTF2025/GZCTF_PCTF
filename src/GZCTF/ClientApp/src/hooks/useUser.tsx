@@ -110,9 +110,11 @@ export const useAdminTabs = () => {
     if (isAuthor) keys.push('games')
     if (isSchoolManager) keys.push('verify')
     if (canUpload) keys.push('assets')
-    // 系统管理员保留全部后台功能
+    // 报名大屏：出题人 / 出题管理员 / 学籍审核人 / 系统管理员均可查看
+    if (isAuthor || isSchoolManager) keys.push('screen')
+    // 系统管理员保留全部后台功能（screen 已在上面加入）
     if (isAdmin)
-      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks', 'screen')
+      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks')
 
     return { keys, canAccessAdmin: keys.length > 0 }
   }, [user])

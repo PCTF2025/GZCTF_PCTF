@@ -140,6 +140,19 @@ public class RequireAssetUploaderAttribute()
 }
 
 /// <summary>
+/// 可查看报名数据大屏（系统管理员 / 出题人 / 出题管理员 / 学校负责人）
+/// </summary>
+public class RequireDashboardViewerAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Admin ||
+        user.CanEditChallenge ||
+        user.IsSchoolAdmin ||
+        user.HasPermission(UserPermission.SchoolManager);
+}
+
+/// <summary>
 /// Admin privilege required, but allow token authentication
 /// </summary>
 public class RequireAdminOrTokenAttribute() : RequirePrivilegeAttribute(Role.Admin, true);

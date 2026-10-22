@@ -34,7 +34,10 @@ public class SchoolController(
     /// <summary>
     /// 报名数据大屏：各校报名人数统计
     /// </summary>
-    [RequireAdmin]
+    /// <remarks>
+    /// 系统管理员、出题人、出题管理员、学校负责人均可查看。
+    /// </remarks>
+    [RequireDashboardViewer]
     [HttpGet("Stats")]
     [ProducesResponseType(typeof(SchoolStatsModel), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStats(CancellationToken token)
