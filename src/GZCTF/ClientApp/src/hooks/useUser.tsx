@@ -108,7 +108,7 @@ export const useAdminTabs = () => {
 
     const keys: string[] = []
     if (isAuthor) keys.push('games')
-    if (isSchoolManager) keys.push('verify')
+    if (isSchoolManager) keys.push('verify', 'team-divisions')
     if (canUpload) keys.push('assets')
     // 报名大屏：出题人 / 出题管理员 / 学籍审核人 / 系统管理员均可查看
     if (isAuthor || isSchoolManager) keys.push('screen')

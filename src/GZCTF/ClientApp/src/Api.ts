@@ -986,6 +986,53 @@ export interface SchoolDivisionOptionModel {
 }
 
 /** 学校设置页聚合数据 */
+
+/** 可调整组别的比赛 */
+export interface TeamDivisionGameModel {
+  id: number;
+  title: string;
+}
+
+/** 队伍组别管理：列表（含可选组别） */
+export interface TeamDivisionListModel {
+  /** 该比赛可选的组别 */
+  divisions: TeamDivisionOptionModel[];
+  /** 队伍列表（学校负责人仅能看到本校本队） */
+  items: TeamDivisionItemModel[];
+}
+
+/** 组别选项 */
+export interface TeamDivisionOptionModel {
+  id: number;
+  name: string;
+}
+
+/** 单支队伍及其成员 */
+export interface TeamDivisionItemModel {
+  participationId: number;
+  teamName: string;
+  /** 报名审核状态 */
+  status: string;
+  divisionId?: number | null;
+  divisionName?: string | null;
+  /** 队伍成员 */
+  members: TeamDivisionMemberModel[];
+}
+
+/** 队伍成员（用于确认是否属于本校） */
+export interface TeamDivisionMemberModel {
+  userName: string;
+  realName?: string | null;
+  school?: string | null;
+  grade?: string | null;
+}
+
+/** 修改队伍组别 */
+export interface TeamDivisionUpdateModel {
+  /** 目标组别，传 null 表示不分组 */
+  divisionId?: number | null;
+}
+
 export interface SchoolStatsModel {
   /** 报名总人数 */
   total?: number;
@@ -3508,6 +3555,66 @@ export class Api<
         options,
       ),
   };
+  teamDivision = {
+    /**
+     * @description 某场比赛的队伍与组别列表（学校负责人仅本校本队）
+     *
+     * @tags TeamDivision
+     * @name TeamDivisionList
+     * @request GET:/api/teamdivision/Games/{gameId}
+     */
+    teamDivisionGames: (params: RequestParams = {}) =>
+      this.request<TeamDivisionGameModel[], any>({
+        path: `/api/teamdivision/Games`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useTeamDivisionGames: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<TeamDivisionGameModel[], RequestResponse>(
+        doFetch ? `/api/teamdivision/Games` : null,
+        options,
+      ),
+
+    teamDivisionList: (gameId: number, params: RequestParams = {}) =>
+      this.request<TeamDivisionListModel, any>({
+        path: `/api/teamdivision/Games/${gameId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 修改队伍组别
+     *
+     * @tags TeamDivision
+     * @name TeamDivisionUpdate
+     * @request PUT:/api/teamdivision/Participation/{id}
+     */
+    teamDivisionUpdate: (id: number, data: TeamDivisionUpdateModel, params: RequestParams = {}) =>
+      this.request<any, RequestResponse>({
+        path: `/api/teamdivision/Participation/${id}`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description 某场比赛的队伍与组别列表
+     * @tags TeamDivision
+     * @name useTeamDivisionList
+     * @request GET:/api/teamdivision/Games/{gameId}
+     */
+    useTeamDivisionList: (gameId: number, options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<TeamDivisionListModel, RequestResponse>(
+        doFetch && gameId > 0 ? `/api/teamdivision/Games/${gameId}` : null,
+        options,
+      ),
+  }
+
   school = {
     /**
      * @description 报名数据大屏：各校报名人数统计
