@@ -20,7 +20,6 @@ namespace GZCTF.Controllers;
 /// <summary>
 /// Data Modification APIs
 /// </summary>
-[RequireChallengeEditorOrAdmin]
 [ApiController]
 [Route("api/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
@@ -272,6 +271,7 @@ public class EditController(
     /// <response code="200">Successfully retrieved game list</response>
     [HttpGet("Games")]
     [ProducesResponseType(typeof(ArrayResponse<GameInfoModel>), StatusCodes.Status200OK)]
+    [RequireGameReviewer]
     public async Task<IActionResult> GetGames([FromQuery][Range(0, 100)] int count, [FromQuery] int skip,
         CancellationToken token) =>
         Ok((await gameRepository.GetGames(count, skip, token))
@@ -290,6 +290,7 @@ public class EditController(
     [HttpGet("Games/{id:int}")]
     [ProducesResponseType(typeof(GameInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireGameReviewer]
     public async Task<IActionResult> GetGame([FromRoute] int id, CancellationToken token)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -314,6 +315,7 @@ public class EditController(
     [HttpGet("Games/{id:int}/HashSalt")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> GetHashSalt([FromRoute] int id, CancellationToken token)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -498,6 +500,7 @@ public class EditController(
     [HttpGet("Games/{id:int}/Notices")]
     [ProducesResponseType(typeof(GameNotice[]), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> GetGameNotices([FromRoute] int id, CancellationToken token = default)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -613,6 +616,7 @@ public class EditController(
     [HttpGet("Games/{id:int}/Divisions")]
     [ProducesResponseType(typeof(Division[]), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireGameReviewer]
     public async Task<IActionResult> GetDivisions([FromRoute] int id, CancellationToken token)
     {
         var game = await gameRepository.GetGameById(id, token);
@@ -692,6 +696,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Challenges")]
     [ProducesResponseType(typeof(ChallengeEditDetailModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> AddGameChallenge([FromRoute] int id, [FromBody] ChallengeInfoModel model,
         CancellationToken token)
     {
@@ -730,6 +735,7 @@ public class EditController(
     /// <response code="200">Successfully retrieved game challenges</response>
     [HttpGet("Games/{id:int}/Challenges")]
     [ProducesResponseType(typeof(ChallengeInfoModel[]), StatusCodes.Status200OK)]
+    [RequireGameReviewer]
     public async Task<IActionResult> GetGameChallenges([FromRoute] int id, CancellationToken token)
     {
         var challenges = (await challengeRepository.GetChallenges(id, token)).ToList();
@@ -808,6 +814,7 @@ public class EditController(
     [HttpGet("Games/{id:int}/Challenges/{cId:int}")]
     [ProducesResponseType(typeof(ChallengeEditDetailModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> GetGameChallenge([FromRoute] int id, [FromRoute] int cId, CancellationToken token)
     {
         var challenge = await challengeRepository.GetChallenge(id, cId, token);
@@ -868,6 +875,7 @@ public class EditController(
     [HttpPut("Games/{id:int}/Challenges/{cId:int}")]
     [ProducesResponseType(typeof(ChallengeEditDetailModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> UpdateGameChallenge([FromRoute] int id, [FromRoute] int cId,
         [FromBody] ChallengeUpdateModel model, CancellationToken token)
     {
@@ -961,6 +969,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Challenges/{cId:int}/Container")]
     [ProducesResponseType(typeof(ContainerInfoModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> CreateTestContainer([FromRoute] int id, [FromRoute] int cId,
         CancellationToken token)
     {
@@ -1021,6 +1030,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/Challenges/{cId:int}/Container")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> DestroyTestContainer([FromRoute] int id, [FromRoute] int cId,
         CancellationToken token)
     {
@@ -1050,6 +1060,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/Challenges/{cId:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> RemoveGameChallenge([FromRoute] int id, [FromRoute] int cId,
         CancellationToken token)
     {
@@ -1080,6 +1091,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Challenges/{cId:int}/Attachment")]
     [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> UpdateAttachment([FromRoute] int id, [FromRoute] int cId,
         [FromBody] AttachmentCreateModel model, CancellationToken token)
     {
@@ -1111,6 +1123,7 @@ public class EditController(
     [HttpPost("Games/{id:int}/Challenges/{cId:int}/Flags")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> AddFlags([FromRoute] int id, [FromRoute] int cId,
         [FromBody] FlagCreateModel[] models, CancellationToken token)
     {
@@ -1138,6 +1151,7 @@ public class EditController(
     [HttpDelete("Games/{id:int}/Challenges/{cId:int}/Flags/{fId:int}")]
     [ProducesResponseType(typeof(TaskStatus), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    [RequireChallengeEditorOrAdmin]
     public async Task<IActionResult> RemoveFlag([FromRoute] int id, [FromRoute] int cId, [FromRoute] int fId,
         CancellationToken token)
     {

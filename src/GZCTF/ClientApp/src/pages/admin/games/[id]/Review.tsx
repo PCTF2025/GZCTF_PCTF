@@ -37,12 +37,14 @@ import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
 import { ParticipationDivisionEditModal } from '@Components/admin/ParticipationDivisionEditModal'
+import { SchoolTeamDivisionReview } from '@Components/admin/SchoolTeamDivisionReview'
 import { ParticipationStatusControl } from '@Components/admin/ParticipationStatusControl'
 import { WithGameEditTab } from '@Components/admin/WithGameEditTab'
 import { showErrorMsg } from '@Utils/Shared'
+import { useUser } from '@Hooks/useUser'
 import { useParticipationStatusMap } from '@Utils/Shared'
 import { OnceSWRConfig } from '@Hooks/useConfig'
-import api, { ParticipationEditModel, ParticipationInfoModel, ParticipationStatus, ProfileUserInfoModel } from '@Api'
+import api, { ParticipationEditModel, ParticipationInfoModel, ParticipationStatus, ProfileUserInfoModel, Role } from '@Api'
 import classes from '@Styles/Accordion.module.css'
 import misc from '@Styles/Misc.module.css'
 import reviewClasses from '@Styles/Review.module.css'
@@ -224,9 +226,11 @@ const GameTeamReview: FC = () => {
   const [curParticipation, setCurParticipation] = useState<ParticipationInfoModel | null>(null)
 
   const { t } = useTranslation()
+  const { user } = useUser()
+  const isAdmin = user?.role === Role.Admin
   const [activePage, setPage] = useState(1)
 
-  const { data: divisions } = api.edit.useEditGetDivisions(numId, OnceSWRConfig, numId > 0)
+  const { data: divisions } = api.edit.useEditGetDivisions(numId, OnceSWRConfig, numId > 0 && isAdmin)
 
   const divisionNameMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -306,6 +310,9 @@ const GameTeamReview: FC = () => {
       return
     }
 
+    // 学校负责人走范围化接口（SchoolTeamDivisionReview），不请求管理员接口
+    if (!isAdmin) return
+
     const fetchData = async () => {
       try {
         const res = await api.game.gameParticipations(numId)
@@ -334,6 +341,15 @@ const GameTeamReview: FC = () => {
     (activePage - 1) * PART_NUM_PER_PAGE,
     activePage * PART_NUM_PER_PAGE
   )
+
+  // 学校负责人：保留比赛标签栏，内容为只读 + 仅可调整组别
+  if (!isAdmin)
+    return (
+      <WithGameEditTab isLoading={false}>
+        <SchoolTeamDivisionReview gameId={numId} />
+      </WithGameEditTab>
+    )
+
 
   return (
     <WithGameEditTab

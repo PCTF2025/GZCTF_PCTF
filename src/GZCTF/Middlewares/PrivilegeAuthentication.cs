@@ -140,6 +140,20 @@ public class RequireAssetUploaderAttribute()
 }
 
 /// <summary>
+/// 可查看比赛信息（系统管理员 / 出题人 / 出题管理员 / 学校负责人）。
+/// 学校负责人需要进入比赛查看队伍审核与组别，故一并放行只读接口。
+/// </summary>
+public class RequireGameReviewerAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Admin ||
+        user.CanEditChallenge ||
+        user.IsSchoolAdmin ||
+        user.HasPermission(UserPermission.SchoolManager);
+}
+
+/// <summary>
 /// 可查看报名数据大屏（系统管理员 / 出题人 / 出题管理员 / 学校负责人）
 /// </summary>
 public class RequireDashboardViewerAttribute()

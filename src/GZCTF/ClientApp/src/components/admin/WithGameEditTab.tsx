@@ -55,9 +55,10 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
     { icon: mdiFileDocumentCheckOutline, title: t('admin.tab.games.writeups'), path: 'writeups' },
   ]
 
-  // 出题人仅负责出题，周次设置属于赛事编排，同样只对管理员开放
-  const AUTHOR_PATHS = ['challenges']
-  const pages = isAdmin ? allPages : allPages.filter((p) => AUTHOR_PATHS.includes(p.path))
+  // 出题人仅负责出题；学校负责人需要「队伍审核」来调整组别
+  const isSchoolManager = user?.isSchoolAdmin === true
+  const NON_ADMIN_PATHS = isSchoolManager ? ['challenges', 'review'] : ['challenges']
+  const pages = isAdmin ? allPages : allPages.filter((p) => NON_ADMIN_PATHS.includes(p.path))
 
   const getTab = (path: string) => pages.find((page) => path.includes(page.path))
 

@@ -3,7 +3,6 @@ import {
   mdiAccountCogOutline,
   mdiAccountGroupOutline,
   mdiAccountSearchOutline,
-  mdiAccountSwitchOutline,
   mdiDomain,
   mdiImageMultipleOutline,
   mdiFileDocumentOutline,
@@ -53,7 +52,6 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     { icon: mdiTrophyVariantOutline, title: '赛道设置', path: 'tracks' },
     { icon: mdiMonitorDashboard, title: '报名大屏', path: 'screen' },
     { icon: mdiAccountSearchOutline, title: '学籍审核', path: 'verify' },
-    { icon: mdiAccountSwitchOutline, title: '队伍组别', path: 'team-divisions' },
     { icon: mdiImageMultipleOutline, title: '素材库', path: 'assets' },
   ]
 

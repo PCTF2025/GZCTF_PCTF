@@ -30,11 +30,12 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { GameColorMap } from '@Components/GameCard'
 import { AdminPage } from '@Components/admin/AdminPage'
+import { useUser } from '@Hooks/useUser'
 import { GameCreateModal } from '@Components/admin/GameCreateModal'
 import { showErrorMsg } from '@Utils/Shared'
 import { useArrayResponse } from '@Hooks/useArrayResponse'
 import { getGameStatus } from '@Hooks/useGame'
-import api, { GameInfoModel } from '@Api'
+import api, { GameInfoModel, Role } from '@Api'
 import misc from '@Styles/Misc.module.css'
 import tableClasses from '@Styles/Table.module.css'
 import uploadClasses from '@Styles/Upload.module.css'
@@ -52,6 +53,7 @@ const Games: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const theme = useMantineTheme()
+  const { user } = useUser()
 
   const onToggleHidden = async (game: GameInfoModel) => {
     if (!game.id) return
@@ -134,6 +136,9 @@ const Games: FC = () => {
     fetchData()
   }, [page])
 
+  // 学校负责人只读：隐藏新建 / 导入（需管理员权限）
+  const isAdmin = user?.role === Role.Admin
+
   return (
     <AdminPage
       isLoading={!games}
@@ -141,9 +146,12 @@ const Games: FC = () => {
       head={
         <>
           <Group gap="md" wrap="nowrap">
+            {isAdmin && (
             <Button leftSection={<Icon path={mdiPlus} size={1} />} onClick={() => setCreateOpened(true)}>
               {t('admin.button.games.new')}
             </Button>
+            )}
+            {isAdmin && (
             <FileButton onChange={onImportGame} accept="application/zip">
               {(props) => (
                 <Button
@@ -168,6 +176,7 @@ const Games: FC = () => {
                 </Button>
               )}
             </FileButton>
+            )}
           </Group>
           <Group w="calc(100% - 9rem)" justify="right">
             <Text fw="bold" size="sm">
