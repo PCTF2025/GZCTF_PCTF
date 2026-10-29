@@ -234,15 +234,6 @@ export const ChallengePanel: FC = () => {
                   .map((b) => ({ value: String(b.key), label: b.name ?? `第 ${b.key} 周` })),
               ]}
             />
-            <Select
-              size="xs"
-              label="类型"
-              placeholder="全部类型"
-              clearable
-              value={activeTab === 'All' ? null : activeTab}
-              onChange={(value) => setActiveTab((value ?? 'All') as ChallengeCategory | 'All')}
-              data={categories.map((c) => ({ value: c, label: c }))}
-            />
           </Stack>
         )}
         <Switch
