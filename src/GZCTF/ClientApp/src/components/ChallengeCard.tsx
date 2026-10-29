@@ -63,21 +63,27 @@ export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps)
       data-no-move
     >
       <Stack gap="xs" pos="relative" style={{ zIndex: 99 }}>
-        <Group h="30px" wrap="nowrap" justify="space-between" gap={2}>
+        <Group h="30px" wrap="nowrap" gap={2}>
           <ScrollingText text={challenge.title || ''} size="lg" />
-          {showWeek && challenge.week && (
-            <Tooltip label={disabled ? '不在开放时间内，暂不可提交' : weekLabel || `第 ${challenge.week} 周`}>
-              <Badge size="xs" variant="light" color={disabled ? 'gray' : 'violet'}>
-                {weekLabel || `第 ${challenge.week} 周`}
-              </Badge>
-            </Tooltip>
-          )}
         </Group>
         <Divider size="sm" color={cateData?.color} />
         <Group wrap="nowrap" justify="space-between" align="center" gap={2}>
-          <Text ta="center" fw="bold" fz="lg" ff="monospace">
-            {challenge.score}&nbsp;pts
-          </Text>
+          <Stack gap={2} align="flex-start" style={{ minWidth: 0 }}>
+            {showWeek && challenge.week && (
+              <Tooltip
+                label={disabled ? '不在开放时间内，暂不可提交' : weekLabel || `第 ${challenge.week} 周`}
+                multiline
+                maw={240}
+              >
+                <Text size="xs" fw={600} c={disabled ? 'dimmed' : 'violet'} lineClamp={2} ta="left">
+                  {weekLabel || `第 ${challenge.week} 周`}
+                </Text>
+              </Tooltip>
+            )}
+            <Text ta="center" fw="bold" fz="lg" ff="monospace">
+              {challenge.score}&nbsp;pts
+            </Text>
+          </Stack>
           <Stack gap="xs">
             <Title order={6} ta="center" mt={`calc(${theme.spacing.xs} / 2)`}>
               <Trans
