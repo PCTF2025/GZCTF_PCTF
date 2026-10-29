@@ -248,9 +248,9 @@ public static class CacheKey
     public static string ScoreBoard(int id) => $"_ScoreBoard_v2_{id}";
 
     /// <summary>
-    /// Scoreboard cache
+    /// Scoreboard cache（与 int 重载保持同一键，否则刷新会写到另一个键）
     /// </summary>
-    public static string ScoreBoard(string id) => $"_ScoreBoard_{id}";
+    public static string ScoreBoard(string id) => $"_ScoreBoard_v2_{id}";
 
     /// <summary>
     /// Game cache
