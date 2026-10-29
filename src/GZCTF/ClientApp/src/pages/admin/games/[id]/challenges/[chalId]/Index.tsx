@@ -138,6 +138,12 @@ const GameChallengeEdit: FC = () => {
   /// 容器编排视图：「拓扑」为图形化编排，「列表」为兼容的简单列表
   const [topoView, setTopoView] = useState<'topology' | 'list'>('topology')
 
+  /// 靶机编排入口默认隐藏（当前赛事用不上单题多靶机）。
+  /// 已配置过拓扑或附加靶机的题目仍然显示，避免历史题目无法维护；
+  /// 需要全面开放时把 TOPOLOGY_UI_ENABLED 改为 true 即可。
+  const TOPOLOGY_UI_ENABLED = false
+  const showTopologyEditor = TOPOLOGY_UI_ENABLED || topologyNodes.length > 0 || extraImages.length > 0
+
   /// 已有拓扑编排的题目直接落到拓扑视图；否则先看简单列表，降低上手成本
   useEffect(() => {
     if (topologyNodes.length > 0) setTopoView('topology')
@@ -661,8 +667,8 @@ const GameChallengeEdit: FC = () => {
               />
             </Grid.Col>
 
-            {/* 单题多靶机：靶机编排。拓扑视图用于可视化编排，列表视图保持简单易用 */}
-            <Grid.Col span={12}>
+            {/* 单题多靶机：靶机编排。默认隐藏，见 showTopologyEditor */}
+            <Grid.Col span={12} style={{ display: showTopologyEditor ? undefined : 'none' }}>
               <Paper withBorder p="md" radius="md">
                 <Tabs value={topoView} onChange={(v) => setTopoView((v as 'topology' | 'list') ?? 'topology')}>
                   <Group justify="space-between" align="flex-start" wrap="nowrap">
