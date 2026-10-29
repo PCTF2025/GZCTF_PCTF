@@ -255,6 +255,113 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
 
   const { scoreboard } = useGameScoreboard(numId)
 
+  const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
+
+  // 排名范围：全部 / 老生组合并 / 新生组合并 / 单个题目方向（OSINT 归入 Misc）
+  type RankScope =
+    | { kind: 'all' }
+    | { kind: 'senior' }
+    | { kind: 'freshman' }
+    | { kind: 'category'; category: ChallengeCategory }
+  const [rankScope, setRankScope] = useState<RankScope>({ kind: 'all' })
+
+  /// OSINT 归入 Misc（用户要求：osint 类划到 misc 里）
+  const normalizeCategory = (cat: ChallengeCategory): ChallengeCategory =>
+    cat === ChallengeCategory.OSINT ? ChallengeCategory.Misc : cat
+
+  /// 题目 Id → 归一化后的方向
+  const challengeCategoryOf = useMemo(() => {
+    const map = new Map<number, ChallengeCategory>()
+    Object.entries(scoreboard?.challenges ?? {}).forEach(([cat, list]) => {
+      const normalized = normalizeCategory(cat as ChallengeCategory)
+      list.forEach((ch) => map.set(ch.id, normalized))
+    })
+    return map
+  }, [scoreboard?.challenges])
+
+  /// 按分数重排并写入名次（同分同名次）
+  const rankItems = (list: ScoreboardItem[]): ScoreboardItem[] => {
+    const sorted = [...list].sort(
+      (a, b) =>
+        (b.score ?? 0) - (a.score ?? 0) ||
+        dayjs(a.lastSubmissionTime).valueOf() - dayjs(b.lastSubmissionTime).valueOf()
+    )
+    let lastScore: number | null = null
+    let lastRank = 0
+    return sorted.map((item, idx) => {
+      const rank = lastScore !== null && item.score === lastScore ? lastRank : idx + 1
+      lastScore = item.score
+      lastRank = rank
+      return { ...item, rank, divisionRank: rank }
+    })
+  }
+
+  /// 依据排名范围生成表格视图（队伍、题目列）
+  const view = useMemo(() => {
+    const items = scoreboard?.items ?? []
+    const challenges = scoreboard?.challenges ?? {}
+
+    if (rankScope.kind === 'category') {
+      const target = rankScope.category
+      // OSINT 归入 Misc：列标题合并为同一个方向分组
+      const filteredChallenges: Record<string, ChallengeInfo[]> = {}
+      Object.entries(challenges).forEach(([cat, list]) => {
+        const normalized = normalizeCategory(cat as ChallengeCategory)
+        if (normalized !== target) return
+        filteredChallenges[normalized] = [...(filteredChallenges[normalized] ?? []), ...list]
+      })
+
+      const scored = items
+        .map((item) => {
+          const solved = (item.solvedChallenges ?? []).filter((c) => challengeCategoryOf.get(c.id) === target)
+          const score = solved.reduce((acc, c) => acc + (c.score ?? 0), 0)
+          return { ...item, solvedChallenges: solved, score }
+        })
+        .filter((item) => (item.solvedChallenges?.length ?? 0) > 0)
+
+      return { items: rankItems(scored), challenges: filteredChallenges }
+    }
+
+    if (rankScope.kind === 'senior' || rankScope.kind === 'freshman') {
+      const keyword = rankScope.kind === 'senior' ? '老生' : '新生'
+      const divisionIds = new Set(
+        (scoreboard?.divisions ?? []).filter((d) => (d.name ?? '').includes(keyword)).map((d) => d.id)
+      )
+      const scoped = items.filter(
+        (item) => item.divisionId !== undefined && item.divisionId !== null && divisionIds.has(item.divisionId)
+      )
+      return { items: rankItems(scoped), challenges }
+    }
+
+    return { items, challenges }
+  }, [scoreboard, rankScope, challengeCategoryOf])
+
+  /// 排名范围下拉选项：合并分组 + 实际存在的题目方向
+  const rankScopeOptions = useMemo(() => {
+    const options = [
+      { value: 'all', label: '全部队伍' },
+      { value: 'senior', label: '全部老生组' },
+      { value: 'freshman', label: '全部新生组' },
+    ]
+
+    const categories = new Set<ChallengeCategory>()
+    Object.keys(scoreboard?.challenges ?? {}).forEach((cat) => {
+      if ((scoreboard?.challenges ?? {})[cat as ChallengeCategory]?.length)
+        categories.add(normalizeCategory(cat as ChallengeCategory))
+    })
+
+    ;[...categories]
+      .sort((a, b) =>
+        (challengeCategoryLabelMap.get(a)?.name ?? a).localeCompare(challengeCategoryLabelMap.get(b)?.name ?? b)
+      )
+      .forEach((cat) => {
+        const label = challengeCategoryLabelMap.get(cat)?.name ?? cat
+        options.push({ value: `cat:${cat}`, label: `方向：${label}` })
+      })
+
+    return options
+  }, [scoreboard?.challenges, challengeCategoryLabelMap])
+
   const divisionMap = useMemo(() => {
     const map = new Map<number, string>()
     scoreboard?.divisions?.forEach((div) => {
@@ -283,16 +390,23 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
   const filteredList = useMemo(() => {
     if (!scoreboard?.items) return []
 
+    const baseItems = view.items
+
     if (!!debouncedKeyword && debouncedKeyword.length > 0) {
-      return scoreboard.items.filter((s) => s.name?.toLowerCase().includes(debouncedKeyword.toLowerCase()))
+      return baseItems.filter((s) => s.name?.toLowerCase().includes(debouncedKeyword.toLowerCase()))
     }
 
     if (divisionId !== null) {
-      return scoreboard.items.filter((s) => (s.divisionId ?? null) === divisionId)
+      return baseItems.filter((s) => (s.divisionId ?? null) === divisionId)
     }
 
-    return scoreboard.items.filter((s) => s.rank > 0)
-  }, [scoreboard, debouncedKeyword, divisionId])
+    // 合并分组 / 单方向排名：只列出有解题记录的队伍
+    if (rankScope.kind !== 'all') {
+      return baseItems.filter((s) => (s.solvedChallenges?.length ?? 0) > 0)
+    }
+
+    return baseItems.filter((s) => s.rank > 0)
+  }, [scoreboard, debouncedKeyword, divisionId, view.items, rankScope])
 
   useEffect(() => {
     setDivisionId(null)
@@ -346,7 +460,30 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
               leftSection={<Icon path={mdiAccountGroup} size={1} />}
             />
           </Grid.Col>
-          <Grid.Col span={6} />
+          <Grid.Col span={3}>
+            <Select
+              data={rankScopeOptions}
+              value={
+                rankScope.kind === 'all'
+                  ? 'all'
+                  : rankScope.kind === 'category'
+                    ? `cat:${rankScope.category}`
+                    : rankScope.kind
+              }
+              onChange={(value) => {
+                if (!value || value === 'all') setRankScope({ kind: 'all' })
+                else if (value === 'senior') setRankScope({ kind: 'senior' })
+                else if (value === 'freshman') setRankScope({ kind: 'freshman' })
+                else if (value.startsWith('cat:')) {
+                  setRankScope({ kind: 'category', category: value.slice(4) as ChallengeCategory })
+                }
+                // 合并 / 方向排名与单个赛区互斥
+                setDivisionId(null)
+                setPage(1)
+              }}
+              leftSection={<Icon path={mdiFlagOutline} size={1} />}
+            />
+          </Grid.Col>
           <Grid.Col span={3}>
             <TextInput
               placeholder={t('game.placeholder.search_team')}
@@ -364,7 +501,7 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
             }}
           >
             <Table className={classes.table}>
-              <TableHeader {...scoreboard?.challenges} />
+              <TableHeader {...view.challenges} />
               <Table.Tbody>
                 {scoreboard &&
                   currentItems?.map((item, idx) => (
@@ -377,7 +514,7 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
                         setCurrentItem(item)
                         setItemDetailOpened(true)
                       }}
-                      challenges={scoreboard.challenges}
+                      challenges={view.challenges}
                       iconMap={iconMap}
                       divisionMap={divisionMap}
                     />
