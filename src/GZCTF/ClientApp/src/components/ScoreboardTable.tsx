@@ -257,13 +257,10 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
 
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
 
-  // 排名范围：全部 / 老生组合并 / 新生组合并 / 单个题目方向（OSINT 归入 Misc）
-  type RankScope =
-    | { kind: 'all' }
-    | { kind: 'senior' }
-    | { kind: 'freshman' }
-    | { kind: 'category'; category: ChallengeCategory }
-  const [rankScope, setRankScope] = useState<RankScope>({ kind: 'all' })
+  // 两个独立筛选：分组（全部 / 老生合并 / 新生合并）与题目方向（OSINT 归入 Misc）
+  type GroupScope = 'all' | 'senior' | 'freshman'
+  const [groupScope, setGroupScope] = useState<GroupScope>('all')
+  const [categoryFilter, setCategoryFilter] = useState<ChallengeCategory | null>(null)
 
   /// OSINT 归入 Misc（用户要求：osint 类划到 misc 里）
   const normalizeCategory = (cat: ChallengeCategory): ChallengeCategory =>
@@ -296,22 +293,37 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
     })
   }
 
-  /// 依据排名范围生成表格视图（队伍、题目列）
+  /// 依据「分组 + 方向」生成表格视图（两者可组合）
   const view = useMemo(() => {
     const items = scoreboard?.items ?? []
-    const challenges = scoreboard?.challenges ?? {}
+    const rawChallenges = scoreboard?.challenges ?? {}
 
-    if (rankScope.kind === 'category') {
-      const target = rankScope.category
-      // OSINT 归入 Misc：列标题合并为同一个方向分组
+    // OSINT 统一归入 Misc：任何视图下都不再单列 OSINT 分组
+    const challenges: Record<string, ChallengeInfo[]> = {}
+    Object.entries(rawChallenges).forEach(([cat, list]) => {
+      const key = normalizeCategory(cat as ChallengeCategory)
+      challenges[key] = [...(challenges[key] ?? []), ...list]
+    })
+
+    // 1) 分组过滤：老生 / 新生 跨校合并
+    let base = items
+    if (groupScope !== 'all') {
+      const keyword = groupScope === 'senior' ? '老生' : '新生'
+      const divisionIds = new Set(
+        (scoreboard?.divisions ?? []).filter((d) => (d.name ?? '').includes(keyword)).map((d) => d.id)
+      )
+      base = items.filter(
+        (item) => item.divisionId !== undefined && item.divisionId !== null && divisionIds.has(item.divisionId)
+      )
+    }
+
+    // 2) 方向过滤：只按该方向计分，OSINT 归入 Misc
+    if (categoryFilter !== null) {
+      const target = categoryFilter
       const filteredChallenges: Record<string, ChallengeInfo[]> = {}
-      Object.entries(challenges).forEach(([cat, list]) => {
-        const normalized = normalizeCategory(cat as ChallengeCategory)
-        if (normalized !== target) return
-        filteredChallenges[normalized] = [...(filteredChallenges[normalized] ?? []), ...list]
-      })
+      if (challenges[target]?.length) filteredChallenges[target] = challenges[target]
 
-      const scored = items
+      const scored = base
         .map((item) => {
           const solved = (item.solvedChallenges ?? []).filter((c) => challengeCategoryOf.get(c.id) === target)
           const score = solved.reduce((acc, c) => acc + (c.score ?? 0), 0)
@@ -322,33 +334,28 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
       return { items: rankItems(scored), challenges: filteredChallenges }
     }
 
-    if (rankScope.kind === 'senior' || rankScope.kind === 'freshman') {
-      const keyword = rankScope.kind === 'senior' ? '老生' : '新生'
-      const divisionIds = new Set(
-        (scoreboard?.divisions ?? []).filter((d) => (d.name ?? '').includes(keyword)).map((d) => d.id)
-      )
-      const scoped = items.filter(
-        (item) => item.divisionId !== undefined && item.divisionId !== null && divisionIds.has(item.divisionId)
-      )
-      return { items: rankItems(scoped), challenges }
-    }
+    // 3) 仅分组：合并榜需要重新排名
+    if (groupScope !== 'all') return { items: rankItems(base), challenges }
 
     return { items, challenges }
-  }, [scoreboard, rankScope, challengeCategoryOf])
+  }, [scoreboard, groupScope, categoryFilter, challengeCategoryOf])
 
-  /// 排名范围下拉选项：合并分组 + 实际存在的题目方向
-  const rankScopeOptions = useMemo(() => {
-    const options = [
-      { value: 'all', label: '全部队伍' },
-      { value: 'senior', label: '全部老生组' },
-      { value: 'freshman', label: '全部新生组' },
-    ]
+  /// 分组合并下拉
+  const groupOptions = [
+    { value: 'all', label: '全部队伍' },
+    { value: 'senior', label: '全部老生组' },
+    { value: 'freshman', label: '全部新生组' },
+  ]
 
+  /// 方向下拉：只列出该比赛实际存在的方向（OSINT 已并入 Misc）
+  const categoryOptions = useMemo(() => {
     const categories = new Set<ChallengeCategory>()
     Object.keys(scoreboard?.challenges ?? {}).forEach((cat) => {
       if ((scoreboard?.challenges ?? {})[cat as ChallengeCategory]?.length)
         categories.add(normalizeCategory(cat as ChallengeCategory))
     })
+
+    const options = [{ value: 'all', label: '全部方向' }]
 
     ;[...categories]
       .sort((a, b) =>
@@ -356,7 +363,7 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
       )
       .forEach((cat) => {
         const label = challengeCategoryLabelMap.get(cat)?.name ?? cat
-        options.push({ value: `cat:${cat}`, label: `方向：${label}` })
+        options.push({ value: cat, label })
       })
 
     return options
@@ -401,12 +408,12 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
     }
 
     // 合并分组 / 单方向排名：只列出有解题记录的队伍
-    if (rankScope.kind !== 'all') {
+    if (groupScope !== 'all' || categoryFilter !== null) {
       return baseItems.filter((s) => (s.solvedChallenges?.length ?? 0) > 0)
     }
 
     return baseItems.filter((s) => s.rank > 0)
-  }, [scoreboard, debouncedKeyword, divisionId, view.items, rankScope])
+  }, [scoreboard, debouncedKeyword, divisionId, view.items, groupScope, categoryFilter])
 
   useEffect(() => {
     setDivisionId(null)
@@ -462,23 +469,25 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
           </Grid.Col>
           <Grid.Col span={3}>
             <Select
-              data={rankScopeOptions}
-              value={
-                rankScope.kind === 'all'
-                  ? 'all'
-                  : rankScope.kind === 'category'
-                    ? `cat:${rankScope.category}`
-                    : rankScope.kind
-              }
+              data={groupOptions}
+              value={groupScope}
+              placeholder="全部队伍"
               onChange={(value) => {
-                if (!value || value === 'all') setRankScope({ kind: 'all' })
-                else if (value === 'senior') setRankScope({ kind: 'senior' })
-                else if (value === 'freshman') setRankScope({ kind: 'freshman' })
-                else if (value.startsWith('cat:')) {
-                  setRankScope({ kind: 'category', category: value.slice(4) as ChallengeCategory })
-                }
-                // 合并 / 方向排名与单个赛区互斥
+                setGroupScope((value ?? 'all') as GroupScope)
+                // 合并分组与单个赛区互斥
                 setDivisionId(null)
+                setPage(1)
+              }}
+              leftSection={<Icon path={mdiAccountGroup} size={1} />}
+            />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <Select
+              data={categoryOptions}
+              value={categoryFilter ?? 'all'}
+              placeholder="全部方向"
+              onChange={(value) => {
+                setCategoryFilter(!value || value === 'all' ? null : (value as ChallengeCategory))
                 setPage(1)
               }}
               leftSection={<Icon path={mdiFlagOutline} size={1} />}
