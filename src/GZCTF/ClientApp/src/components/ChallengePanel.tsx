@@ -78,7 +78,6 @@ export const ChallengePanel: FC = () => {
   }
 
   const [week, setWeek] = useState<number | null>(null)
-  const [onlyOpen, setOnlyOpen] = useState(false)
 
   /// 默认只看「当前周 + 挑战题 + 其他题」；用户手动切换后按其选择
   const defaultWeeks = useMemo(() => {
@@ -110,7 +109,6 @@ export const ChallengePanel: FC = () => {
       ? (challenges[activeTab] ?? []).filter(matchScope)
       : allChallenges.filter(matchScope)
     )
-      .filter((chal) => !onlyOpen || isOpen(chal))
       .filter(
         (chal) =>
           !hideSolved || (teamInfo && teamInfo.rank?.solvedChallenges?.find((c) => c.id === chal.id)) === undefined
@@ -243,12 +241,6 @@ export const ChallengePanel: FC = () => {
               value={activeTab === 'All' ? null : activeTab}
               onChange={(value) => setActiveTab((value ?? 'All') as ChallengeCategory | 'All')}
               data={categories.map((c) => ({ value: c, label: c }))}
-            />
-            <Switch
-              size="xs"
-              checked={onlyOpen}
-              onChange={(e) => setOnlyOpen(e.currentTarget.checked)}
-              label="只看当前可做"
             />
           </Stack>
         )}
