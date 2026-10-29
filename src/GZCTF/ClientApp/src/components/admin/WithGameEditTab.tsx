@@ -4,6 +4,7 @@ import {
   mdiBullhornOutline,
   mdiCalendarWeek,
   mdiFileDocumentCheckOutline,
+  mdiFileDocumentOutline,
   mdiFlagOutline,
   mdiKeyboardBackspace,
   mdiTagOutline,
@@ -51,6 +52,7 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
     { icon: mdiFlagOutline, title: t('admin.tab.games.challenges'), path: 'challenges' },
     { icon: mdiCalendarWeek, title: '周次设置', path: 'weeks' },
     { icon: mdiTagOutline, title: t('admin.tab.games.divisions'), path: 'divisions' },
+    { icon: mdiFileDocumentOutline, title: '挑战题WP', path: 'challengeWriteups' },
     { icon: mdiAccountGroupOutline, title: t('admin.tab.games.review'), path: 'review' },
     { icon: mdiFileDocumentCheckOutline, title: t('admin.tab.games.writeups'), path: 'writeups' },
   ]

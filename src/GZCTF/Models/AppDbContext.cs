@@ -36,6 +36,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
     public DbSet<GameNotice> GameNotices { get; set; } = null!;
     public DbSet<FlagContext> FlagContexts { get; set; } = null!;
     public DbSet<Participation> Participations { get; set; } = null!;
+    /// <summary>
+    /// 挑战题解题思路（WP）提交与人工加分
+    /// </summary>
+    public DbSet<ChallengeWriteup> ChallengeWriteups { get; set; } = null!;
     public DbSet<GameInstance> GameInstances { get; set; } = null!;
     public DbSet<GameChallenge> GameChallenges { get; set; } = null!;
     public DbSet<FirstSolve> FirstSolves { get; set; } = null!;
@@ -113,6 +117,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
             v => v.Aggregate(0, (acc, i) => HashCode.Combine(acc, i.Id, i.From, i.To, i.Label)),
             v => v.ToList());
 
+        builder.Entity<ChallengeWriteup>(entity =>
+        {
+            // 每支队伍对每道题只能有一份 WP
+            entity.HasIndex(e => new { e.ParticipationId, e.ChallengeId }).IsUnique();
+            entity.HasIndex(e => e.GameId);
+
+            entity.HasOne(e => e.Game)
+                .WithMany()
+                .HasForeignKey(e => e.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Participation)
+                .WithMany()
+                .HasForeignKey(e => e.ParticipationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Challenge)
+                .WithMany()
+                .HasForeignKey(e => e.ChallengeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.File)
+                .WithMany()
+                .HasForeignKey(e => e.FileId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.AwardedBy)
+                .WithMany()
+                .HasForeignKey(e => e.AwardedById)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
         builder.Entity<School>(entity =>
         {
             // 学校标识（即学校名称）是登录路由标识，必须唯一

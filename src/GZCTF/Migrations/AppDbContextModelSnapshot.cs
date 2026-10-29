@@ -984,6 +984,58 @@ namespace GZCTF.Migrations
                     b.ToTable("Posts");
                 });
 
+            modelBuilder.Entity("GZCTF.Models.Data.ChallengeWriteup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset?>("AwardedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AwardedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AwardedScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChallengeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("FileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParticipationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("SubmitTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AwardedById");
+
+                    b.HasIndex("ChallengeId");
+
+                    b.HasIndex("FileId");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("ParticipationId", "ChallengeId")
+                        .IsUnique();
+
+                    b.ToTable("ChallengeWriteups");
+                });
+
             modelBuilder.Entity("GZCTF.Models.Data.School", b =>
                 {
                     b.Property<int>("Id")
@@ -1832,6 +1884,44 @@ namespace GZCTF.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("GZCTF.Models.Data.ChallengeWriteup", b =>
+                {
+                    b.HasOne("GZCTF.Models.Data.UserInfo", "AwardedBy")
+                        .WithMany()
+                        .HasForeignKey("AwardedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("GZCTF.Models.Data.GameChallenge", "Challenge")
+                        .WithMany()
+                        .HasForeignKey("ChallengeId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("GZCTF.Models.Data.LocalFile", "File")
+                        .WithMany()
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("GZCTF.Models.Data.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("GZCTF.Models.Data.Participation", "Participation")
+                        .WithMany()
+                        .HasForeignKey("ParticipationId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("AwardedBy");
+
+                    b.Navigation("Challenge");
+
+                    b.Navigation("File");
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Participation");
                 });
 
             modelBuilder.Entity("GZCTF.Models.Data.School", b =>

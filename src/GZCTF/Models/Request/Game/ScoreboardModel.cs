@@ -220,6 +220,11 @@ public partial class ScoreboardItem
     public int Score { get; set; }
 
     /// <summary>
+    /// 人工加分（挑战题 WP 审核后给分），已计入 <see cref="Score"/>
+    /// </summary>
+    public int BonusScore { get; set; }
+
+    /// <summary>
     /// Rank
     /// </summary>
     [Required]

@@ -533,6 +533,27 @@ public class GameRepository(
             scoreboardItem.LastSubmissionTime = item.SubmitTimeUtc;
         }
 
+        // 5.4 apply manual writeup bonuses (挑战题 WP 审核加分)
+        var writeupBonuses = await Context.ChallengeWriteups.AsNoTracking()
+            .Where(w => w.GameId == game.Id && w.AwardedScore > 0)
+            .GroupBy(w => w.ParticipationId)
+            .Select(g => new { ParticipationId = g.Key, Total = g.Sum(x => x.AwardedScore) })
+            .ToListAsync(token);
+
+        if (writeupBonuses.Count > 0)
+        {
+            var byParticipant = items.Values.ToDictionary(i => i.ParticipantId);
+
+            foreach (var bonus in writeupBonuses)
+            {
+                if (!byParticipant.TryGetValue(bonus.ParticipationId, out var scoreboardItem))
+                    continue;
+
+                scoreboardItem.BonusScore += bonus.Total;
+                scoreboardItem.Score += bonus.Total;
+            }
+        }
+
         // 6. sort scoreboard items by score and last submission time
         items = items.Values
             .OrderByDescending(i => i.Score)

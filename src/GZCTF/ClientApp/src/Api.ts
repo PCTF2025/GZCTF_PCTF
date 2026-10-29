@@ -1033,6 +1033,54 @@ export interface TeamDivisionUpdateModel {
   divisionId?: number | null;
 }
 
+
+/** 挑战题 WP：队伍视角 */
+export interface ChallengeWriteupListModel {
+  items: ChallengeWriteupItemModel[];
+}
+
+export interface ChallengeWriteupItemModel {
+  challengeId: number;
+  title: string;
+  category: string;
+  /** 是否挑战题 */
+  isChallengeBucket?: boolean;
+  solved?: boolean;
+  submitted?: boolean;
+  submitTimeUtc?: string | null;
+  /** 已获得加分 */
+  awardedScore?: number;
+  reviewNote?: string | null;
+  fileName?: string | null;
+}
+
+/** 挑战题 WP：审核视角 */
+export interface ChallengeWriteupReviewListModel {
+  items: ChallengeWriteupReviewItemModel[];
+}
+
+export interface ChallengeWriteupReviewItemModel {
+  id: number;
+  teamId?: number;
+  teamName: string;
+  challengeId?: number;
+  challengeTitle: string;
+  category: string;
+  submitTimeUtc?: string;
+  awardedScore?: number;
+  awardedAtUtc?: string | null;
+  reviewNote?: string | null;
+  fileName?: string | null;
+}
+
+/** 加分请求 */
+export interface ChallengeWriteupAwardModel {
+  /** 加分数值 */
+  score: number;
+  /** 审核备注 */
+  note?: string | null;
+}
+
 export interface SchoolStatsModel {
   /** 报名总人数 */
   total?: number;
@@ -5409,6 +5457,85 @@ export class Api<
         ...params,
       }),
   };
+  challengeWriteup = {
+    /**
+     * @description 队伍视角：已解出题目与 WP 提交状态
+     * @name ChallengeWriteupList
+     * @request GET:/api/challengewriteup/Games/{gameId}
+     */
+    challengeWriteupList: (gameId: number, params: RequestParams = {}) =>
+      this.request<ChallengeWriteupListModel, RequestResponse>({
+        path: `/api/challengewriteup/Games/${gameId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useChallengeWriteupList: (gameId: number, options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<ChallengeWriteupListModel, RequestResponse>(
+        doFetch && gameId > 0 ? `/api/challengewriteup/Games/${gameId}` : null,
+        options,
+      ),
+
+    /**
+     * @description 上传某道题的解题思路（PDF）
+     * @name ChallengeWriteupUpload
+     * @request POST:/api/challengewriteup/Games/{gameId}/Challenges/{challengeId}
+     */
+    challengeWriteupUpload: (
+      gameId: number,
+      challengeId: number,
+      data: {
+        /** @format binary */
+        file?: File | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<void, RequestResponse>({
+        path: `/api/challengewriteup/Games/${gameId}/Challenges/${challengeId}`,
+        method: "POST",
+        body: data,
+        type: ContentType.FormData,
+        ...params,
+      }),
+
+    /**
+     * @description 审核视角：某场比赛的全部 WP 提交
+     * @name ChallengeWriteupReview
+     * @request GET:/api/challengewriteup/Games/{gameId}/Review
+     */
+    challengeWriteupReview: (gameId: number, params: RequestParams = {}) =>
+      this.request<ChallengeWriteupReviewListModel, RequestResponse>({
+        path: `/api/challengewriteup/Games/${gameId}/Review`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useChallengeWriteupReview: (gameId: number, options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<ChallengeWriteupReviewListModel, RequestResponse>(
+        doFetch && gameId > 0 ? `/api/challengewriteup/Games/${gameId}/Review` : null,
+        options,
+      ),
+
+    /**
+     * @description 审核加分
+     * @name ChallengeWriteupAward
+     * @request POST:/api/challengewriteup/{id}/Award
+     */
+    challengeWriteupAward: (id: number, data: ChallengeWriteupAwardModel, params: RequestParams = {}) =>
+      this.request<void, RequestResponse>({
+        path: `/api/challengewriteup/${id}/Award`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        ...params,
+      }),
+
+    /** 下载 WP 文件地址 */
+    challengeWriteupFileUrl: (id: number) => `/api/challengewriteup/${id}/File`,
+  }
+
   game = {
     /**
      * @description Retrieves all challenges of the game; requires User permission and active team participation

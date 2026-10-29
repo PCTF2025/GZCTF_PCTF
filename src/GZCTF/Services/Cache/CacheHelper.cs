@@ -244,7 +244,8 @@ public static class CacheKey
     /// <summary>
     /// Scoreboard cache
     /// </summary>
-    public static string ScoreBoard(int id) => $"_ScoreBoard_{id}";
+    // v2：ScoreboardItem 增加 BonusScore 字段，旧缓存结构不兼容，换键后自然失效
+    public static string ScoreBoard(int id) => $"_ScoreBoard_v2_{id}";
 
     /// <summary>
     /// Scoreboard cache
