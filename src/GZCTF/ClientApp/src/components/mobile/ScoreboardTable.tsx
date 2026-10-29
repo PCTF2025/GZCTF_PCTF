@@ -22,9 +22,10 @@ const TableRow: FC<{
   const theme = useMantineTheme()
   const solved = item.solvedChallenges
 
+  // 后端总分包含挑战题 WP 人工加分
   const totalScore = useMemo(() => {
-    return solved?.reduce((acc, cur) => acc + (cur?.score ?? 0), 0) ?? 0
-  }, [solved])
+    return item.score ?? (solved?.reduce((acc, cur) => acc + (cur?.score ?? 0), 0) ?? 0)
+  }, [item.score, solved])
 
   return (
     <Table.Tr>

@@ -156,9 +156,13 @@ const TableRow: FC<{
     }
   }, [iconMap, theme, colorScheme])
 
-  const totalScore = useMemo(() => {
+  const solvedTotal = useMemo(() => {
     return solved?.reduce((acc, cur) => acc + (cur?.score ?? 0), 0) ?? 0
   }, [solved])
+
+  // 后端总分包含挑战题 WP 人工加分；前端自行求和会漏掉这部分
+  const totalScore = item.score ?? solvedTotal
+  const bonusScore = item.bonusScore ?? 0
 
   return (
     <Table.Tr>
@@ -194,7 +198,15 @@ const TableRow: FC<{
         {solved?.length}
       </Table.Td>
       <Table.Td className={cx(classes.mono, classes.left)} style={{ left: Lefts[4] }}>
-        {totalScore}
+        {bonusScore > 0 ? (
+          <Tooltip label={`含挑战题加分 +${bonusScore}`}>
+            <Text component="span" fw="bold">
+              {totalScore}
+            </Text>
+          </Tooltip>
+        ) : (
+          totalScore
+        )}
       </Table.Td>
       {challenges &&
         Object.keys(challenges).map((key) =>

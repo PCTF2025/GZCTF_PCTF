@@ -2247,6 +2247,8 @@ export interface ScoreboardItem {
    * @format int32
    */
   score: number;
+  /** 人工加分（挑战题 WP 审核），已计入 score */
+  bonusScore?: number;
   /**
    * Rank
    * @format int32
