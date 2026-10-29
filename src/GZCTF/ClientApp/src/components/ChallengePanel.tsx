@@ -228,9 +228,10 @@ export const ChallengePanel: FC = () => {
               data={[
                 { value: 'default', label: '默认（本周+挑战+其他）' },
                 { value: 'all', label: '全部题目' },
+                // 未开放的周次不下发题目，也就不在筛选里列出
                 ...buckets
-                  .filter((b) => b.key != null)
-                  .map((b) => ({ value: String(b.key), label: `${b.name}${b.isOpen ? '' : '（未开放）'}` })),
+                  .filter((b) => b.key != null && b.isOpen)
+                  .map((b) => ({ value: String(b.key), label: b.name ?? `第 ${b.key} 周` })),
               ]}
             />
             <Select

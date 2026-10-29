@@ -850,6 +850,31 @@ public class GameController(
             challenges = FilterChallengesByPermission(scoreboard.Challenges, division);
         }
 
+        // 未开放周次的题目不下发给选手，避免提前看到题目标题
+        if (context.Game!.WeekModeEnabled)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var weekById = await dbContext.GameChallenges.AsNoTracking()
+                .Where(c => c.GameId == context.Game!.Id)
+                .Select(c => new { c.Id, c.Week })
+                .ToDictionaryAsync(c => c.Id, c => c.Week, token);
+
+            var visible = new Dictionary<ChallengeCategory, IEnumerable<ChallengeInfo>>();
+
+            foreach (var (category, list) in challenges)
+            {
+                var filtered = list
+                    .Where(c => !weekById.TryGetValue(c.Id, out var week) ||
+                                context.Game.IsChallengeOpen(week, now))
+                    .ToList();
+
+                if (filtered.Count > 0)
+                    visible[category] = filtered;
+            }
+
+            challenges = visible;
+        }
+
         var boardItem = scoreboard.Items.TryGetValue(context.Participation!.TeamId, out var item)
             ? item
             : new()
