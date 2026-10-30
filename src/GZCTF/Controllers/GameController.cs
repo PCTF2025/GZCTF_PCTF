@@ -1048,6 +1048,16 @@ public class GameController(
         var instance = await gameInstanceRepository.GetInstance(context.Participation!, challengeId, token);
 
         if (instance is null)
+        {
+            // 兼容「报名之后才启用的题目」：报名时只会为当时已启用的题目建实例，
+            // 之后新加的题在老参与者名下没有实例，直接 404 会让前端一直卡在加载态。
+            // 这里按需补建一次再重查。
+            await participationRepository.EnsureInstances(context.Participation!, context.Game!, token);
+
+            instance = await gameInstanceRepository.GetInstance(context.Participation!, challengeId, token);
+        }
+
+        if (instance is null)
             return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Game_ChallengeNotFound)],
                 StatusCodes.Status404NotFound));
 

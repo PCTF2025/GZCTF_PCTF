@@ -79,9 +79,15 @@ public class InternalFlagRequest
     [Range(1, int.MaxValue)]
     public int ChallengeId { get; set; }
 
-    /// <summary>队伍 Token（比赛详情页可见）</summary>
+    /// <summary>
+    /// 队伍 Token（比赛详情页可见）
+    /// </summary>
+    /// <remarks>
+    /// 实际格式为 <c>{队伍ID}:{Base64(64字节)}</c>，长度约 90 字符，
+    /// 上限必须留足余量，否则会被模型校验拦下并返回 400。
+    /// </remarks>
     [Required]
-    [MaxLength(64)]
+    [MaxLength(200)]
     public string TeamToken { get; set; } = string.Empty;
 }
 
