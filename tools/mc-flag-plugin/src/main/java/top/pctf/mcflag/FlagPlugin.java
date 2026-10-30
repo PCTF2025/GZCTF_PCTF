@@ -68,11 +68,28 @@ public class FlagPlugin extends JavaPlugin implements Listener {
     private int gameId;
 
     // 门卫：站在指定点附近、主手拿着名字内涵 ops 的物品即可开闸
+    // 外侧压力板用于进、内侧压力板用于出；开门后只要有人跨过闸门就立即关闭，
+    // 因此一次只放一个人通过。关闭时恢复原始方块（铁栏杆），不会变成基岩。
     private boolean gateEnabled;
-    private org.bukkit.Location gatePoint;
+    private org.bukkit.Location gateOuter;
+    private org.bukkit.Location gateInner;
     private double gateRadius;
     private boolean gateOpened;
+    /** 本次开门是从外侧（进）还是内侧（出）触发的 */
+    private boolean gateOpenedFromOuter;
+    private long gateOpenedAt;
+    /** 兜底：压力板被踩住不放时，最多开这么久 */
+    private long gateMaxOpenMs;
+    /** 门卫室内部区域，用来判断「是否已跨过闸门」 */
+    private org.bukkit.util.BoundingBox gateInterior;
+    /** 本次开门的玩家，只有他跨过闸门才关门（避免无关玩家误触发） */
+    private java.util.UUID gateOpener;
+    /** 压力板「已武装」：踩过一次后必须离开才能再次开，防止站着不动反复开关 */
+    private boolean outerArmed = true;
+    private boolean innerArmed = true;
     private final java.util.List<org.bukkit.Location> gateBlocks = new java.util.ArrayList<>();
+    /** 闸门各格开门前的原始方块，关门时原样恢复 */
+    private final java.util.Map<org.bukkit.Location, org.bukkit.Material> gateOriginal = new java.util.HashMap<>();
 
     private boolean packEnabled;
     private String packUrl;
@@ -346,18 +363,26 @@ public class FlagPlugin extends JavaPlugin implements Listener {
     private void loadGateConfig() {
         gateEnabled = getConfig().getBoolean("gate.enabled", false);
         gateRadius = getConfig().getDouble("gate.radius", 2.0);
+        gateMaxOpenMs = getConfig().getLong("gate.max-open-seconds", 15) * 1000L;
         gateOpened = false;
+        gateOpenedFromOuter = false;
         gateBlocks.clear();
+        gateOriginal.clear();
 
         String world = getConfig().getString("gate.world", "world");
         org.bukkit.World w = getServer().getWorld(world);
         if (w == null)
             return;
 
-        gatePoint = new org.bukkit.Location(w,
-                getConfig().getDouble("gate.x", 0),
-                getConfig().getDouble("gate.y", 64),
-                getConfig().getDouble("gate.z", 0));
+        gateOuter = readPoint(w, "gate.outer");
+        gateInner = readPoint(w, "gate.inner");
+
+        // 兼容旧配置（只有 gate.x/y/z）：把它当作外侧压力板
+        if (gateOuter == null)
+            gateOuter = new org.bukkit.Location(w,
+                    getConfig().getDouble("gate.x", 0),
+                    getConfig().getDouble("gate.y", 64),
+                    getConfig().getDouble("gate.z", 0));
 
         for (String key : getConfig().getStringList("gate.blocks")) {
             String[] parts = key.split(",");
@@ -369,10 +394,119 @@ public class FlagPlugin extends JavaPlugin implements Listener {
                     Double.parseDouble(parts[2].trim())));
         }
 
+        // 内部区域：缺省时按闸门位置往「门内」推 1~6 格
+        String interior = getConfig().getString("gate.interior", "");
+        if (interior != null && !interior.isBlank()) {
+            double[] v = parseSix(interior);
+            if (v != null)
+                gateInterior = new org.bukkit.util.BoundingBox(v[0], v[1], v[2], v[3], v[4], v[5]);
+        }
+
         getLogger().info("门卫：" + (gateEnabled
-                ? "启用 @ " + gatePoint.getBlockX() + "," + gatePoint.getBlockY() + "," + gatePoint.getBlockZ()
-                  + " 闸门 " + gateBlocks.size() + " 格"
+                ? "启用  外侧 " + fmt(gateOuter) + "  内侧 " + fmt(gateInner)
+                  + "  闸门 " + gateBlocks.size() + " 格"
+                  + (gateInterior == null ? "（未配置内部区域，跨门判定关闭）" : "")
                 : "关闭"));
+    }
+
+    private org.bukkit.Location readPoint(org.bukkit.World w, String path) {
+        if (!getConfig().isConfigurationSection(path))
+            return null;
+        return new org.bukkit.Location(w,
+                getConfig().getDouble(path + ".x"),
+                getConfig().getDouble(path + ".y"),
+                getConfig().getDouble(path + ".z"));
+    }
+
+    private static double[] parseSix(String s) {
+        String[] parts = s.split(",");
+        if (parts.length != 6)
+            return null;
+        double[] v = new double[6];
+        try {
+            for (int i = 0; i < 6; i++)
+                v[i] = Double.parseDouble(parts[i].trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return v;
+    }
+
+    private static String fmt(org.bukkit.Location l) {
+        return l == null ? "(未配置)"
+                : l.getBlockX() + "," + l.getBlockY() + "," + l.getBlockZ();
+    }
+
+    // ==================== 门卫逻辑 ====================
+
+    private org.bukkit.World getWorldOfGate() {
+        if (gateOuter != null)
+            return gateOuter.getWorld();
+        if (gateInner != null)
+            return gateInner.getWorld();
+        return gateBlocks.isEmpty() ? null : gateBlocks.get(0).getWorld();
+    }
+
+    /** 主手物品的显示名是否包含 ops */
+    private boolean holdsOpsBadge(Player p) {
+        org.bukkit.inventory.ItemStack hand = p.getInventory().getItemInMainHand();
+        if (hand == null || hand.getType() == org.bukkit.Material.AIR)
+            return false;
+        org.bukkit.inventory.meta.ItemMeta meta = hand.getItemMeta();
+        return meta != null && meta.getDisplayName() != null && meta.getDisplayName().contains("ops");
+    }
+
+    /**
+     * 开门者本人是否已经跨过闸门。
+     * 只认开门者，其他玩家走过来不会误触发，从而保证「一次只放一个人」。
+     * 从外侧开的：等他真正进到门内（z 越过闸门）才关门；
+     * 从内侧开的：等他真正走到门外才关门。
+     */
+    private boolean openerAcross() {
+        if (gateOpener == null)
+            return false;
+        Player p = getServer().getPlayer(gateOpener);
+        if (p == null || p.getWorld() != getWorldOfGate())
+            return false;
+
+        // 只按内部区域判定：外侧开的等他进到门内，内侧开的等他走到门外。
+        // 内部区域上界要含住内侧压力板所在位置，否则站在板上就会被误判为「已跨出」。
+        boolean inside = gateInterior.contains(p.getLocation().toVector());
+        return gateOpenedFromOuter ? inside : !inside;
+    }
+
+    private void openGate(Player p, boolean fromOuter) {
+        gateOpened = true;
+        gateOpener = p.getUniqueId();
+        gateOpenedFromOuter = fromOuter;
+        gateOpenedAt = System.currentTimeMillis();
+
+        gateOriginal.clear();
+        for (org.bukkit.Location loc : gateBlocks) {
+            org.bukkit.block.Block b = loc.getBlock();
+            gateOriginal.put(loc, b.getType());   // 记住原始方块（铁栏杆）
+            b.setType(org.bukkit.Material.AIR);
+        }
+
+        broadcast("§a[门卫] 工牌通过，闸门开了——只放一个人过。");
+        getLogger().info("门卫开闸：" + p.getName() + " 持 " + p.getInventory().getItemInMainHand()
+                .getItemMeta().getDisplayName() + (fromOuter ? "（从外侧进）" : "（从内侧出）"));
+    }
+
+    /** 关门：恢复原始方块，绝不替换成基岩 */
+    private void closeGate(String reason) {
+        for (java.util.Map.Entry<org.bukkit.Location, org.bukkit.Material> e : gateOriginal.entrySet())
+            e.getKey().getBlock().setType(e.getValue());
+        gateOriginal.clear();
+
+        gateOpened = false;
+        gateOpenedFromOuter = false;
+        gateOpener = null;
+        broadcast("§7[门卫] 闸门已关闭" + (reason == null ? "" : "（" + reason + "）") + "。");
+    }
+
+    private void broadcast(String msg) {
+        getServer().broadcastMessage(msg);
     }
 
     private void loadPackConfig() {
@@ -420,53 +554,56 @@ public class FlagPlugin extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 40L, 40L);
 
-        // 每秒检查门卫：站在压力板上 + 主手拿着名为 ops 的物品 → 开闸
+        // 门卫：站在压力板附近 + 主手拿着名字含 ops 的物品 → 开闸
+        // 开门后一旦有人跨过闸门（外侧开的则有人进入，内侧开的则有人出去）立即关门，
+        // 所以一次只放一个人通过；超出 max-open-seconds 也会自动关，避免被踩住不放。
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (!gateEnabled || gateOpened || gatePoint == null)
+                if (!gateEnabled)
+                    return;
+
+                if (gateOpened) {
+                    boolean timeout = System.currentTimeMillis() - gateOpenedAt > gateMaxOpenMs;
+                    boolean crossed = gateInterior != null && openerAcross();
+                    if (timeout || crossed)
+                        closeGate(crossed ? "有人通过" : "超时");
+                    return;
+                }
+
+                if (gateOuter == null && gateInner == null)
                     return;
 
                 for (Player p : getServer().getOnlinePlayers()) {
                     if (!online.contains(p.getUniqueId()))
                         continue;
-                    if (p.getWorld() != gatePoint.getWorld())
-                        continue;
-                    if (p.getLocation().distance(gatePoint) > gateRadius)
+                    if (p.getWorld() != getWorldOfGate())
                         continue;
 
-                    org.bukkit.inventory.ItemStack hand = p.getInventory().getItemInMainHand();
-                    if (hand == null || hand.getType() == org.bukkit.Material.AIR)
+                    boolean atOuter = gateOuter != null && p.getLocation().distance(gateOuter) <= gateRadius;
+                    boolean atInner = gateInner != null && p.getLocation().distance(gateInner) <= gateRadius;
+
+                    // 已经踩着的板需要「先离开」才能再次触发，否则站着不动会一次一次重开
+                    if (!atOuter)
+                        outerArmed = true;
+                    if (!atInner)
+                        innerArmed = true;
+
+                    if (!holdsOpsBadge(p))
                         continue;
-
-                    org.bukkit.inventory.meta.ItemMeta meta = hand.getItemMeta();
-                    if (meta == null || meta.getDisplayName() == null)
-                        continue;
-
-                    if (!meta.getDisplayName().contains("ops"))
-                        continue;
-
-                    gateOpened = true;
-                    for (org.bukkit.Location loc : gateBlocks)
-                        loc.getBlock().setType(org.bukkit.Material.AIR);
-
-                    getServer().broadcastMessage(ChatColor.GREEN + "[门卫] 工牌通过，闸门开了 10 秒。");
-                    getLogger().info("门卫开闸：" + p.getName() + " 持 " + meta.getDisplayName());
-
-                    // 10 秒后自动关上，保证每个人都要自己动手
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            for (org.bukkit.Location loc : gateBlocks)
-                                loc.getBlock().setType(org.bukkit.Material.BEDROCK);
-                            gateOpened = false;
-                            getServer().broadcastMessage(ChatColor.GRAY + "[门卫] 闸门已关闭。");
-                        }
-                    }.runTaskLater(FlagPlugin.this, 200L);
-                    break;
+                    if (atOuter && outerArmed) {
+                        outerArmed = false;
+                        openGate(p, true);
+                        break;
+                    }
+                    if (atInner && innerArmed) {
+                        innerArmed = false;
+                        openGate(p, false);
+                        break;
+                    }
                 }
             }
-        }.runTaskTimer(this, 40L, 20L);
+        }.runTaskTimer(this, 40L, 2L);
 
         // 每 5 秒扫一次，只踢「自己进服超过 90 秒仍未登录」的玩家
         new BukkitRunnable() {
