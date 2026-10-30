@@ -478,13 +478,21 @@ public class GameInstanceRepository(
         if (instance!.FlagContext is not null)
             return instance.FlagContext.Flag;
 
-        var flag = new FlagContext { Flag = challenge.GenerateDynamicFlag(part) };
-        instance.FlagContext = flag;
+        var flag = new FlagContext
+        {
+            Flag = challenge.GenerateDynamicFlag(part),
+            ChallengeId = challengeId
+        };
         Context.FlagContexts.Add(flag);
 
         if (isNewInstance)
             Context.GameInstances.Add(instance);
 
+        await Context.SaveChangesAsync(token);
+
+        // 显式回写外键：只设导航属性时 EF 不一定同步 FlagId
+        instance.FlagId = flag.Id;
+        instance.FlagContext = flag;
         await Context.SaveChangesAsync(token);
 
         return flag.Flag;
@@ -527,9 +535,16 @@ public class GameInstanceRepository(
                 var chal = await Context.GameChallenges.AsNoTracking()
                     .SingleAsync(c => c.Id == submission.ChallengeId, token);
 
-                var externalFlag = new FlagContext { Flag = chal.GenerateDynamicFlag(part) };
-                instance.FlagContext = externalFlag;
+                var externalFlag = new FlagContext
+                {
+                    Flag = chal.GenerateDynamicFlag(part),
+                    ChallengeId = submission.ChallengeId
+                };
                 Context.FlagContexts.Add(externalFlag);
+                await Context.SaveChangesAsync(token);
+
+                instance.FlagId = externalFlag.Id;
+                instance.FlagContext = externalFlag;
                 await Context.SaveChangesAsync(token);
             }
 

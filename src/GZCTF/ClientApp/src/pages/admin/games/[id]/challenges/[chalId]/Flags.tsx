@@ -55,6 +55,11 @@ const OneAttachmentWithFlags: FC<FlagEditProps> = ({ onDelete }) => {
   const [remoteUrl, setRemoteUrl] = useState(challenge?.attachment?.url ?? '')
   const [flagTemplate, setFlagTemplate] = useState(challenge?.flagTemplate ?? '')
 
+  /// 动态计算 flag 的题型：动态容器题、外部动态 flag 题（共用服务器，如 Minecraft）
+  const dynamicFlag =
+    challenge?.type === ChallengeType.DynamicContainer ||
+    challenge?.type === ChallengeType.DynamicExternal
+
   const modals = useModals()
   const { colorScheme } = useMantineColorScheme()
   const { t } = useTranslation()
@@ -276,7 +281,7 @@ const OneAttachmentWithFlags: FC<FlagEditProps> = ({ onDelete }) => {
       </Group>
       <Group justify="space-between" mt="md">
         <Title order={2}>{t('admin.content.games.challenges.flag.title')}</Title>
-        {challenge?.type === ChallengeType.DynamicContainer ? (
+        {dynamicFlag ? (
           <Button disabled={disabled} onClick={onChangeFlagTemplate}>
             {t('admin.button.challenges.flag.save')}
           </Button>
@@ -287,7 +292,7 @@ const OneAttachmentWithFlags: FC<FlagEditProps> = ({ onDelete }) => {
         )}
       </Group>
       <Divider />
-      {challenge?.type === ChallengeType.DynamicContainer ? (
+      {dynamicFlag ? (
         <Stack>
           <TextInput
             label={t('admin.content.games.challenges.flag.template')}

@@ -5,3 +5,11 @@ api-key: "change-me"
 # 题目所属比赛与题目 ID
 game-id: 1
 challenge-id: 0
+
+# 强制资源包开关（按周次启停，无需重启服务器）
+# 第一周关闭，第二周用 /mcpack on 打开
+resource-pack:
+  enabled: false
+  url: ""
+  sha1: ""
+  required: true

@@ -1,42 +1,85 @@
 package top.pctf.mcflag;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.File;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.security.SecureRandom;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 共用服务器动态 flag 插件。
+ * PCTF 服务器插件：登录 + 领取码换 flag + 资源包开关
  *
- * 玩家用自己队伍的 Token 执行 /bind，插件向 GZCTF 内部接口兑换该队伍专属的 flag，
- * 之后用 /flag 查看。每队 flag 不同，把别队的 flag 交上去会被平台判定为作弊。
+ * 玩家流程：
+ *   /register <密码> <密码> <队伍Token>   注册（必须绑定队伍 Token）
+ *   /login <密码>                        登录（每次进服都要）
+ *   /claim <领取码>                       换取自己队伍的 flag
+ *   /flag                                查看已领取的 flag
+ *
+ * 未登录时不能移动、聊天、破坏/放置方块、受伤。
  */
-public class FlagPlugin extends JavaPlugin {
+public class FlagPlugin extends JavaPlugin implements Listener {
 
     private static final Pattern FLAG_PATTERN = Pattern.compile("\"flag\"\\s*:\\s*\"([^\"]+)\"");
+    private static final int MAX_ATTEMPTS = 5;
+    private static final int LOGIN_TIMEOUT_SEC = 90;
 
-    /** 玩家 UUID -> 队伍 Token */
-    private final Map<UUID, String> bindings = new HashMap<>();
-    /** 玩家 UUID -> 已兑换的 flag */
-    private final Map<UUID, String> flags = new HashMap<>();
+    /** 小写玩家名 -> 账号 */
+    private static final class Account {
+        String name;
+        String salt;
+        String hash;
+        String teamToken;
+        Map<String, String> claims = new LinkedHashMap<>();
+    }
+
+    private final Map<String, Account> accounts = new HashMap<>();
+    private final Set<UUID> online = new HashSet<>();
+    private final Map<UUID, Integer> attempts = new HashMap<>();
+    private final Map<UUID, Location> frozen = new HashMap<>();
+    /** 进服时间，用于「每个玩家」的登录超时 */
+    private final Map<UUID, Long> joinedAt = new HashMap<>();
+    private final Map<String, Integer> codes = new LinkedHashMap<>();
 
     private String apiUrl;
     private String apiKey;
     private int gameId;
-    private int challengeId;
+
+    // 门卫：站在指定点附近、主手拿着名字内涵 ops 的物品即可开闸
+    private boolean gateEnabled;
+    private org.bukkit.Location gatePoint;
+    private double gateRadius;
+    private boolean gateOpened;
+    private final java.util.List<org.bukkit.Location> gateBlocks = new java.util.ArrayList<>();
+
+    private boolean packEnabled;
+    private String packUrl;
+    private String packSha1;
+    private boolean packRequired;
+
+    private final SecureRandom random = new SecureRandom();
 
     @Override
     public void onEnable() {
@@ -44,26 +87,45 @@ public class FlagPlugin extends JavaPlugin {
         apiUrl = getConfig().getString("api-url", "http://127.0.0.1:8080/api/internal/flag");
         apiKey = getConfig().getString("api-key", "");
         gameId = getConfig().getInt("game-id", 1);
-        challengeId = getConfig().getInt("challenge-id", 0);
 
-        loadBindings();
-        getLogger().info("MCFlag 已启用：game=" + gameId + " challenge=" + challengeId + " api=" + apiUrl);
+        loadCodes();
+        loadAccounts();
+        loadPackConfig();
+        loadGateConfig();
+        getServer().getPluginManager().registerEvents(this, this);
+        startAuthTicker();
+
+        getLogger().info("PCTF 插件已启用：game=" + gameId
+                + " 账号 " + accounts.size() + " 个，领取码 " + codes.size() + " 个");
+        getLogger().info("强制资源包：" + (packEnabled ? "开启 -> " + packUrl : "关闭"));
     }
 
     @Override
     public void onDisable() {
-        saveBindings();
+        saveAccounts();
     }
+
+    // ==================== 命令 ====================
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        String name = command.getName().toLowerCase();
+
+        if (name.equals("mcpack")) {
+            handlePack(sender, args);
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
             sender.sendMessage("该命令只能由玩家执行");
             return true;
         }
 
-        switch (command.getName().toLowerCase()) {
+        switch (name) {
+            case "register" -> handleRegister(player, args);
+            case "login" -> handleLogin(player, args);
             case "bind" -> handleBind(player, args);
+            case "claim" -> handleClaim(player, args);
             case "flag" -> handleFlag(player);
             default -> {
                 return false;
@@ -72,124 +134,519 @@ public class FlagPlugin extends JavaPlugin {
         return true;
     }
 
-    private void handleBind(Player player, String[] args) {
+    private void handleRegister(Player player, String[] args) {
+        String key = player.getName().toLowerCase();
+
+        if (accounts.containsKey(key)) {
+            player.sendMessage(ChatColor.YELLOW + "该账号已注册，请用 /login <密码>");
+            return;
+        }
+
+        if (args.length != 3) {
+            player.sendMessage(ChatColor.YELLOW + "用法：/register <密码> <确认密码> <队伍Token>");
+            player.sendMessage(ChatColor.GRAY + "队伍 Token 在比赛页面的队伍卡片上复制");
+            return;
+        }
+
+        if (!args[0].equals(args[1])) {
+            player.sendMessage(ChatColor.RED + "两次输入的密码不一致");
+            return;
+        }
+
+        if (args[0].length() < 6) {
+            player.sendMessage(ChatColor.RED + "密码至少 6 位");
+            return;
+        }
+
+        final String password = args[0];
+        final String token = args[2].trim();
+        final UUID uuid = player.getUniqueId();
+
+        player.sendMessage(ChatColor.GRAY + "正在校验队伍 Token …");
+
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+            String probe = requestFlag(firstChallengeId(), token, false);
+            final boolean valid = probe != null;
+
+            getServer().getScheduler().runTask(this, () -> {
+                if (!valid) {
+                    player.sendMessage(ChatColor.RED + "队伍 Token 无效，注册失败");
+                    return;
+                }
+
+                Account acc = new Account();
+                acc.name = player.getName();
+                acc.salt = randomHex(16);
+                acc.hash = hash(password, acc.salt);
+                acc.teamToken = token;
+                accounts.put(key, acc);
+                saveAccounts();
+
+                online.add(uuid);
+                frozen.remove(uuid);
+                joinedAt.remove(uuid);
+                player.sendMessage(ChatColor.GREEN + "注册并登录成功，队伍已绑定！");
+                player.sendMessage(ChatColor.GRAY + "用 /claim <领取码> 领取各题 flag");
+            });
+        });
+    }
+
+    private void handleLogin(Player player, String[] args) {
+        String key = player.getName().toLowerCase();
+        Account acc = accounts.get(key);
+
+        if (acc == null) {
+            player.sendMessage(ChatColor.YELLOW + "你还没注册：/register <密码> <确认密码> <队伍Token>");
+            return;
+        }
+
         if (args.length != 1) {
-            player.sendMessage(ChatColor.YELLOW + "用法：/bind <队伍Token>（在比赛页面队伍信息处复制）");
+            player.sendMessage(ChatColor.YELLOW + "用法：/login <密码>");
+            return;
+        }
+
+        if (!acc.hash.equals(hash(args[0], acc.salt))) {
+            int n = attempts.merge(player.getUniqueId(), 1, Integer::sum);
+            player.sendMessage(ChatColor.RED + "密码错误（" + n + "/" + MAX_ATTEMPTS + "）");
+            if (n >= MAX_ATTEMPTS) {
+                player.kickPlayer(ChatColor.RED + "密码错误次数过多");
+            }
+            return;
+        }
+
+        attempts.remove(player.getUniqueId());
+        online.add(player.getUniqueId());
+        frozen.remove(player.getUniqueId());
+        joinedAt.remove(player.getUniqueId());
+        player.sendMessage(ChatColor.GREEN + "登录成功，欢迎回来 " + acc.name);
+    }
+
+    private void handleBind(Player player, String[] args) {
+        if (!online.contains(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "请先登录");
+            return;
+        }
+
+        if (args.length != 1) {
+            player.sendMessage(ChatColor.YELLOW + "用法：/bind <队伍Token>（换队时用）");
+            return;
+        }
+
+        Account acc = accounts.get(player.getName().toLowerCase());
+        if (acc == null) {
+            player.sendMessage(ChatColor.RED + "账号异常");
             return;
         }
 
         final String token = args[0].trim();
-        final UUID uuid = player.getUniqueId();
+        player.sendMessage(ChatColor.GRAY + "正在校验队伍 Token …");
 
-        player.sendMessage(ChatColor.GRAY + "正在兑换你队伍的 flag …");
-
-        // HTTP 请求放到异步线程，避免阻塞主线程
         getServer().getScheduler().runTaskAsynchronously(this, () -> {
-            try {
-                String flag = requestFlag(token);
+            boolean valid = requestFlag(firstChallengeId(), token, false) != null;
+            getServer().getScheduler().runTask(this, () -> {
+                if (!valid) {
+                    player.sendMessage(ChatColor.RED + "Token 无效");
+                    return;
+                }
+                acc.teamToken = token;
+                saveAccounts();
+                player.sendMessage(ChatColor.GREEN + "队伍已更新");
+            });
+        });
+    }
 
-                getServer().getScheduler().runTask(this, () -> {
-                    if (flag == null) {
-                        player.sendMessage(ChatColor.RED + "兑换失败：Token 无效，或该题目未开启外部动态 flag");
-                        return;
-                    }
+    private void handleClaim(Player player, String[] args) {
+        if (!online.contains(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "请先登录");
+            return;
+        }
 
-                    bindings.put(uuid, token);
-                    flags.put(uuid, flag);
-                    saveBindings();
+        if (args.length != 1) {
+            player.sendMessage(ChatColor.YELLOW + "用法：/claim <领取码>");
+            return;
+        }
 
-                    player.sendMessage(ChatColor.GREEN + "绑定成功，你的 flag：");
-                    player.sendMessage(ChatColor.AQUA + flag);
-                    player.sendMessage(ChatColor.GRAY + "（可用 /flag 再次查看）");
-                });
-            } catch (Exception e) {
-                getLogger().warning("兑换 flag 失败: " + e.getMessage());
-                getServer().getScheduler().runTask(this,
-                        () -> player.sendMessage(ChatColor.RED + "兑换失败，请稍后再试或联系管理员"));
-            }
+        Account acc = accounts.get(player.getName().toLowerCase());
+        if (acc == null) {
+            player.sendMessage(ChatColor.RED + "账号异常");
+            return;
+        }
+
+        final String code = args[0].trim().toUpperCase();
+        final Integer cid = codes.get(code);
+
+        if (cid == null) {
+            player.sendMessage(ChatColor.RED + "领取码无效");
+            return;
+        }
+
+        if (acc.claims.containsKey(code)) {
+            player.sendMessage(ChatColor.GREEN + "这题你已经领过了：");
+            player.sendMessage(ChatColor.AQUA + acc.claims.get(code));
+            return;
+        }
+
+        player.sendMessage(ChatColor.GRAY + "验证中 …");
+
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+            String flag = requestFlag(cid, acc.teamToken, false);
+
+            getServer().getScheduler().runTask(this, () -> {
+                if (flag == null) {
+                    player.sendMessage(ChatColor.RED + "领取失败，请联系管理员");
+                    return;
+                }
+                acc.claims.put(code, flag);
+                saveAccounts();
+                player.sendMessage(ChatColor.GREEN + "领取成功！你的 flag：");
+                player.sendMessage(ChatColor.AQUA + flag);
+            });
         });
     }
 
     private void handleFlag(Player player) {
-        String flag = flags.get(player.getUniqueId());
-
-        if (flag == null) {
-            player.sendMessage(ChatColor.YELLOW + "你还没有绑定队伍，请先执行 /bind <队伍Token>");
+        if (!online.contains(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "请先登录");
             return;
         }
 
-        player.sendMessage(ChatColor.GREEN + "你的 flag：");
-        player.sendMessage(ChatColor.AQUA + flag);
-    }
-
-    /**
-     * 调用 GZCTF 内部接口兑换 flag
-     */
-    private String requestFlag(String token) throws Exception {
-        String body = String.format("{\"gameId\":%d,\"challengeId\":%d,\"teamToken\":\"%s\"}",
-                gameId, challengeId, token.replace("\"", ""));
-
-        HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
-        conn.setRequestMethod("POST");
-        conn.setConnectTimeout(5000);
-        conn.setReadTimeout(5000);
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("X-Internal-Key", apiKey);
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body.getBytes(StandardCharsets.UTF_8));
+        Account acc = accounts.get(player.getName().toLowerCase());
+        if (acc == null || acc.claims.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + "还没有领取任何 flag，用 /claim <领取码>");
+            return;
         }
 
-        int code = conn.getResponseCode();
+        player.sendMessage(ChatColor.GREEN + "已领取的 flag：");
+        acc.claims.forEach((code, flag) ->
+                player.sendMessage(ChatColor.GRAY + "[" + code + "] " + ChatColor.AQUA + flag));
+    }
 
-        if (code != 200)
+    // ==================== 资源包 ====================
+
+    private void handlePack(CommandSender sender, String[] args) {
+        String arg = args.length > 0 ? args[0].toLowerCase() : "status";
+
+        switch (arg) {
+            case "on", "off" -> {
+                packEnabled = arg.equals("on");
+                getConfig().set("resource-pack.enabled", packEnabled);
+                saveConfig();
+                String msg = "资源包已" + (packEnabled ? "开启" : "关闭");
+                sender.sendMessage(ChatColor.GREEN + msg);
+                getLogger().info(msg + " url=" + packUrl);
+            }
+            case "status" -> {
+                sender.sendMessage(ChatColor.AQUA + "资源包：" + (packEnabled ? "开启" : "关闭"));
+                sender.sendMessage(ChatColor.GRAY + "url=" + packUrl + " required=" + packRequired);
+            }
+            default -> sender.sendMessage(ChatColor.YELLOW + "用法：/mcpack <on|off|status>");
+        }
+    }
+
+    private void loadGateConfig() {
+        gateEnabled = getConfig().getBoolean("gate.enabled", false);
+        gateRadius = getConfig().getDouble("gate.radius", 2.0);
+        gateOpened = false;
+        gateBlocks.clear();
+
+        String world = getConfig().getString("gate.world", "world");
+        org.bukkit.World w = getServer().getWorld(world);
+        if (w == null)
+            return;
+
+        gatePoint = new org.bukkit.Location(w,
+                getConfig().getDouble("gate.x", 0),
+                getConfig().getDouble("gate.y", 64),
+                getConfig().getDouble("gate.z", 0));
+
+        for (String key : getConfig().getStringList("gate.blocks")) {
+            String[] parts = key.split(",");
+            if (parts.length != 3)
+                continue;
+            gateBlocks.add(new org.bukkit.Location(w,
+                    Double.parseDouble(parts[0].trim()),
+                    Double.parseDouble(parts[1].trim()),
+                    Double.parseDouble(parts[2].trim())));
+        }
+
+        getLogger().info("门卫：" + (gateEnabled
+                ? "启用 @ " + gatePoint.getBlockX() + "," + gatePoint.getBlockY() + "," + gatePoint.getBlockZ()
+                  + " 闸门 " + gateBlocks.size() + " 格"
+                : "关闭"));
+    }
+
+    private void loadPackConfig() {
+        packEnabled = getConfig().getBoolean("resource-pack.enabled", false);
+        packUrl = getConfig().getString("resource-pack.url", "");
+        packSha1 = getConfig().getString("resource-pack.sha1", "");
+        packRequired = getConfig().getBoolean("resource-pack.required", true);
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        if (packEnabled && packUrl != null && !packUrl.isEmpty())
+            player.setResourcePack(packUrl, sha1Bytes(packSha1), packRequired);
+
+        if (accounts.containsKey(player.getName().toLowerCase())) {
+            player.sendMessage(ChatColor.YELLOW + "请登录：/login <密码>");
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "请注册：/register <密码> <确认密码> <队伍Token>");
+            player.sendMessage(ChatColor.GRAY + "队伍 Token 在比赛页面队伍卡片上复制");
+        }
+
+        frozen.put(uuid, player.getLocation());
+        joinedAt.put(uuid, System.currentTimeMillis());
+    }
+
+    /** 未登录玩家每 2 秒检查一次：拉回原位 + 超时踢出 */
+    private void startAuthTicker() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player p : getServer().getOnlinePlayers()) {
+                    UUID id = p.getUniqueId();
+                    if (online.contains(id)) {
+                        frozen.remove(id);
+                        continue;
+                    }
+
+                    Location lock = frozen.get(id);
+                    if (lock != null && p.getLocation().distanceSquared(lock) > 4)
+                        p.teleport(lock);
+                }
+            }
+        }.runTaskTimer(this, 40L, 40L);
+
+        // 每秒检查门卫：站在压力板上 + 主手拿着名为 ops 的物品 → 开闸
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!gateEnabled || gateOpened || gatePoint == null)
+                    return;
+
+                for (Player p : getServer().getOnlinePlayers()) {
+                    if (!online.contains(p.getUniqueId()))
+                        continue;
+                    if (p.getWorld() != gatePoint.getWorld())
+                        continue;
+                    if (p.getLocation().distance(gatePoint) > gateRadius)
+                        continue;
+
+                    org.bukkit.inventory.ItemStack hand = p.getInventory().getItemInMainHand();
+                    if (hand == null || hand.getType() == org.bukkit.Material.AIR)
+                        continue;
+
+                    org.bukkit.inventory.meta.ItemMeta meta = hand.getItemMeta();
+                    if (meta == null || meta.getDisplayName() == null)
+                        continue;
+
+                    if (!meta.getDisplayName().contains("ops"))
+                        continue;
+
+                    gateOpened = true;
+                    for (org.bukkit.Location loc : gateBlocks)
+                        loc.getBlock().setType(org.bukkit.Material.AIR);
+
+                    getServer().broadcastMessage(ChatColor.GREEN + "[门卫] 工牌通过，闸门开了 10 秒。");
+                    getLogger().info("门卫开闸：" + p.getName() + " 持 " + meta.getDisplayName());
+
+                    // 10 秒后自动关上，保证每个人都要自己动手
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            for (org.bukkit.Location loc : gateBlocks)
+                                loc.getBlock().setType(org.bukkit.Material.BEDROCK);
+                            gateOpened = false;
+                            getServer().broadcastMessage(ChatColor.GRAY + "[门卫] 闸门已关闭。");
+                        }
+                    }.runTaskLater(FlagPlugin.this, 200L);
+                    break;
+                }
+            }
+        }.runTaskTimer(this, 40L, 20L);
+
+        // 每 5 秒扫一次，只踢「自己进服超过 90 秒仍未登录」的玩家
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                for (Player p : getServer().getOnlinePlayers()) {
+                    UUID id = p.getUniqueId();
+                    if (online.contains(id))
+                        continue;
+                    Long t = joinedAt.get(id);
+                    if (t != null && now - t > LOGIN_TIMEOUT_SEC * 1000L) {
+                        p.kickPlayer(ChatColor.RED + "登录超时（" + LOGIN_TIMEOUT_SEC + " 秒），请重新进服并 /login");
+                    }
+                }
+            }
+        }.runTaskTimer(this, 100L, 100L);
+    }
+
+    // ---- 未登录限制 ----
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onChat(AsyncPlayerChatEvent event) {
+        if (!online.contains(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(ChatColor.RED + "请先登录");
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onMove(PlayerMoveEvent event) {
+        if (!online.contains(event.getPlayer().getUniqueId()))
+            event.setTo(event.getFrom());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onBreak(BlockBreakEvent event) {
+        if (!online.contains(event.getPlayer().getUniqueId()))
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlace(BlockPlaceEvent event) {
+        if (!online.contains(event.getPlayer().getUniqueId()))
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onInteract(PlayerInteractEvent event) {
+        if (!online.contains(event.getPlayer().getUniqueId()) && event.getClickedBlock() != null)
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onDamage(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player p && !online.contains(p.getUniqueId()))
+            event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID id = event.getPlayer().getUniqueId();
+        online.remove(id);
+        frozen.remove(id);
+        attempts.remove(id);
+        joinedAt.remove(id);
+    }
+
+    // ==================== 平台接口 ====================
+
+    private int firstChallengeId() {
+        return codes.isEmpty() ? 0 : codes.values().iterator().next();
+    }
+
+    private String requestFlag(int challengeId, String token, boolean quiet) throws RuntimeException {
+        try {
+            String body = String.format("{\"gameId\":%d,\"challengeId\":%d,\"teamToken\":\"%s\"}",
+                    gameId, challengeId, token.replace("\"", ""));
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("X-Internal-Key", apiKey);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body.getBytes(StandardCharsets.UTF_8));
+            }
+
+            if (conn.getResponseCode() != 200)
+                return null;
+
+            String resp = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Matcher m = FLAG_PATTERN.matcher(resp);
+            return m.find() ? m.group(1) : null;
+        } catch (Exception e) {
+            getLogger().warning("请求平台失败: " + e.getMessage());
             return null;
-
-        String response = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        Matcher matcher = FLAG_PATTERN.matcher(response);
-
-        return matcher.find() ? matcher.group(1) : null;
+        }
     }
 
-    private void loadBindings() {
-        File file = new File(getDataFolder(), "bindings.yml");
+    // ==================== 工具 ====================
 
-        if (!file.exists())
-            return;
+    private static String hash(String password, String salt) {
+        try {
+            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt.getBytes(StandardCharsets.UTF_8),
+                    50000, 256);
+            byte[] raw = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+            return Base64.getEncoder().encodeToString(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private String randomHex(int bytes) {
+        byte[] b = new byte[bytes];
+        random.nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x));
+        return sb.toString();
+    }
+
+    private static byte[] sha1Bytes(String hex) {
+        if (hex == null || hex.length() != 40) return null;
+        byte[] out = new byte[20];
+        for (int i = 0; i < 20; i++)
+            out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        return out;
+    }
+
+    private void loadCodes() {
+        codes.clear();
+        ConfigurationSection sec = getConfig().getConfigurationSection("codes");
+        if (sec == null) return;
+        for (String key : sec.getKeys(false)) {
+            int cid = sec.getInt(key, 0);
+            if (cid > 0) codes.put(key.toUpperCase(), cid);
+        }
+    }
+
+    private void loadAccounts() {
+        File file = new File(getDataFolder(), "accounts.yml");
+        if (!file.exists()) return;
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-
         for (String key : yaml.getKeys(false)) {
-            try {
-                UUID uuid = UUID.fromString(key);
-                bindings.put(uuid, yaml.getString(key + ".token", ""));
-                String flag = yaml.getString(key + ".flag");
-                if (flag != null && !flag.isEmpty())
-                    flags.put(uuid, flag);
-            } catch (IllegalArgumentException ignored) {
-                // 忽略损坏条目
-            }
+            Account acc = new Account();
+            acc.name = yaml.getString(key + ".name", key);
+            acc.salt = yaml.getString(key + ".salt", "");
+            acc.hash = yaml.getString(key + ".hash", "");
+            acc.teamToken = yaml.getString(key + ".token", "");
+
+            ConfigurationSection cs = yaml.getConfigurationSection(key + ".claims");
+            if (cs != null)
+                for (String c : cs.getKeys(false))
+                    acc.claims.put(c, cs.getString(c, ""));
+
+            accounts.put(key, acc);
         }
     }
 
-    private void saveBindings() {
+    private void saveAccounts() {
         YamlConfiguration yaml = new YamlConfiguration();
-
-        bindings.forEach((uuid, token) -> {
-            yaml.set(uuid + ".token", token);
-            String flag = flags.get(uuid);
-            if (flag != null)
-                yaml.set(uuid + ".flag", flag);
+        accounts.forEach((key, acc) -> {
+            yaml.set(key + ".name", acc.name);
+            yaml.set(key + ".salt", acc.salt);
+            yaml.set(key + ".hash", acc.hash);
+            yaml.set(key + ".token", acc.teamToken);
+            acc.claims.forEach((c, f) -> yaml.set(key + ".claims." + c, f));
         });
 
         try {
-            File file = new File(getDataFolder(), "bindings.yml");
+            File file = new File(getDataFolder(), "accounts.yml");
             if (!file.getParentFile().exists() && !file.getParentFile().mkdirs())
-                getLogger().warning("无法创建插件数据目录");
+                getLogger().warning("无法创建插件目录");
             yaml.save(file);
         } catch (Exception e) {
-            getLogger().warning("保存绑定失败: " + e.getMessage());
+            getLogger().warning("保存账号失败: " + e.getMessage());
         }
     }
 }

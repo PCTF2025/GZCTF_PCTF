@@ -1,13 +1,25 @@
 name: MCFlag
-version: 1.0.0
+version: 2.0.0
 main: top.pctf.mcflag.FlagPlugin
 api-version: '1.20'
 author: PCTF
-description: 共用服务器动态 flag：选手用队伍 Token 兑换自己队伍的 flag
+description: 登录 + 领取码换动态 flag + 强制资源包
 commands:
+  register:
+    description: 注册（需绑定队伍 Token）
+    usage: /register <密码> <确认密码> <队伍Token>
+  login:
+    description: 登录
+    usage: /login <密码>
   bind:
-    description: 绑定你的队伍 Token
+    description: 更换绑定的队伍 Token
     usage: /bind <队伍Token>
+  claim:
+    description: 用领取码换取 flag
+    usage: /claim <领取码>
   flag:
-    description: 查看你已兑换的 flag
+    description: 查看已领取的 flag
     usage: /flag
+  mcpack:
+    description: 开关强制资源包
+    usage: /mcpack <on|off|status>
