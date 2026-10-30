@@ -28,6 +28,11 @@ public class ChallengeUpdateModel
     public string? FlagTemplate { get; set; }
 
     /// <summary>
+    /// 外部动态 flag（共用服务器场景，每队 flag 不同）
+    /// </summary>
+    public bool? ExternalDynamicFlag { get; set; }
+
+    /// <summary>
     /// Challenge category
     /// </summary>
     public ChallengeCategory? Category { get; set; }

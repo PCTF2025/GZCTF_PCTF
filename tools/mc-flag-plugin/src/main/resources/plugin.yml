@@ -1,0 +1,13 @@
+name: MCFlag
+version: 1.0.0
+main: top.pctf.mcflag.FlagPlugin
+api-version: '1.20'
+author: PCTF
+description: 共用服务器动态 flag：选手用队伍 Token 兑换自己队伍的 flag
+commands:
+  bind:
+    description: 绑定你的队伍 Token
+    usage: /bind <队伍Token>
+  flag:
+    description: 查看你已兑换的 flag
+    usage: /flag

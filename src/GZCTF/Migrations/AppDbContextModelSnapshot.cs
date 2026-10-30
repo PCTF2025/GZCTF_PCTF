@@ -651,6 +651,9 @@ namespace GZCTF.Migrations
                     b.Property<string>("FileName")
                         .HasColumnType("text");
 
+                    b.Property<bool>("ExternalDynamicFlag")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("FlagTemplate")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");

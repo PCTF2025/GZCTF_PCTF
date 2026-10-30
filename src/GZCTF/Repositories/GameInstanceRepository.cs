@@ -446,6 +446,50 @@ public class GameInstanceRepository(
         return checkInfo;
     }
 
+    public async Task<string?> EnsureExternalFlag(int gameId, int challengeId, string teamToken,
+        CancellationToken token = default)
+    {
+        if (string.IsNullOrWhiteSpace(teamToken))
+            return null;
+
+        var challenge = await Context.GameChallenges.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.Id == challengeId && c.GameId == gameId, token);
+
+        if (challenge is null || !challenge.ExternalDynamicFlag)
+            return null;
+
+        var part = await Context.Participations.AsNoTracking()
+            .Include(p => p.Game)
+            .SingleOrDefaultAsync(p => p.GameId == gameId && p.Token == teamToken, token);
+
+        if (part is null)
+            return null;
+
+        var instance = await Context.GameInstances
+            .Include(i => i.FlagContext)
+            .SingleOrDefaultAsync(i => i.ParticipationId == part.Id && i.ChallengeId == challengeId, token);
+
+        // 正常报名流程会为每道题预建实例；异常数据下兜底补一条
+        var isNewInstance = instance is null;
+
+        if (isNewInstance)
+            instance = new GameInstance { ParticipationId = part.Id, ChallengeId = challengeId };
+
+        if (instance!.FlagContext is not null)
+            return instance.FlagContext.Flag;
+
+        var flag = new FlagContext { Flag = challenge.GenerateDynamicFlag(part) };
+        instance.FlagContext = flag;
+        Context.FlagContexts.Add(flag);
+
+        if (isNewInstance)
+            Context.GameInstances.Add(instance);
+
+        await Context.SaveChangesAsync(token);
+
+        return flag.Flag;
+    }
+
     public async Task<VerifyResult> VerifyAnswer(Submission submission, CancellationToken token = default)
     {
         await using var transaction = await Context.Database.BeginTransactionAsync(token);
@@ -470,8 +514,24 @@ public class GameInstanceRepository(
 
             var challenge = await Context.GameChallenges
                 .AsNoTracking()
-                .Select(c => new { c.Id, c.Type, c.DisableBloodBonus, c.DeadlineUtc })
+                .Select(c => new { c.Id, c.Type, c.DisableBloodBonus, c.DeadlineUtc, c.ExternalDynamicFlag })
                 .SingleAsync(c => c.Id == submission.ChallengeId, token);
+
+            // 外部动态 flag：共用服务器题目没有容器，按队伍生成并落库后走动态分支校验
+            if (instance.FlagContext is null && challenge.ExternalDynamicFlag)
+            {
+                var part = await Context.Participations.AsNoTracking()
+                    .Include(p => p.Game)
+                    .SingleAsync(p => p.Id == submission.ParticipationId, token);
+
+                var chal = await Context.GameChallenges.AsNoTracking()
+                    .SingleAsync(c => c.Id == submission.ChallengeId, token);
+
+                var externalFlag = new FlagContext { Flag = chal.GenerateDynamicFlag(part) };
+                instance.FlagContext = externalFlag;
+                Context.FlagContexts.Add(externalFlag);
+                await Context.SaveChangesAsync(token);
+            }
 
             if (instance.FlagContext is null && challenge.Type.IsStatic())
             {

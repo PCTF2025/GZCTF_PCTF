@@ -32,6 +32,17 @@ public interface IGameInstanceRepository : IRepository
     public Task<VerifyResult> VerifyAnswer(Submission submission, CancellationToken token = default);
 
     /// <summary>
+    /// 取得（必要时生成并落库）某队伍在「外部动态 flag」题目上专属的 flag。
+    ///
+    /// 共用一台常开服务器的题目无法下发容器，但仍需要每队不同的 flag：
+    /// 这里按 participation 确定性生成并写入 instance.FlagContext，
+    /// 后续校验与外部插件兑换都读取同一个值。
+    /// </summary>
+    /// <returns>flag 内容；题目未开启外部动态 flag 或队伍不存在时返回 null</returns>
+    public Task<string?> EnsureExternalFlag(int gameId, int challengeId, string teamToken,
+        CancellationToken token = default);
+
+    /// <summary>
     /// Check if the submission is a cheat
     /// </summary>
     /// <param name="submission">Submission</param>

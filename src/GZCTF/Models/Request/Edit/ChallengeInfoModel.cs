@@ -78,6 +78,11 @@ public class ChallengeInfoModel
     /// </summary>
     public string? AuthorName { get; set; }
 
+    /// <summary>
+    /// 外部动态 flag（共用服务器场景，每队 flag 不同）
+    /// </summary>
+    public bool ExternalDynamicFlag { get; set; }
+
     internal static ChallengeInfoModel FromChallenge(GameChallenge challenge, string? authorName = null) =>
         new()
         {
@@ -91,6 +96,7 @@ public class ChallengeInfoModel
             IsEnabled = challenge.IsEnabled,
             DeadlineUtc = challenge.DeadlineUtc,
             Week = challenge.Week,
-            AuthorName = authorName
+            AuthorName = authorName,
+            ExternalDynamicFlag = challenge.ExternalDynamicFlag
         };
 }

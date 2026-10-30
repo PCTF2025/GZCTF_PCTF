@@ -1,0 +1,7 @@
+# GZCTF 内部兑换接口
+api-url: "http://127.0.0.1:8080/api/internal/flag"
+# 与平台 InternalApiKey 一致
+api-key: "change-me"
+# 题目所属比赛与题目 ID
+game-id: 1
+challenge-id: 0
