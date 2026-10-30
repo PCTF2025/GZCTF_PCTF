@@ -893,7 +893,9 @@ public class EditController(
             return denied;
 
         // NOTE: IsEnabled can only be updated outside the edit page
-        if (model.IsEnabled is true && !res.IsEnabled && res.Type != ChallengeType.DynamicContainer)
+        // 动态容器题与「外部动态 flag」题不依赖预置 flag：
+        //   前者按队伍在容器创建时生成，后者按队伍由平台生成、由外部服务兑换。
+        if (model.IsEnabled is true && !res.IsEnabled && !res.Type.IsContainer() && !res.Type.IsExternal())
         {
             await challengeRepository.LoadFlags(res, token);
 
