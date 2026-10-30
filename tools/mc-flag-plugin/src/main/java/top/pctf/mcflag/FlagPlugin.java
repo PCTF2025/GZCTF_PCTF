@@ -80,8 +80,10 @@ public class FlagPlugin extends JavaPlugin implements Listener {
     private long gateOpenedAt;
     /** 兜底：压力板被踩住不放时，最多开这么久 */
     private long gateMaxOpenMs;
-    /** 门卫室内部区域，用来判断「是否已跨过闸门」 */
+    /** 门卫室内部区域（闸门内侧），用来判断「是否已进入」 */
     private org.bukkit.util.BoundingBox gateInterior;
+    /** 闸门外侧区域，用来判断「是否已走出」——必须等他真的离开闸门方块，否则会被夹在铁栏杆里 */
+    private org.bukkit.util.BoundingBox gateExterior;
     /** 本次开门的玩家，只有他跨过闸门才关门（避免无关玩家误触发） */
     private java.util.UUID gateOpener;
     /** 压力板「已武装」：踩过一次后必须离开才能再次开，防止站着不动反复开关 */
@@ -394,13 +396,10 @@ public class FlagPlugin extends JavaPlugin implements Listener {
                     Double.parseDouble(parts[2].trim())));
         }
 
-        // 内部区域：缺省时按闸门位置往「门内」推 1~6 格
-        String interior = getConfig().getString("gate.interior", "");
-        if (interior != null && !interior.isBlank()) {
-            double[] v = parseSix(interior);
-            if (v != null)
-                gateInterior = new org.bukkit.util.BoundingBox(v[0], v[1], v[2], v[3], v[4], v[5]);
-        }
+        // 门内 / 门外区域：跨门判定只认这两个盒子，
+        // 这样玩家穿过闸门方块那一段时门仍然开着，不会被关在铁栏杆里
+        gateInterior = readBox("gate.interior");
+        gateExterior = readBox("gate.exterior");
 
         getLogger().info("门卫：" + (gateEnabled
                 ? "启用  外侧 " + fmt(gateOuter) + "  内侧 " + fmt(gateInner)
@@ -416,6 +415,14 @@ public class FlagPlugin extends JavaPlugin implements Listener {
                 getConfig().getDouble(path + ".x"),
                 getConfig().getDouble(path + ".y"),
                 getConfig().getDouble(path + ".z"));
+    }
+
+    private org.bukkit.util.BoundingBox readBox(String path) {
+        String raw = getConfig().getString(path, "");
+        if (raw == null || raw.isBlank())
+            return null;
+        double[] v = parseSix(raw);
+        return v == null ? null : new org.bukkit.util.BoundingBox(v[0], v[1], v[2], v[3], v[4], v[5]);
     }
 
     private static double[] parseSix(String s) {
@@ -469,15 +476,22 @@ public class FlagPlugin extends JavaPlugin implements Listener {
         if (p == null || p.getWorld() != getWorldOfGate())
             return false;
 
-        // 只按内部区域判定：外侧开的等他进到门内，内侧开的等他走到门外。
-        // 内部区域上界要含住内侧压力板所在位置，否则站在板上就会被误判为「已跨出」。
-        boolean inside = gateInterior.contains(p.getLocation().toVector());
-        return gateOpenedFromOuter ? inside : !inside;
+        // 外侧开的：等他真正进到门内才关门
+        // 内侧开的：等他真正走到门外才关门（不是「离开内部」，
+        //           否则在穿过闸门方块那一刻就关门，人会被夹在铁栏杆里出不去）
+        var pos = p.getLocation().toVector();
+        if (gateOpenedFromOuter)
+            return gateInterior != null && gateInterior.contains(pos);
+        return gateExterior != null && gateExterior.contains(pos);
     }
 
     private void openGate(Player p, boolean fromOuter) {
         gateOpened = true;
         gateOpener = p.getUniqueId();
+        // 两块板一起"解除武装"：开门的人马上就要跨过闸门、会踩到另一侧的压力板，
+        // 不能让他一出门就把门又打开（否则等于门一直开着）
+        outerArmed = false;
+        innerArmed = false;
         gateOpenedFromOuter = fromOuter;
         gateOpenedAt = System.currentTimeMillis();
 
