@@ -73,6 +73,8 @@ export enum ChallengeType {
   StaticContainer = "StaticContainer",
   DynamicAttachment = "DynamicAttachment",
   DynamicContainer = "DynamicContainer",
+  /** 外部动态 flag（共用服务器，如 Minecraft） */
+  DynamicExternal = "DynamicExternal",
 }
 
 /** Game participant permission */
@@ -1706,8 +1708,6 @@ export interface ChallengeEditDetailModel {
    * @maxLength 120
    */
   flagTemplate?: string | null;
-  /** 外部动态 flag（共用服务器场景，每队 flag 不同） */
-  externalDynamicFlag?: boolean;
   /** Is the challenge enabled */
   isEnabled: boolean;
   /**
@@ -1859,8 +1859,6 @@ export interface ChallengeInfoModel {
   type?: ChallengeType;
   /** Is the challenge enabled */
   isEnabled?: boolean;
-  /** 外部动态 flag（共用服务器场景，每队 flag 不同） */
-  externalDynamicFlag?: boolean;
   /**
    * Challenge score
    * @format int32
@@ -1905,8 +1903,6 @@ export interface ChallengeUpdateModel {
    * @maxLength 120
    */
   flagTemplate?: string | null;
-  /** 外部动态 flag（共用服务器场景，每队 flag 不同） */
-  externalDynamicFlag?: boolean | null;
   /** Challenge category */
   category?: ChallengeCategory | null;
   /** Challenge hints */

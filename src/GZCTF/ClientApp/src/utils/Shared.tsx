@@ -87,6 +87,13 @@ export const useChallengeTypeLabelMap = () => {
         desrc: t('challenge.type.dynamic_container.desrc'),
       },
     ],
+    [
+      ChallengeType.DynamicExternal,
+      {
+        name: '外部动态 flag',
+        desrc: '不下发靶机，所有队伍共用一台常开服务器，flag 按队伍动态生成',
+      },
+    ],
   ])
 }
 

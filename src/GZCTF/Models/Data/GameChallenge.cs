@@ -64,15 +64,6 @@ public class GameChallenge : Challenge
             (minScoreRate + (1.0 - minScoreRate) * Math.Exp((1 - acceptedCount) / difficulty)));
     }
 
-    /// <summary>
-    /// 外部动态 flag：flag 由平台按队伍确定性生成，但不下发容器。
-    ///
-    /// 适用于「共用一台常开服务器」的题目（如 Minecraft）：所有队伍连同一台服务，
-    /// 每队通过队伍 Token 向外部服务（插件）兑换属于自己的 flag。
-    /// 校验时使用按 participation 生成的 FlagContext，因此每队 flag 不同。
-    /// </summary>
-    public bool ExternalDynamicFlag { get; set; }
-
     internal void Update(ChallengeUpdateModel model)
     {
         Title = model.Title ?? Title;
@@ -122,10 +113,6 @@ public class GameChallenge : Challenge
         // only set FlagTemplate to null when pass an empty string (but not null)
         if (model.FlagTemplate is { } template)
             FlagTemplate = string.IsNullOrWhiteSpace(template) ? null : template;
-
-        // 外部动态 flag（共用服务器场景）
-        if (model.ExternalDynamicFlag is { } external)
-            ExternalDynamicFlag = external;
 
         // Container only
         EnableTrafficCapture = Type.IsContainer() && (model.EnableTrafficCapture ?? EnableTrafficCapture);

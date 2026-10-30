@@ -577,17 +577,6 @@ const GameChallengeEdit: FC = () => {
                 )}
                 onChange={(e) => setChallengeInfo({ ...challengeInfo, disableBloodBonus: !e.target.checked })}
               />
-              <Switch
-                disabled={locked}
-                checked={challengeInfo?.externalDynamicFlag ?? false}
-                label={SwitchLabel(
-                  '外部动态 flag',
-                  '共用一台常开服务器（如 Minecraft）时开启：不下发容器，但每队 flag 不同，选手凭队伍 Token 在服务器内兑换'
-                )}
-                onChange={(e) =>
-                  setChallengeInfo({ ...challengeInfo, externalDynamicFlag: e.currentTarget.checked })
-                }
-              />
             </Stack>
           </Grid.Col>
           <Grid.Col span={1}>

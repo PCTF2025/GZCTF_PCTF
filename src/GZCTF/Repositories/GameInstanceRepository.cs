@@ -455,7 +455,7 @@ public class GameInstanceRepository(
         var challenge = await Context.GameChallenges.AsNoTracking()
             .SingleOrDefaultAsync(c => c.Id == challengeId && c.GameId == gameId, token);
 
-        if (challenge is null || !challenge.ExternalDynamicFlag)
+        if (challenge is null || !challenge.Type.IsExternal())
             return null;
 
         var part = await Context.Participations.AsNoTracking()
@@ -514,11 +514,11 @@ public class GameInstanceRepository(
 
             var challenge = await Context.GameChallenges
                 .AsNoTracking()
-                .Select(c => new { c.Id, c.Type, c.DisableBloodBonus, c.DeadlineUtc, c.ExternalDynamicFlag })
+                .Select(c => new { c.Id, c.Type, c.DisableBloodBonus, c.DeadlineUtc })
                 .SingleAsync(c => c.Id == submission.ChallengeId, token);
 
             // 外部动态 flag：共用服务器题目没有容器，按队伍生成并落库后走动态分支校验
-            if (instance.FlagContext is null && challenge.ExternalDynamicFlag)
+            if (instance.FlagContext is null && challenge.Type.IsExternal())
             {
                 var part = await Context.Participations.AsNoTracking()
                     .Include(p => p.Game)

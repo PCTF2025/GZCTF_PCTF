@@ -334,7 +334,15 @@ public enum ChallengeType : byte
     /// Dynamic container challenge
     /// Randomly distribute containers, dynamic flag passed in via environment variables
     /// </summary>
-    DynamicContainer = 0b11
+    DynamicContainer = 0b11,
+
+    /// <summary>
+    /// 外部动态 flag 题目（共用服务器）
+    ///
+    /// 不下发容器或附件：所有队伍共用一台常开服务器（如 Minecraft），
+    /// flag 由平台按队伍确定性生成，选手在服务器内凭队伍 Token 兑换。
+    /// </summary>
+    DynamicExternal = 0b100
 }
 
 public static class ChallengeTypeExtensions
@@ -344,22 +352,27 @@ public static class ChallengeTypeExtensions
         /// <summary>
         /// Is it a static challenge
         /// </summary>
-        public bool IsStatic() => ((byte)type & 0b10) == 0;
+        public bool IsStatic() => type is ChallengeType.StaticAttachment or ChallengeType.StaticContainer;
 
         /// <summary>
         /// Is it a dynamic challenge
         /// </summary>
-        public bool IsDynamic() => ((byte)type & 0b10) != 0;
+        public bool IsDynamic() => !type.IsStatic();
 
         /// <summary>
         /// Is it an attachment challenge
         /// </summary>
-        public bool IsAttachment() => ((byte)type & 0b01) == 0;
+        public bool IsAttachment() => type is ChallengeType.StaticAttachment or ChallengeType.DynamicAttachment;
 
         /// <summary>
         /// Is it a container challenge
         /// </summary>
-        public bool IsContainer() => ((byte)type & 0b01) != 0;
+        public bool IsContainer() => type is ChallengeType.StaticContainer or ChallengeType.DynamicContainer;
+
+        /// <summary>
+        /// 是否为「共用服务器」的外部动态 flag 题目
+        /// </summary>
+        public bool IsExternal() => type is ChallengeType.DynamicExternal;
     }
 }
 
