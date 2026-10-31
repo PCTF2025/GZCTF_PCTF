@@ -207,9 +207,26 @@ public partial class UserInfo : IdentityUser<Guid>
                 .ToList();
 
     /// <summary>
+    /// 方向归并：AI 视为 Misc 的子方向。
+    ///
+    /// 授权 Misc 的出题人可以直接创建 / 管理 AI 题，无需单独授予 AI；
+    /// 排行榜中 AI 题的分数也并入 Misc 统计。
+    /// </summary>
+    public static ChallengeCategory FoldCategory(ChallengeCategory category) =>
+        category == ChallengeCategory.AI ? ChallengeCategory.Misc : category;
+
+    /// <summary>
+    /// 授权方向是否覆盖指定方向（含 Misc → AI 的子方向归并）。
+    /// </summary>
+    private bool CoversCategory(ChallengeCategory category) =>
+        ManagedCategoryList.Contains(category) ||
+        (category == ChallengeCategory.AI && ManagedCategoryList.Contains(ChallengeCategory.Misc));
+
+    /// <summary>
     /// 是否可在指定方向出题（新增题目时校验）。
     /// 系统管理员放行全部方向；被授权了方向时只允许在这些方向内出题；
     /// 未授权任何方向则视为不限制（兼容未指定方向的旧数据）。
+    /// 授权 Misc 时同时允许 AI（AI 是 Misc 的子方向）。
     /// </summary>
     public bool CanAuthorInCategory(ChallengeCategory category)
     {
@@ -220,7 +237,7 @@ public partial class UserInfo : IdentityUser<Guid>
         if (ManagedCategoryList.Count == 0)
             return true;
 
-        return ManagedCategoryList.Contains(category);
+        return CoversCategory(category);
     }
 
     /// <summary>
@@ -228,10 +245,21 @@ public partial class UserInfo : IdentityUser<Guid>
     /// </summary>
     [NotMapped]
     [MemoryPackIgnore]
-    public IReadOnlyList<ChallengeCategory> AuthorableCategories =>
-        Role >= Role.Admin || ManagedCategoryList.Count == 0
-            ? Enum.GetValues<ChallengeCategory>()
-            : ManagedCategoryList;
+    public IReadOnlyList<ChallengeCategory> AuthorableCategories
+    {
+        get
+        {
+            if (Role >= Role.Admin || ManagedCategoryList.Count == 0)
+                return Enum.GetValues<ChallengeCategory>();
+
+            var set = ManagedCategoryList.ToHashSet();
+            // 授权 Misc 即视为同时可建 AI 题
+            if (set.Contains(ChallengeCategory.Misc))
+                set.Add(ChallengeCategory.AI);
+
+            return set.OrderBy(c => (int)c).ToList();
+        }
+    }
 
     /// <summary>
     /// 是否被明确授权了指定方向。
@@ -240,7 +268,7 @@ public partial class UserInfo : IdentityUser<Guid>
     /// 否则任何未配置方向的出题人都能看光全站题目。
     /// </summary>
     public bool HasManagedCategory(ChallengeCategory category) =>
-        ManagedCategoryList.Count > 0 && ManagedCategoryList.Contains(category);
+        ManagedCategoryList.Count > 0 && CoversCategory(category);
 
     /// <summary>
     /// 是否可查看指定题目。
@@ -289,7 +317,7 @@ public partial class UserInfo : IdentityUser<Guid>
         if (Role >= Role.Admin)
             return true;
 
-        if (IsChallengeManager && ManagedCategoryList.Contains(category))
+        if (IsChallengeManager && CoversCategory(category))
             return true;
 
         // 出题人：只能管理自己创建的题目

@@ -46,7 +46,12 @@ export const ChallengeCreateModal: FC<ChallengeCreateModalProps> = (props) => {
     const isAdmin = user?.role === Role.Admin
     if (isAdmin || managed.length === 0) return ChallengeCategoryList
 
-    return ChallengeCategoryList.filter((c) => managed.includes(c))
+    // AI 视为 Misc 的子方向：授权 Misc 时也能建 AI 题
+    const effective = managed.includes(ChallengeCategory.Misc)
+      ? [...managed, ChallengeCategory.AI]
+      : managed
+
+    return ChallengeCategoryList.filter((c) => effective.includes(c))
   }, [user])
 
   /// 仅有一个可用方向时自动选中，减少出题人操作

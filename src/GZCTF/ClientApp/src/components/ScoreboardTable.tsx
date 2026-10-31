@@ -275,8 +275,11 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
   const [categoryFilter, setCategoryFilter] = useState<ChallengeCategory | null>(null)
 
   /// OSINT 归入 Misc（用户要求：osint 类划到 misc 里）
-  const normalizeCategory = (cat: ChallengeCategory): ChallengeCategory =>
-    cat === ChallengeCategory.OSINT ? ChallengeCategory.Misc : cat
+  const normalizeCategory = (cat: ChallengeCategory): ChallengeCategory => {
+    // OSINT / AI 都并入 Misc 统计
+    if (cat === ChallengeCategory.OSINT || cat === ChallengeCategory.AI) return ChallengeCategory.Misc
+    return cat
+  }
 
   /// 题目 Id → 归一化后的方向
   const challengeCategoryOf = useMemo(() => {
