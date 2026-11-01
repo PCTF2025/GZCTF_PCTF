@@ -2342,6 +2342,8 @@ export interface ChallengeInfo {
    * @format int32
    */
   score: number;
+  /** 所属周次（1-5 周，6 挑战题，7 其他题） */
+  week?: number | null;
   /**
    * Number of teams that solved the challenge
    * @format int32
