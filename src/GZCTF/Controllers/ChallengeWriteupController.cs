@@ -72,8 +72,9 @@ public class ChallengeWriteupController(
 
         var solvedSet = solved.ToHashSet();
 
+        // 挑战题 WP 只针对「挑战题」分桶，其他周的题目不在此提交
         var challenges = await dbContext.GameChallenges.AsNoTracking()
-            .Where(c => c.GameId == gameId && c.IsEnabled)
+            .Where(c => c.GameId == gameId && c.IsEnabled && c.Week == Game.ChallengeBucket)
             .OrderBy(c => c.Category).ThenBy(c => c.Title)
             .Select(c => new { c.Id, c.Title, c.Category, c.Week })
             .ToListAsync(token);
@@ -149,6 +150,10 @@ public class ChallengeWriteupController(
 
         if (challenge is null)
             return NotFound(new RequestResponse("题目不存在", StatusCodes.Status404NotFound));
+
+        // 仅挑战题支持提交解题思路
+        if (challenge.Week != Game.ChallengeBucket)
+            return BadRequest(new RequestResponse("只有挑战题需要提交解题思路"));
 
         var solved = await dbContext.FirstSolves.AsNoTracking()
             .AnyAsync(f => f.ParticipationId == participation.Id && f.ChallengeId == challengeId, token);

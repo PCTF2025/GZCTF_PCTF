@@ -64,7 +64,7 @@ const Writeups: FC = () => {
     <Stack pb="2rem" gap="md">
       <Text size="sm" c="dimmed">
         挑战题初始分较低，提交解题思路（PDF）并通过审核后将获得额外加分。
-        仅可为本队已解出的题目提交，重复提交会覆盖上一次的文件。
+        这里只列出本队已解出的「挑战题」，重复提交会覆盖上一次的文件。
       </Text>
 
       <Paper p="md" withBorder>
@@ -74,7 +74,7 @@ const Writeups: FC = () => {
           </Text>
         ) : (data?.items ?? []).length === 0 ? (
           <Text c="dimmed" ta="center" py="xl">
-            暂无可提交解题思路的题目（需先解出题目）
+            暂无可提交解题思路的挑战题（需先解出挑战题）
           </Text>
         ) : (
           <Table highlightOnHover verticalSpacing="sm">
