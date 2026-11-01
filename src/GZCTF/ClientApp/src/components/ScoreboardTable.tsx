@@ -55,16 +55,24 @@ export interface ChallengeGroupMeta {
   icon: string
 }
 
-interface TableHeaderProps {
-  challenges: Record<string, ChallengeInfo[]>
-  groupMeta?: Map<string, ChallengeGroupMeta>
+interface ColumnGroup {
+  key: string
+  label: string
+  color: string
+  icon: string
+  items: ChallengeInfo[]
 }
 
-const TableHeader = React.memo(({ challenges: table, groupMeta }: TableHeaderProps) => {
+interface TableHeaderProps {
+  groups: ColumnGroup[]
+  weekMode?: boolean
+  weekSpans?: { label: string; span: number }[]
+}
+
+const TableHeader = React.memo(({ groups, weekMode, weekSpans }: TableHeaderProps) => {
   const theme = useMantineTheme()
   const { colorScheme } = useMantineColorScheme()
   const { t } = useTranslation()
-  const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
 
   const hiddenCol = [...Array(5).keys()].map((i) => (
     <Table.Th
@@ -81,46 +89,65 @@ const TableHeader = React.memo(({ challenges: table, groupMeta }: TableHeaderPro
     </Table.Th>
   ))
 
+  const shade = (color: string) =>
+    alpha(theme.colors[color][colorScheme === 'dark' ? 8 : 6], colorScheme === 'dark' ? 0.15 : 0.2)
+
   return (
     <Table.Thead className={classes.thead}>
-      <Table.Tr className={misc.noBorder}>
-        {hiddenCol}
-        {Object.keys(table).map((key) => {
-          const meta =
-            groupMeta?.get(key) ??
-            (() => {
-              const cate = challengeCategoryLabelMap.get(key as ChallengeCategory)
-              return cate ? { label: key, color: cate.color, icon: cate.icon } : undefined
-            })()
-          if (!meta) return null
-          return (
+      {/* 周次（仅周次模式） */}
+      {weekMode && (
+        <Table.Tr className={misc.noBorder}>
+          {hiddenCol}
+          {(weekSpans ?? []).map((week) => (
             <Table.Th
-              key={key}
-              colSpan={table[key].length}
-              h="3rem"
-              style={{
-                backgroundColor: alpha(
-                  theme.colors[meta.color][colorScheme === 'dark' ? 8 : 6],
-                  colorScheme === 'dark' ? 0.15 : 0.2
-                ),
-              }}
+              key={week.label}
+              colSpan={week.span}
+              h="2.4rem"
+              style={{ backgroundColor: alpha(theme.colors.cyan[colorScheme === 'dark' ? 8 : 6], 0.12) }}
             >
               <Group gap={4} wrap="nowrap" justify="center" w="100%">
-                <Icon path={meta.icon} size={1} color={theme.colors[meta.color][colorScheme === 'dark' ? 8 : 6]} />
-                <Text c={meta.color} className={classes.text} ff="text" fz="sm">
-                  {meta.label}
+                <Icon
+                  path={mdiCalendarWeek}
+                  size={0.9}
+                  color={theme.colors.cyan[colorScheme === 'dark' ? 8 : 6]}
+                />
+                <Text c="cyan" className={classes.text} ff="text" fz="sm" fw={600}>
+                  {week.label}
                 </Text>
               </Group>
             </Table.Th>
-          )
-        })}
+          ))}
+        </Table.Tr>
+      )}
+      {/* 方向 */}
+      <Table.Tr className={misc.noBorder}>
+        {hiddenCol}
+        {groups.map((group) => (
+          <Table.Th
+            key={group.key}
+            colSpan={group.items.length}
+            h="2.4rem"
+            style={{ backgroundColor: shade(group.color) }}
+          >
+            <Group gap={4} wrap="nowrap" justify="center" w="100%">
+              <Icon
+                path={group.icon}
+                size={0.9}
+                color={theme.colors[group.color][colorScheme === 'dark' ? 8 : 6]}
+              />
+              <Text c={group.color} className={classes.text} ff="text" fz="sm">
+                {group.label}
+              </Text>
+            </Group>
+          </Table.Th>
+        ))}
       </Table.Tr>
-      {/* Challenge Name */}
+      {/* 题目名 */}
       <Table.Tr>
         {hiddenCol}
-        {Object.keys(table).map((key) => table[key].map((item) => <Table.Th key={item.id}>{item.title}</Table.Th>))}
+        {groups.map((group) => group.items.map((item) => <Table.Th key={item.id}>{item.title}</Table.Th>))}
       </Table.Tr>
-      {/* Headers & Score */}
+      {/* 表头 & 满分 */}
       <Table.Tr>
         {[
           t('game.label.score_table.rank_total'),
@@ -133,8 +160,8 @@ const TableHeader = React.memo(({ challenges: table, groupMeta }: TableHeaderPro
             {header}
           </Table.Th>
         ))}
-        {Object.keys(table).map((key) =>
-          table[key].map((item) => (
+        {groups.map((group) =>
+          group.items.map((item) => (
             <Table.Th key={item.id} className={classes.mono}>
               {item.score}
             </Table.Th>
@@ -151,9 +178,9 @@ const TableRow: FC<{
   tableRank: number
   onOpenDetail: () => void
   iconMap: Map<SubmissionType, PartialIconProps | undefined>
-  challenges?: Record<string, ChallengeInfo[]>
+  groups?: ColumnGroup[]
   divisionMap: Map<number, string>
-}> = React.memo(({ item, challenges, onOpenDetail, iconMap, tableRank, allRank, divisionMap }) => {
+}> = React.memo(({ item, groups, onOpenDetail, iconMap, tableRank, allRank, divisionMap }) => {
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
   const solved = item.solvedChallenges
   const theme = useMantineTheme()
@@ -225,9 +252,9 @@ const TableRow: FC<{
           totalScore
         )}
       </Table.Td>
-      {challenges &&
-        Object.keys(challenges).map((key) =>
-          challenges[key].map((item) => {
+      {groups &&
+        groups.map((group) =>
+          group.items.map((item) => {
             const chal = solved?.find((c) => c.id === item.id)
             const isZeroScore = chal && chal.type === SubmissionType.Normal && (chal.score ?? 0) === 0
             const icon = isZeroScore ? zeroScoreIcon : iconMap.get(chal?.type ?? SubmissionType.Unaccepted)
@@ -385,37 +412,77 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
     return { items, challenges }
   }, [scoreboard, groupScope, categoryFilter, challengeCategoryOf])
 
-  /// 周次模式下按「周」重新组织列（未开放的周不出现）
-  const groupedChallenges = useMemo(() => {
-    if (!weekMode) return view.challenges
+  /// 列分组：周次模式下「周 → 方向」两级，否则单级方向
+  const columnGroups = useMemo<ColumnGroup[]>(() => {
+    const groups: ColumnGroup[] = []
 
-    const all = Object.values(view.challenges).flat()
-    const ordered = [...all].sort((a, b) => (a.week ?? 999) - (b.week ?? 999))
-
-    const grouped: Record<string, ChallengeInfo[]> = {}
-    for (const ch of ordered) {
-      const key = ch.week ?? null
-      if (!isWeekOpen(key)) continue
-      const name = weekName(key)
-      if (!grouped[name]) grouped[name] = []
-      grouped[name].push(ch)
+    if (!weekMode) {
+      Object.keys(view.challenges).forEach((key) => {
+        const cate = challengeCategoryLabelMap.get(key as ChallengeCategory)
+        groups.push({
+          key,
+          label: cate?.name ?? key,
+          color: cate?.color ?? 'gray',
+          icon: cate?.icon ?? mdiFlagOutline,
+          items: view.challenges[key],
+        })
+      })
+      return groups
     }
-    return grouped
-  }, [view.challenges, weekMode, weekBuckets])
 
-  /// 分组表头样式：周次模式用日历图标，否则沿用方向配色
-  const groupMeta = useMemo(() => {
-    const meta = new Map<string, ChallengeGroupMeta>()
-    Object.keys(groupedChallenges).forEach((key) => {
-      if (weekMode) {
-        meta.set(key, { label: key, color: 'cyan', icon: mdiCalendarWeek })
-        return
-      }
-      const cate = challengeCategoryLabelMap.get(key as ChallengeCategory)
-      if (cate) meta.set(key, { label: key, color: cate.color, icon: cate.icon })
+    // 按周归拢，未开放的周直接丢弃
+    const byWeek = new Map<string, ChallengeInfo[]>()
+    Object.values(view.challenges)
+      .flat()
+      // 周次升序：1-5 周 → 挑战题(6) → 其他题(7) → 未归类(null)
+      .sort((a, b) => (a.week ?? 999) - (b.week ?? 999))
+      .forEach((ch) => {
+        const week = ch.week ?? null
+        if (!isWeekOpen(week)) return
+        const name = weekName(week)
+        const list = byWeek.get(name) ?? []
+        list.push(ch)
+        byWeek.set(name, list)
+      })
+
+    // 周内再按方向分组，保持后端下发顺序（Category 升序）
+    byWeek.forEach((items, week) => {
+      const byCategory = new Map<ChallengeCategory, ChallengeInfo[]>()
+      items.forEach((ch) => {
+        const cat = normalizeCategory(ch.category)
+        const list = byCategory.get(cat) ?? []
+        list.push(ch)
+        byCategory.set(cat, list)
+      })
+
+      byCategory.forEach((chalList, cat) => {
+        const cate = challengeCategoryLabelMap.get(cat)
+        groups.push({
+          key: `${week}::${cat}`,
+          label: cate?.name ?? cat,
+          color: cate?.color ?? 'gray',
+          icon: cate?.icon ?? mdiFlagOutline,
+          items: chalList,
+        })
+      })
     })
-    return meta
-  }, [groupedChallenges, weekMode, challengeCategoryLabelMap])
+
+    return groups
+  }, [view.challenges, weekMode, weekBuckets, challengeCategoryLabelMap])
+
+  /// 周次表头的跨列信息
+  const weekSpans = useMemo(() => {
+    if (!weekMode) return []
+
+    const spans: { label: string; span: number }[] = []
+    columnGroups.forEach((group) => {
+      const week = group.key.split('::')[0]
+      const last = spans[spans.length - 1]
+      if (last && last.label === week) last.span += group.items.length
+      else spans.push({ label: week, span: group.items.length })
+    })
+    return spans
+  }, [columnGroups, weekMode])
 
   /// 分组合并下拉
   const groupOptions = [
@@ -587,7 +654,7 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
             }}
           >
             <Table className={classes.table}>
-              <TableHeader challenges={groupedChallenges} groupMeta={groupMeta} />
+              <TableHeader groups={columnGroups} weekMode={weekMode} weekSpans={weekSpans} />
               <Table.Tbody>
                 {scoreboard &&
                   currentItems?.map((item, idx) => (
@@ -600,7 +667,7 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
                         setCurrentItem(item)
                         setItemDetailOpened(true)
                       }}
-                      challenges={groupedChallenges}
+                      groups={columnGroups}
                       iconMap={iconMap}
                       divisionMap={divisionMap}
                     />
