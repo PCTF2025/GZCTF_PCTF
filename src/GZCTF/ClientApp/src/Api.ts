@@ -1083,6 +1083,17 @@ export interface ChallengeWriteupAwardModel {
   note?: string | null;
 }
 
+/** 排行榜队员真实姓名（仅出题/学籍管理权限可见） */
+export interface ScoreboardMemberModel {
+  teamId: number;
+  userName: string;
+  realName?: string | null;
+}
+
+export interface ScoreboardMemberListModel {
+  items: ScoreboardMemberModel[];
+}
+
 export interface SchoolStatsModel {
   /** 报名总人数 */
   total?: number;
@@ -5463,6 +5474,27 @@ export class Api<
         ...params,
       }),
   };
+  scoreboardMembers = {
+    /**
+     * @description 排行榜队员真实姓名（仅出题 / 学籍管理权限可见）
+     * @name ScoreboardMembers
+     * @request GET:/api/game/{id}/Scoreboard/Members
+     */
+    scoreboardMembers: (id: number, params: RequestParams = {}) =>
+      this.request<ScoreboardMemberListModel, RequestResponse>({
+        path: `/api/game/${id}/Scoreboard/Members`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useScoreboardMembers: (id: number, options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<ScoreboardMemberListModel, RequestResponse>(
+        doFetch && id > 0 ? `/api/game/${id}/Scoreboard/Members` : null,
+        options,
+      ),
+  }
+
   challengeWriteup = {
     /**
      * @description 队伍视角：已解出题目与 WP 提交状态

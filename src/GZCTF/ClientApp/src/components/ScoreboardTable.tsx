@@ -9,6 +9,7 @@ import {
   Paper,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -36,7 +37,8 @@ import {
   PartialIconProps,
 } from '@Utils/Shared'
 import { useGame, useGameScoreboard } from '@Hooks/useGame'
-import { ChallengeInfo, ChallengeCategory, ScoreboardItem, SubmissionType } from '@Api'
+import { useUser } from '@Hooks/useUser'
+import api, { ChallengeInfo, ChallengeCategory, Role, ScoreboardItem, SubmissionType } from '@Api'
 import misc from '@Styles/Misc.module.css'
 import classes from '@Styles/ScoreboardTable.module.css'
 
@@ -180,7 +182,9 @@ const TableRow: FC<{
   iconMap: Map<SubmissionType, PartialIconProps | undefined>
   groups?: ColumnGroup[]
   divisionMap: Map<number, string>
-}> = React.memo(({ item, groups, onOpenDetail, iconMap, tableRank, allRank, divisionMap }) => {
+  realNames?: Map<number, string[]>
+  showRealName?: boolean
+}> = React.memo(({ item, groups, onOpenDetail, iconMap, tableRank, allRank, divisionMap, realNames, showRealName }) => {
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
   const solved = item.solvedChallenges
   const theme = useMantineTheme()
@@ -230,6 +234,11 @@ const TableRow: FC<{
           </Avatar>
           <Stack gap={0} h="2.5rem" justify="center" w={Widths[2] - 45}>
             <ScrollingText size="sm" text={item.name || ''} onClick={onOpenDetail} />
+            {showRealName && (realNames?.get(item.id)?.length ?? 0) > 0 && (
+              <Text size="xs" c="teal" ta="start" truncate className={classes.text}>
+                {realNames!.get(item.id)!.join('、')}
+              </Text>
+            )}
             {!!divisionName && (
               <Text size="xs" c="dimmed" ta="start" truncate className={classes.text}>
                 {divisionName}
@@ -313,6 +322,30 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
   const { scoreboard } = useGameScoreboard(numId)
   const weekMode = game?.weekModeEnabled ?? false
   const weekBuckets = game?.weekBuckets ?? []
+
+  // 出题 / 学籍管理权限的账号可查看真实姓名（服务端按权限与学校范围过滤）
+  const { user } = useUser()
+  const canSeeRealName =
+    !!user &&
+    (user.role === Role.Admin || user.isChallengeAuthor === true || user.isSchoolAdmin === true)
+  const [showRealName, setShowRealName] = useState(false)
+  const { data: memberData } = api.scoreboardMembers.useScoreboardMembers(
+    numId,
+    undefined,
+    canSeeRealName && showRealName
+  )
+
+  /// 队伍 Id → 该队成员真实姓名
+  const realNames = useMemo(() => {
+    const map = new Map<number, string[]>()
+    ;(memberData?.items ?? []).forEach((m) => {
+      if (!m.realName) return
+      const list = map.get(m.teamId) ?? []
+      if (!list.includes(m.realName)) list.push(m.realName)
+      map.set(m.teamId, list)
+    })
+    return map
+  }, [memberData])
 
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
 
@@ -637,7 +670,18 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
               leftSection={<Icon path={mdiFlagOutline} size={1} />}
             />
           </Grid.Col>
-          <Grid.Col span={3}>
+          {canSeeRealName && (
+            <Grid.Col span={2}>
+              <Switch
+                size="xs"
+                checked={showRealName}
+                onChange={(e) => setShowRealName(e.currentTarget.checked)}
+                label="真实姓名"
+                mt="sm"
+              />
+            </Grid.Col>
+          )}
+          <Grid.Col span={canSeeRealName ? 2 : 3}>
             <TextInput
               placeholder={t('game.placeholder.search_team')}
               value={keyword}
@@ -668,6 +712,8 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
                         setItemDetailOpened(true)
                       }}
                       groups={columnGroups}
+                      realNames={realNames}
+                      showRealName={showRealName}
                       iconMap={iconMap}
                       divisionMap={divisionMap}
                     />

@@ -402,3 +402,20 @@ public partial class Blood
     /// </summary>
     public DateTimeOffset? SubmitTimeUtc { get; set; }
 }
+
+/// <summary>
+/// 排行榜队员真实姓名（仅出题/学籍管理权限可见，不进排行榜缓存）
+/// </summary>
+public class ScoreboardMemberModel
+{
+    public int TeamId { get; set; }
+
+    public string UserName { get; set; } = string.Empty;
+
+    public string? RealName { get; set; }
+}
+
+public class ScoreboardMemberListModel
+{
+    public List<ScoreboardMemberModel> Items { get; set; } = [];
+}

@@ -924,6 +924,67 @@ public class GameController(
     }
 
     /// <summary>
+    /// 排行榜队员真实姓名（仅出题 / 学籍管理权限可见）
+    /// </summary>
+    /// <remarks>
+    /// 独立于排行榜缓存下发，避免真实姓名被所有选手拿到。
+    /// 系统管理员与出题人可见全部；学校负责人仅可见本校学生。
+    /// </remarks>
+    /// <param name="id">Game ID</param>
+    /// <param name="token"></param>
+    /// <response code="200">Successfully retrieved scoreboard members</response>
+    /// <response code="404">Game not found</response>
+    [RequireGameReviewer]
+    [HttpGet("{id:int}/Scoreboard/Members")]
+    [ProducesResponseType(typeof(ScoreboardMemberListModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ScoreboardMembers([FromRoute] int id, CancellationToken token)
+    {
+        var game = await gameRepository.GetGameById(id, token);
+
+        if (game is null)
+            return NotFound(new RequestResponse(localizer[nameof(Resources.Program.Game_NotFound)]));
+
+        var user = await userManager.GetUserAsync(User);
+
+        if (user is null)
+            return Unauthorized(new RequestResponse(localizer[nameof(Resources.Program.Auth_LoginRequired)],
+                StatusCodes.Status401Unauthorized));
+
+        // 学校负责人只能看本校学生；管理员与出题人看全部
+        var scopedToOwnSchool = user.Role < Role.Admin && !user.CanEditChallenge;
+        var managedSchools = user.ManagedSchoolList;
+
+        var query = dbContext.UserParticipations.AsNoTracking()
+            .Where(p => p.GameId == id && p.User != null)
+            .Select(p => new
+            {
+                p.TeamId,
+                p.User!.UserName,
+                p.User.RealName,
+                p.User.School
+            });
+
+        if (scopedToOwnSchool)
+            query = query.Where(q => managedSchools.Contains(q.School));
+
+        var items = await query.ToListAsync(token);
+
+        return Ok(new ScoreboardMemberListModel
+        {
+            Items = items
+                .Where(q => !string.IsNullOrWhiteSpace(q.RealName))
+                .Select(q => new ScoreboardMemberModel
+                {
+                    TeamId = q.TeamId,
+                    UserName = q.UserName ?? string.Empty,
+                    RealName = q.RealName
+                })
+                .ToList()
+        });
+    }
+
+    /// <summary>
     /// Downloads the scoreboard
     /// </summary>
     /// <remarks>
