@@ -413,6 +413,9 @@ public class ScoreboardMemberModel
     public string UserName { get; set; } = string.Empty;
 
     public string? RealName { get; set; }
+
+    /// <summary>学号</summary>
+    public string? StdNumber { get; set; }
 }
 
 public class ScoreboardMemberListModel

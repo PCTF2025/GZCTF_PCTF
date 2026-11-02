@@ -1088,6 +1088,8 @@ export interface ScoreboardMemberModel {
   teamId: number;
   userName: string;
   realName?: string | null;
+  /** 学号 */
+  stdNumber?: string | null;
 }
 
 export interface ScoreboardMemberListModel {

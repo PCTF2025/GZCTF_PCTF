@@ -182,7 +182,7 @@ const TableRow: FC<{
   iconMap: Map<SubmissionType, PartialIconProps | undefined>
   groups?: ColumnGroup[]
   divisionMap: Map<number, string>
-  realNames?: Map<number, string[]>
+  realNames?: Map<number, string>
   showRealName?: boolean
 }> = React.memo(({ item, groups, onOpenDetail, iconMap, tableRank, allRank, divisionMap, realNames, showRealName }) => {
   const challengeCategoryLabelMap = useChallengeCategoryLabelMap()
@@ -234,9 +234,9 @@ const TableRow: FC<{
           </Avatar>
           <Stack gap={0} h="2.5rem" justify="center" w={Widths[2] - 45}>
             <ScrollingText size="sm" text={item.name || ''} onClick={onOpenDetail} />
-            {showRealName && (realNames?.get(item.id)?.length ?? 0) > 0 && (
+            {showRealName && !!realNames?.get(item.id) && (
               <Text size="xs" c="teal" ta="start" truncate className={classes.text}>
-                {realNames!.get(item.id)!.join('、')}
+                {realNames.get(item.id)}
               </Text>
             )}
             {!!divisionName && (
@@ -335,14 +335,14 @@ export const ScoreboardTable: FC<ScoreboardProps> = ({ divisionId, setDivisionId
     canSeeRealName && showRealName
   )
 
-  /// 队伍 Id → 该队成员真实姓名
+  /// 队伍 Id → 成员「姓名 学号」一行文本
   const realNames = useMemo(() => {
-    const map = new Map<number, string[]>()
+    const map = new Map<number, string>()
     ;(memberData?.items ?? []).forEach((m) => {
-      if (!m.realName) return
-      const list = map.get(m.teamId) ?? []
-      if (!list.includes(m.realName)) list.push(m.realName)
-      map.set(m.teamId, list)
+      const label = [m.realName?.trim(), m.stdNumber?.trim()].filter(Boolean).join(' ')
+      if (!label) return
+      const prev = map.get(m.teamId)
+      map.set(m.teamId, prev ? `${prev}、${label}` : label)
     })
     return map
   }, [memberData])

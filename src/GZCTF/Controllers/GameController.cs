@@ -962,6 +962,7 @@ public class GameController(
                 p.TeamId,
                 p.User!.UserName,
                 p.User.RealName,
+                p.User.StdNumber,
                 p.User.School
             });
 
@@ -973,12 +974,13 @@ public class GameController(
         return Ok(new ScoreboardMemberListModel
         {
             Items = items
-                .Where(q => !string.IsNullOrWhiteSpace(q.RealName))
+                .Where(q => !string.IsNullOrWhiteSpace(q.RealName) || !string.IsNullOrWhiteSpace(q.StdNumber))
                 .Select(q => new ScoreboardMemberModel
                 {
                     TeamId = q.TeamId,
                     UserName = q.UserName ?? string.Empty,
-                    RealName = q.RealName
+                    RealName = q.RealName,
+                    StdNumber = string.IsNullOrWhiteSpace(q.StdNumber) ? null : q.StdNumber
                 })
                 .ToList()
         });
