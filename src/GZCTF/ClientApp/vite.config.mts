@@ -8,6 +8,9 @@ import webfontDownload from 'vite-plugin-webfont-dl'
 import { fetchContributors } from './plugins/vite-fetch-contributors.ts'
 import { i18nVirtualManifest } from './plugins/vite-i18n-virtual-manifest.ts'
 
+// 构建戳：每次构建唯一，用于隔离静态资源缓存
+const buildStamp = Date.now().toString(36)
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
 
@@ -49,9 +52,12 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           hashCharacters: 'base36',
-          chunkFileNames: 'static/[hash].js',
+          // 每次构建把 chunk / 入口放到独立目录：旧部署的缓存文件永远不会被新入口引用，
+          // 避免「同 URL 不同内容」导致的 "does not provide an export named ..." 报错。
+          // assets（含 i18n json）保持原路径，前端用 /static/<file> 直接取。
+          chunkFileNames: `static/${buildStamp}/[hash].js`,
           assetFileNames: 'static/[hash].[ext]',
-          entryFileNames: 'static/[name].[hash].js',
+          entryFileNames: `static/${buildStamp}/[name].[hash].js`,
         },
       },
     },
