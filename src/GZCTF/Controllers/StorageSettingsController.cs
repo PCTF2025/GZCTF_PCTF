@@ -48,6 +48,40 @@ public class StorageSettingsController(
     }
 
     /// <summary>
+    /// 若 Endpoint 填的是「桶域名」（如 mybucket.oss-cn-hangzhou.aliyuncs.com），
+    /// 去掉桶前缀，改成区域级 Endpoint，配合路径风格访问，避免请求路径变成 /bucket/bucket
+    /// </summary>
+    private static string StripBucketPrefix(string endpoint, string bucket)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(bucket))
+            return endpoint;
+
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            return endpoint;
+
+        var host = uri.Host;
+        var labels = host.Split('.');
+
+        // 形如 <bucket>.oss-cn-hangzhou.aliyuncs.com / <bucket>.s3.us-east-1.amazonaws.com
+        // 这类「桶域名」需要去掉首段，改成区域级 Endpoint
+        var isBucketHost = labels.Length >= 4 &&
+                           (labels[1].StartsWith("oss-", StringComparison.OrdinalIgnoreCase) ||
+                            labels[1].Equals("oss", StringComparison.OrdinalIgnoreCase) ||
+                            labels[1].Equals("s3", StringComparison.OrdinalIgnoreCase));
+
+        // 配置的桶名与域名首段一致的，也按桶域名处理
+        if (!isBucketHost && !string.IsNullOrWhiteSpace(bucket) &&
+            host.StartsWith(bucket + ".", StringComparison.OrdinalIgnoreCase))
+            isBucketHost = true;
+
+        if (!isBucketHost)
+            return endpoint;
+
+        var builder = new UriBuilder(uri) { Host = string.Join('.', labels.Skip(1)) };
+        return builder.Uri.GetLeftPart(UriPartial.Authority);
+    }
+
+    /// <summary>
     /// 读取对象存储配置（密钥不回传）
     /// </summary>
     [HttpGet]
@@ -82,7 +116,7 @@ public class StorageSettingsController(
         if (string.IsNullOrWhiteSpace(model.AccessKeySecret) || model.AccessKeySecret == SecretMask)
             model.AccessKeySecret = await GetSecretAsync(token);
 
-        model.Endpoint = NormalizeEndpoint(model.Endpoint);
+        model.Endpoint = StripBucketPrefix(NormalizeEndpoint(model.Endpoint), model.Bucket);
         model.Bucket = model.Bucket?.Trim() ?? string.Empty;
         model.AccessKeyId = model.AccessKeyId?.Trim() ?? string.Empty;
         model.Region = model.Region?.Trim() ?? string.Empty;
@@ -108,7 +142,7 @@ public class StorageSettingsController(
     {
         var config = await LoadAsync(token);
         var secret = await GetSecretAsync(token);
-        config.Endpoint = NormalizeEndpoint(config.Endpoint);
+        config.Endpoint = StripBucketPrefix(NormalizeEndpoint(config.Endpoint), config.Bucket);
 
         if (string.IsNullOrWhiteSpace(config.Endpoint) || string.IsNullOrWhiteSpace(config.Bucket) ||
             string.IsNullOrWhiteSpace(config.AccessKeyId) || string.IsNullOrWhiteSpace(secret))
@@ -128,12 +162,28 @@ public class StorageSettingsController(
             cts.CancelAfter(TimeSpan.FromSeconds(15));
 
             using var client = new AmazonS3Client(new BasicAWSCredentials(config.AccessKeyId, secret), s3Config);
-            await client.GetACLAsync(new GetACLRequest { BucketName = config.Bucket }, cts.Token);
-            return Ok(new { ok = true, message = "连接成功，桶可访问" });
+
+            // 用列出对象验证：既能验证桶存在，也能验证读权限（GetACL 在部分 OSS 上不被支持）
+            await client.ListObjectsV2Async(
+                new ListObjectsV2Request { BucketName = config.Bucket, MaxKeys = 1 }, cts.Token);
+
+            return Ok(new { ok = true, message = $"连接成功，桶可访问（Endpoint: {config.Endpoint}）" });
         }
         catch (OperationCanceledException)
         {
             return Ok(new { ok = false, message = "连接超时（15 秒），请检查 Endpoint 或服务器出网情况" });
+        }
+        catch (AmazonS3Exception e)
+        {
+            var hint = e.ErrorCode switch
+            {
+                "NoSuchBucket" => "桶不存在，请检查 Bucket 名称",
+                "AccessDenied" or "InvalidAccessKeyId" or "SignatureDoesNotMatch" => "密钥或权限不正确",
+                "NoSuchKey" => "Endpoint 与 Bucket 不匹配（请填区域级 Endpoint，如 oss-cn-hangzhou.aliyuncs.com）",
+                _ => e.Message
+            };
+            logger.LogErrorMessage(e, $"对象存储连通性测试失败：{e.ErrorCode}");
+            return Ok(new { ok = false, message = hint });
         }
         catch (Exception e)
         {
