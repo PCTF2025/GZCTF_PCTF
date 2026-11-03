@@ -52,4 +52,9 @@ public class CheatInfo
     public int SubmissionId { get; set; }
 
     #endregion Db Relationship
+
+    /// <summary>
+    /// 异常行为类型：共享 flag / 短时间大量提交
+    /// </summary>
+    public CheatBehavior Behavior { get; set; } = CheatBehavior.FlagShared;
 }

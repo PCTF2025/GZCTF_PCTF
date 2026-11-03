@@ -1,4 +1,5 @@
 ﻿using System.Threading.Channels;
+using GZCTF.Models.Internal;
 using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
 using Microsoft.EntityFrameworkCore;
@@ -93,6 +94,10 @@ public class FlagChecker(
                     scope.ServiceProvider.GetRequiredService<IGameNoticeRepository>();
                 var submissionRepository =
                     scope.ServiceProvider.GetRequiredService<ISubmissionRepository>();
+                var cheatInfoRepository =
+                    scope.ServiceProvider.GetRequiredService<ICheatInfoRepository>();
+                var globalConfig = scope.ServiceProvider
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptionsSnapshot<GlobalConfig>>().Value;
 
                 try
                 {
@@ -162,6 +167,23 @@ public class FlagChecker(
 
                                 break;
                             }
+                    }
+
+                    // 短时间大量提交检测（疑似自动化工具）：不影响提交结果，只记录异常
+                    if (globalConfig.MassSubmissionAlert && type != SubmissionType.Unaccepted)
+                    {
+                        var alert = await cheatInfoRepository.CreateMassSubmissionAlert(item,
+                            globalConfig.MassSubmissionWindowSeconds,
+                            globalConfig.MassSubmissionThreshold, token);
+
+                        if (alert is not null)
+                        {
+                            logger.SystemLog(
+                                $"检测到短时间大量提交：队伍 {item.TeamName} 在 " +
+                                $"{globalConfig.MassSubmissionWindowSeconds} 秒内提交超过 " +
+                                $"{globalConfig.MassSubmissionThreshold} 次（疑似自动化工具）",
+                                TaskStatus.Success, LogLevel.Warning);
+                        }
                     }
 
                     if (item.Game!.EndTimeUtc > DateTimeOffset.UtcNow

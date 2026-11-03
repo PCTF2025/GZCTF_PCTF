@@ -289,6 +289,21 @@ public class GlobalConfig
     [AutoSaveIgnore]
     public string? FaviconHash { get; set; }
 
+    /// <summary>
+    /// 是否启用「短时间大量提交」异常检测
+    /// </summary>
+    public bool MassSubmissionAlert { get; set; } = true;
+
+    /// <summary>
+    /// 统计窗口（秒）
+    /// </summary>
+    public int MassSubmissionWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// 窗口内提交次数阈值，达到即记录异常
+    /// </summary>
+    public int MassSubmissionThreshold { get; set; } = 20;
+
     [JsonIgnore]
     public string? LogoUrl => string.IsNullOrEmpty(LogoHash) ? null : $"/assets/{LogoHash}/logo";
 

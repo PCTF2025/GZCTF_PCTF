@@ -20,10 +20,16 @@ public class CheatInfoModel
     /// </summary>
     public Submission Submission { get; set; } = null!;
 
+    /// <summary>
+    /// 异常行为类型（FlagShared = 共享 flag，MassSubmission = 短时间大量提交）
+    /// </summary>
+    public CheatBehavior Behavior { get; set; }
+
     internal static CheatInfoModel FromCheatInfo(CheatInfo info) =>
         new()
         {
             Submission = info.Submission,
+            Behavior = info.Behavior,
             OwnedTeam = ParticipationModel.FromParticipation(info.SourceTeam),
             SubmitTeam = ParticipationModel.FromParticipation(info.SubmitTeam)
         };

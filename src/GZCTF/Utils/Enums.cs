@@ -585,6 +585,24 @@ public enum AnswerResult : sbyte
     /// </summary>
     NotFound = -1
 }
+/// <summary>
+/// 异常行为类型
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<CheatBehavior>))]
+public enum CheatBehavior
+{
+    /// <summary>
+    /// 提交了其他队伍的 flag（共享作弊）
+    /// </summary>
+    FlagShared = 0,
+
+    /// <summary>
+    /// 短时间大量提交，疑似自动化工具（AI agent）
+    /// </summary>
+    MassSubmission = 1
+}
+
+
 
 public static class AnswerResultExtensions
 {

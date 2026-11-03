@@ -17,7 +17,7 @@ import {
 } from '@mantine/core'
 import { useLocalStorage } from '@mantine/hooks'
 import { showNotification } from '@mantine/notifications'
-import { mdiCheck, mdiKeyAlert, mdiTarget } from '@mdi/js'
+import { mdiCheck, mdiKeyAlert, mdiRobotOutline, mdiTarget } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -41,6 +41,7 @@ import misc from '@Styles/Misc.module.css'
 enum CheatType {
   Submit = 'Submit',
   Owned = 'Owned',
+  MassSubmit = 'MassSubmit',
 }
 
 const CheatTypeMap = new Map([
@@ -56,6 +57,13 @@ const CheatTypeMap = new Map([
     {
       color: 'red',
       iconPath: mdiKeyAlert,
+    },
+  ],
+  [
+    CheatType.MassSubmit,
+    {
+      color: 'violet',
+      iconPath: mdiRobotOutline,
     },
   ],
 ])
@@ -88,6 +96,35 @@ const ToCheatTeamInfo = (cheatInfo: CheatInfoModel[]) => {
     if (!ownedTeam || !submitTeam || !submission) continue
 
     const time = dayjs(submission.time)
+
+    // 短时间大量提交：只记录提交方，不牵扯「被抄袭队伍」
+    if (info.behavior === 'MassSubmission') {
+      const part = submitTeam
+      if (!cheatTeamInfo.has(part.id ?? -1)) {
+        cheatTeamInfo.set(part.id ?? -1, {
+          name: part.team?.name,
+          avatar: part.team?.avatar,
+          teamId: part.team?.id,
+          status: part.status,
+          participateId: part.id,
+          divisionId: part.divisionId,
+          division: part.division,
+          lastSubmitTime: time,
+          submissionInfo: new Set<CheatSubmissionInfo>(),
+        })
+      }
+      const info2 = cheatTeamInfo.get(part.id ?? -1)!
+      if (info2.lastSubmitTime?.isBefore(time)) info2.lastSubmitTime = time
+      info2.submissionInfo.add({
+        time,
+        answer: submission.answer,
+        user: submission.user,
+        challenge: submission.challenge,
+        cheatType: CheatType.MassSubmit,
+        relatedTeam: undefined,
+      })
+      continue
+    }
 
     for (const part of [ownedTeam, submitTeam]) {
       if (!cheatTeamInfo.has(part.id ?? -1)) {
@@ -160,7 +197,7 @@ const CheatSubmissionInfo: FC<CheatSubmissionInfoProps> = (props) => {
             {dayjs(submissionInfo.time).locale(locale).format('SL HH:mm:ss')}
           </Badge>
           <Text lineClamp={1} fw="bold">
-            {submissionInfo.relatedTeam}
+            {submissionInfo.cheatType === CheatType.MassSubmit ? '短时间内大量提交' : submissionInfo.relatedTeam}
           </Text>
         </Group>
         <Text size="sm" lineClamp={1} fw="bold">
