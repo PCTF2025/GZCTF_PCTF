@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using GZCTF.Middlewares;
 using GZCTF.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,10 @@ namespace GZCTF.Controllers;
 [RequireGameReviewer]
 [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status403Forbidden)]
-public class TrafficMonitorController(ILogger<TrafficMonitorController> logger) : ControllerBase
+public class TrafficMonitorController(
+    ILogger<TrafficMonitorController> logger,
+    Services.Storage.S3StorageService s3,
+    IConfiguration configuration) : ControllerBase
 {
     private static readonly string StatusPath =
         Environment.GetEnvironmentVariable("TRAFFIC_MONITOR_STATUS") ?? "/var/lib/gzctf-traffic/.status.json";
@@ -54,7 +58,7 @@ public class TrafficMonitorController(ILogger<TrafficMonitorController> logger) 
     [HttpGet("Download")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
-    public IActionResult Download([FromQuery] string file)
+    public async Task<IActionResult> Download([FromQuery] string file)
     {
         if (string.IsNullOrWhiteSpace(file))
             return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
@@ -63,8 +67,17 @@ public class TrafficMonitorController(ILogger<TrafficMonitorController> logger) 
         var root = Path.GetFullPath(FilesRoot);
         var full = Path.GetFullPath(Path.Combine(root, file));
 
-        if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-            !System.IO.File.Exists(full))
+        if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
+
+        // 优先对象存储（已切到 OSS 后本地可能已清理）
+        var objectKey = $"{Services.Storage.S3StorageService.KeyPrefix}/{file.Replace('\\', '/')}";
+        var url = await s3.GetPresignedUrlAsync(objectKey, TimeSpan.FromMinutes(30));
+
+        if (!string.IsNullOrEmpty(url))
+            return Redirect(url);
+
+        if (!System.IO.File.Exists(full))
             return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
 
         var stream = System.IO.File.OpenRead(full);

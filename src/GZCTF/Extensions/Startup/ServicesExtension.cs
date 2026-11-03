@@ -94,6 +94,7 @@ internal static class ServicesExtension
             builder.Services.AddChannel<Submission>();
             builder.Services.AddChannel<CacheRequest>();
             builder.Services.AddSingleton<CacheHelper>();
+            builder.Services.AddScoped<GZCTF.Services.Storage.S3StorageService>();
             builder.Services.AddSingleton<IMailSender, MailSender>();
             builder.Services.AddScoped<EmailCodeService>();
             builder.Services.AddSingleton<TrafficRecorderRegistry>();

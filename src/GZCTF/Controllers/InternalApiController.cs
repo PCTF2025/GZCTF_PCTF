@@ -3,6 +3,8 @@ using GZCTF.Models;
 using GZCTF.Repositories.Interface;
 using Microsoft.AspNetCore.Mvc;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace GZCTF.Controllers;
 
 /// <summary>
@@ -18,6 +20,7 @@ namespace GZCTF.Controllers;
 [Route("api/internal")]
 public class InternalApiController(
     IGameInstanceRepository instanceRepository,
+    GZCTF.Services.Storage.S3StorageService s3,
     IConfiguration configuration,
     ILogger<InternalApiController> logger) : ControllerBase
 {
@@ -63,6 +66,40 @@ public class InternalApiController(
                 StatusCodes.Status404NotFound));
 
         return Ok(new InternalFlagResponse { Flag = flag });
+    }
+    /// <summary>
+    /// 上传靶机流量包到对象存储
+    /// </summary>
+    /// <remarks>调用方需在请求头 <c>X-Internal-Key</c> 中携带内部密钥。</remarks>
+    [HttpPost("traffic/upload")]
+    [DisableRequestSizeLimit]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UploadTraffic([FromForm] IFormFile file, [FromForm] string key,
+        CancellationToken token)
+    {
+        var configured = ConfiguredKey;
+
+        if (string.IsNullOrEmpty(configured))
+            return StatusCode(StatusCodes.Status403Forbidden, new RequestResponse("内部接口未启用"));
+
+        if (!Request.Headers.TryGetValue(KeyHeader, out var provided) || provided != configured)
+            return StatusCode(StatusCodes.Status403Forbidden, new RequestResponse("内部密钥错误"));
+
+        if (file.Length == 0 || string.IsNullOrWhiteSpace(key))
+            return BadRequest(new RequestResponse("参数不完整"));
+
+        var safeKey = key.Replace('\\', '/').TrimStart('/');
+
+        if (safeKey.Contains(".."))
+            return BadRequest(new RequestResponse("非法路径"));
+
+        await using var stream = file.OpenReadStream();
+        var ok = await s3.UploadAsync(stream,
+            $"{GZCTF.Services.Storage.S3StorageService.KeyPrefix}/{safeKey}",
+            "application/vnd.tcpdump.pcap", token);
+
+        return Ok(new { ok, key = $"{GZCTF.Services.Storage.S3StorageService.KeyPrefix}/{safeKey}" });
     }
 }
 
