@@ -13,6 +13,7 @@ using GZCTF.Models.Request.Game;
 using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
 using GZCTF.Services.Config;
+using GZCTF.Services.Traffic;
 using GZCTF.Storage.Interface;
 using GZCTF.Utils;
 using Microsoft.AspNetCore.Identity;
@@ -41,6 +42,7 @@ public class GameController(
     CacheHelper cacheHelper,
     IBlobStorage storage,
     IConfigService configService,
+    TrafficArchiveStore archives,
     IBlobRepository blobService,
     IGameRepository gameRepository,
     ITeamRepository teamRepository,
@@ -1224,8 +1226,20 @@ public class GameController(
             try
             {
                 submission = await submissionRepository.AddSubmission(submission, token);
-                await transaction.CommitAsync(token);
 
+                var primary = await dbContext.GameInstances.AsNoTracking().IgnoreAutoIncludes()
+                    .Where(i => i.ParticipationId == instance.ParticipationId && i.ChallengeId == instance.ChallengeId)
+                    .Select(i => i.Container == null ? null : new { i.Container.ContainerId, i.Container.GroupId })
+                    .FirstOrDefaultAsync(token);
+                var currentPods = primary?.GroupId is { } captureGroup
+                    ? await dbContext.Containers.AsNoTracking().Where(c => c.GroupId == captureGroup)
+                        .Select(c => c.ContainerId).ToArrayAsync(token)
+                    : primary is null ? [] : new[] { primary.ContainerId };
+                archives.RememberSubmission(submission, HttpContext.Connection.RemoteIpAddress?.ToString(), currentPods);
+                await transaction.CommitAsync(token);
+                using (archives.SubmissionLogScope(submission, "flag_submit"))
+                    logger.Log($"提交 flag：题目={submission.ChallengeId} 提交={submission.Id} 内容={submission.Answer}",
+                        HttpContext, TaskStatus.Pending);
                 await channelWriter.WriteAsync(submission, token);
                 return Ok(submission.Id);
             }

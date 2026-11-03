@@ -1,89 +1,66 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Authorization;
 using GZCTF.Middlewares;
 using GZCTF.Models;
+using GZCTF.Services.Storage;
+using GZCTF.Services.Traffic;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GZCTF.Controllers;
 
-/// <summary>
-/// 靶机流量监控（外部采集脚本提供数据）
-///
-/// 采集由服务器上的独立服务完成（按 pod 抓包、已解出的保留），
-/// 这里只负责把状态快照读出来展示，并提供 pcap 下载。
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[RequireGameReviewer]
-[ProducesResponseType(typeof(RequestResponse), StatusCodes.Status401Unauthorized)]
-[ProducesResponseType(typeof(RequestResponse), StatusCodes.Status403Forbidden)]
-public class TrafficMonitorController(
-    ILogger<TrafficMonitorController> logger,
-    Services.Storage.S3StorageService s3,
-    IConfiguration configuration) : ControllerBase
+[RequireAdmin]
+public class TrafficMonitorController(TrafficCaptureCoordinator capture, TrafficArchiveStore archives,
+    S3StorageService storage, ILogger<TrafficMonitorController> logger) : ControllerBase
 {
-    private static readonly string StatusPath =
-        Environment.GetEnvironmentVariable("TRAFFIC_MONITOR_STATUS") ?? "/var/lib/gzctf-traffic/.status.json";
-
-    private static readonly string FilesRoot =
-        Environment.GetEnvironmentVariable("TRAFFIC_MONITOR_FILES") ?? "/var/lib/gzctf-traffic";
-
-    /// <summary>
-    /// 当前抓包状态
-    /// </summary>
     [HttpGet("Status")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult Status()
+    public async Task<IActionResult> Status(CancellationToken token)
     {
-        if (!System.IO.File.Exists(StatusPath))
-            return Ok(new { updatedAt = (string?)null, items = Array.Empty<object>() });
-
-        try
+        archives.Refresh();
+        var control = await capture.GetControl(token);
+        var items = archives.Sessions.Select(s =>
         {
-            var json = System.IO.File.ReadAllText(StatusPath);
-            using var doc = JsonDocument.Parse(json);
-            return Content(json, "application/json");
-        }
-        catch (Exception e)
-        {
-            logger.LogErrorMessage(e, "读取流量监控状态失败");
-            return Ok(new { updatedAt = (string?)null, items = Array.Empty<object>() });
-        }
+            var report = archives.GetReport(s.Id);
+            var pending = Directory.EnumerateFiles(archives.SessionPath(s.Id), "*.ready", SearchOption.AllDirectories).Count();
+            var stale = report?.State is "capturing" or "uploading" &&
+                report.UpdatedAt < DateTimeOffset.UtcNow.AddSeconds(-30);
+            return new
+            {
+                id = s.Id, pod = s.Pod, challengeId = s.ChallengeId, title = s.Title,
+                team = s.Team, users = s.User, ip = s.IP, startedAt = s.StartedAt.ToString("O"),
+                node = report?.Node, sizeMB = Math.Round((report?.Bytes ?? 0) / 1048576d, 2),
+                state = stale ? "error" : report?.State == "archived" && pending > 0 ? "uploading" :
+                    report?.State ?? (archives.IsStopped(s.Id) ? "stopping" : "waiting"),
+                error = stale ? "节点采集器超过 30 秒未报告状态，请检查节点服务" : report?.Error,
+                keepFiles = report?.Files ?? [],
+                logFiles = Directory.EnumerateFiles(archives.SessionPath(s.Id), "*.uploaded", SearchOption.AllDirectories)
+                    .Select(p => $"{s.Id:N}/{Path.GetRelativePath(Path.Combine(archives.SessionPath(s.Id), "outbox"), p).Replace('\\', '/')[..^9]}")
+                    .ToArray(),
+                pendingLogs = pending
+            };
+        }).ToArray();
+        return Ok(new { updatedAt = DateTimeOffset.UtcNow.ToString("O"), enabled = control.Enabled, items });
     }
 
-    /// <summary>
-    /// 下载已保留的 pcap
-    /// </summary>
-    /// <param name="file">相对路径（由状态快照给出）</param>
-    [HttpGet("Download")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Download([FromQuery] string file)
+    [HttpPut("Settings")]
+    public async Task<IActionResult> Settings([FromBody] TrafficCaptureSettings model, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(file))
+        var control = await capture.SetControl(model.Enabled, token);
+        logger.Log($"靶机流量采集已{(control.Enabled ? "开启（仅新建靶机）" : "关闭（结束当前采集并校验归档）")}",
+            HttpContext, TaskStatus.Success);
+        return Ok(control);
+    }
+
+    [HttpGet("Download")]
+    public async Task<IActionResult> Download([FromQuery] string file, CancellationToken token)
+    {
+        var parts = file.Replace('\\', '/').Split('/');
+        if (parts.Length < 2 || parts.Any(p => p is "" or "." or "..") ||
+            !Guid.TryParseExact(parts[0], "N", out var id) || archives.Find(id) is null)
             return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
-
-        // 防目录穿越：拼接后必须仍在 FilesRoot 内
-        var root = Path.GetFullPath(FilesRoot);
-        var full = Path.GetFullPath(Path.Combine(root, file));
-
-        if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
-
-        // 本地有就直接给（缓存，最快也最稳）
-        if (System.IO.File.Exists(full))
-        {
-            var stream = System.IO.File.OpenRead(full);
-            return File(stream, "application/vnd.tcpdump.pcap", Path.GetFileName(full));
-        }
-
-        // 本地已清理则回落到对象存储的签名地址
-        var objectKey = $"{Services.Storage.S3StorageService.KeyPrefix}/{file.Replace('\\', '/')}";
-        var url = await s3.GetPresignedUrlAsync(objectKey, TimeSpan.FromMinutes(30));
-
-        if (!string.IsNullOrEmpty(url))
-            return Redirect(url);
-
-        return NotFound(new RequestResponse("文件不存在（本地与对象存储均未找到）", StatusCodes.Status404NotFound));
+        var url = await storage.GetPresignedUrlAsync($"{S3StorageService.KeyPrefix}/{string.Join('/', parts)}",
+            TimeSpan.FromMinutes(30), token);
+        return url is null ? NotFound(new RequestResponse("对象存储中未找到文件", StatusCodes.Status404NotFound)) : Redirect(url);
     }
 }
+
+public record TrafficCaptureSettings(bool Enabled);

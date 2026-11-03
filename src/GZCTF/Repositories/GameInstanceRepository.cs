@@ -2,6 +2,7 @@
 using GZCTF.Repositories.Interface;
 using GZCTF.Utils;
 using GZCTF.Services.Container.Manager;
+using GZCTF.Services.Traffic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ public class GameInstanceRepository(
     IContainerRepository containerRepository,
     IGameEventRepository gameEventRepository,
     IOptionsSnapshot<ContainerPolicy> containerPolicy,
+    TrafficArchiveStore archives,
     ILogger<GameInstanceRepository> logger,
     IStringLocalizer<Program> localizer) : RepositoryBase(context), IGameInstanceRepository
 {
@@ -274,6 +276,7 @@ public class GameInstanceRepository(
                 Values = [gameInstance.Challenge.Id.ToString(), gameInstance.Challenge.Title]
             }, token);
 
+        using var captureLog = archives.ContainerLogScope(created, "container_start");
         logger.Log(
             StaticLocalizer[nameof(Resources.Program.InstanceRepository_ContainerCreated), team.Name,
                 gameInstance.Challenge.Title,

@@ -4,6 +4,7 @@ using GZCTF.Models.Internal;
 using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
 using GZCTF.Services.Container.Manager;
+using GZCTF.Services.Traffic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ public class ExerciseInstanceRepository(
     IContainerManager service,
     IContainerRepository containerRepository,
     IOptionsSnapshot<ContainerPolicy> containerPolicy,
+    TrafficArchiveStore archives,
     ILogger<ExerciseInstanceRepository> logger,
     IStringLocalizer<Program> localizer
 ) : RepositoryBase(context),
@@ -180,6 +182,7 @@ public class ExerciseInstanceRepository(
         instance.Container = container;
         instance.LastContainerOperation = DateTimeOffset.UtcNow;
 
+        using var captureLog = archives.ContainerLogScope([container], "container_start");
         logger.Log(
             StaticLocalizer[nameof(Resources.Program.InstanceRepository_ContainerCreated), user.UserName!,
                 instance.Exercise.Title,

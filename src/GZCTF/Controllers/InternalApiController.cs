@@ -73,6 +73,7 @@ public class InternalApiController(
     /// <remarks>调用方需在请求头 <c>X-Internal-Key</c> 中携带内部密钥。</remarks>
     [HttpPost("traffic/upload")]
     [DisableRequestSizeLimit]
+    [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UploadTraffic([FromForm] IFormFile file, [FromForm] string key,
@@ -95,11 +96,13 @@ public class InternalApiController(
             return BadRequest(new RequestResponse("非法路径"));
 
         await using var stream = file.OpenReadStream();
-        var ok = await s3.UploadAsync(stream,
+        var receipt = await s3.UploadVerifiedAsync(stream,
             $"{GZCTF.Services.Storage.S3StorageService.KeyPrefix}/{safeKey}",
             "application/vnd.tcpdump.pcap", token);
 
-        return Ok(new { ok, key = $"{GZCTF.Services.Storage.S3StorageService.KeyPrefix}/{safeKey}" });
+        return receipt is null
+            ? StatusCode(503, new RequestResponse("上传或回读校验失败，请保留本地文件并重试"))
+            : Ok(new { ok = true, verified = true, receipt.Key, receipt.Size, receipt.Sha256 });
     }
 }
 

@@ -49,7 +49,10 @@ public class ProxyController(
     private readonly bool _enablePlatformProxy =
         provider.Value.PortMappingType == ContainerPortMappingType.PlatformProxy;
 
-    private readonly bool _enableTrafficCapture = provider.Value.EnableTrafficCapture;
+    // Kubernetes captures the entire Pod netns through the node collector. Do not create
+    // a second, connection-scoped archive which ignores the administrator's capture switch.
+    private readonly bool _enableTrafficCapture = provider.Value.EnableTrafficCapture &&
+        provider.Value.Type != ContainerProviderType.Kubernetes;
 
     /// <summary>
     /// Proxy TCP over websocket

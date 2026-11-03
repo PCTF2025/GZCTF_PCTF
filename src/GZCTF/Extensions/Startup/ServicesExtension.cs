@@ -98,6 +98,10 @@ internal static class ServicesExtension
             builder.Services.AddSingleton<IMailSender, MailSender>();
             builder.Services.AddScoped<EmailCodeService>();
             builder.Services.AddSingleton<TrafficRecorderRegistry>();
+            builder.Services.AddHttpContextAccessor();
+            builder.Services.AddSingleton<TrafficArchiveStore>();
+            builder.Services.AddScoped<TrafficCaptureCoordinator>();
+            builder.Services.AddHostedService<TrafficArchiveUploader>();
 
             builder.Services.AddHostedService<CacheMaker>();
             builder.Services.AddHostedService<FlagChecker>();

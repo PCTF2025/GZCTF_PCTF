@@ -9,6 +9,7 @@ using GZCTF.Services.Container.Provider;
 using k8s;
 using k8s.Autorest;
 using k8s.Models;
+using GZCTF.Services.Traffic;
 
 namespace GZCTF.Services.Container.Manager;
 
@@ -17,13 +18,20 @@ public class KubernetesManager : IContainerManager
     private readonly Kubernetes _client;
     private readonly ILogger<KubernetesManager> _logger;
     private readonly KubernetesMetadata _meta;
+    private readonly IServiceScopeFactory _scopes;
+    private readonly TrafficArchiveStore _archives;
+    private readonly IConfiguration _configuration;
 
     public KubernetesManager(IContainerProvider<Kubernetes, KubernetesMetadata> provider,
-        ILogger<KubernetesManager> logger)
+        ILogger<KubernetesManager> logger, IServiceScopeFactory scopes, TrafficArchiveStore archives,
+        IConfiguration configuration)
     {
         _logger = logger;
         _meta = provider.GetMetadata();
         _client = provider.GetProvider();
+        _scopes = scopes;
+        _archives = archives;
+        _configuration = configuration;
 
         logger.SystemLog(StaticLocalizer[nameof(Resources.Program.ContainerManager_K8sMode)],
             TaskStatus.Success,
@@ -117,17 +125,58 @@ public class KubernetesManager : IContainerManager
             }
         };
 
+        // A node collector must open tcpdump before the application containers can start.
+        // This is independent of per-challenge proxy capture and of whether a flag is solved.
+        await using var captureScope = _scopes.CreateAsyncScope();
+        var captureSession = await captureScope.ServiceProvider.GetRequiredService<TrafficCaptureCoordinator>()
+            .Begin(config, name, token);
+        if (captureSession is not null)
+        {
+            var id = captureSession.Id.ToString("N");
+            pod.Metadata.Annotations = new Dictionary<string, string>
+            {
+                ["gzctf.gzti.me/capture-id"] = id,
+                ["gzctf.gzti.me/capture-epoch"] = captureSession.Epoch
+            };
+            pod.Spec.Volumes = [new V1Volume
+            {
+                Name = "capture-gate", HostPath = new V1HostPathVolumeSource
+                {
+                    Path = _configuration["TrafficCapture:NodeRoot"] ?? "/var/lib/gzctf-traffic",
+                    Type = "DirectoryOrCreate"
+                }
+            }];
+            pod.Spec.InitContainers = [new V1Container
+            {
+                Name = "capture-ready", Image = _configuration["TrafficCapture:GateImage"] ?? "busybox:1.37.0",
+                Command = ["sh", "-c", $"for i in $(seq 1 120); do test -f /capture/gates/{id} && exit 0; sleep 1; done; echo 'traffic collector not ready' >&2; exit 1"],
+                VolumeMounts = [new V1VolumeMount { Name = "capture-gate", MountPath = "/capture", ReadOnlyProperty = true }],
+                SecurityContext = new V1SecurityContext
+                {
+                    AllowPrivilegeEscalation = false, ReadOnlyRootFilesystem = true, RunAsNonRoot = true,
+                    RunAsUser = 65534, Capabilities = new V1Capabilities { Drop = ["ALL"] }
+                },
+                Resources = new V1ResourceRequirements
+                {
+                    Limits = new Dictionary<string, ResourceQuantity> { ["cpu"] = new("50m"), ["memory"] = new("16Mi") },
+                    Requests = new Dictionary<string, ResourceQuantity> { ["cpu"] = new("5m"), ["memory"] = new("4Mi") }
+                }
+            }];
+        }
+
         try
         {
             pod = await _client.CreateNamespacedPodAsync(pod, options.Namespace, cancellationToken: token);
         }
         catch (HttpOperationException e)
         {
+            if (captureSession is not null) _archives.Stop(captureSession.Id);
             _logger.LogCreationFailedWithHttpContext(name, e.Response.StatusCode, e.Response.Content);
             return null;
         }
         catch (Exception e)
         {
+            if (captureSession is not null) _archives.Stop(captureSession.Id);
             _logger.LogErrorMessage(e,
                 StaticLocalizer[nameof(Resources.Program.ContainerManager_ContainerCreationFailed), name]);
             return null;
@@ -135,6 +184,7 @@ public class KubernetesManager : IContainerManager
 
         if (pod is null)
         {
+            if (captureSession is not null) _archives.Stop(captureSession.Id);
             _logger.SystemLog(
                 StaticLocalizer[nameof(Resources.Program.ContainerManager_ContainerInstanceCreationFailed),
                     config.Image.Split("/").LastOrDefault() ?? ""], TaskStatus.Failed,
@@ -178,6 +228,7 @@ public class KubernetesManager : IContainerManager
                 // ignored
             }
 
+            if (captureSession is not null) _archives.Stop(captureSession.Id);
             _logger.LogServiceCreationFailedWithHttpContext(name, e.Response.StatusCode, e.Response.Content);
             return null;
         }
@@ -193,6 +244,7 @@ public class KubernetesManager : IContainerManager
                 // ignored
             }
 
+            if (captureSession is not null) _archives.Stop(captureSession.Id);
             _logger.LogErrorMessage(e,
                 StaticLocalizer[nameof(Resources.Program.ContainerManager_ServiceCreationFailed), name]);
             return null;
