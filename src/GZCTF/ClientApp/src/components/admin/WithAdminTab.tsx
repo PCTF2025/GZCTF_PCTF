@@ -7,6 +7,7 @@ import {
   mdiImageMultipleOutline,
   mdiFileDocumentOutline,
   mdiAccessPointNetwork,
+  mdiCloudUploadOutline,
   mdiMonitorDashboard,
   mdiFlagOutline,
   mdiPackageVariantClosed,
@@ -53,6 +54,7 @@ export const WithAdminTab: FC<AdminTabProps> = ({ head, headProps, isLoading, ch
     { icon: mdiTrophyVariantOutline, title: '赛道设置', path: 'tracks' },
     { icon: mdiMonitorDashboard, title: '报名大屏', path: 'screen' },
     { icon: mdiAccessPointNetwork, title: '流量监控', path: 'traffic' },
+    { icon: mdiCloudUploadOutline, title: '对象存储', path: 'storage' },
     { icon: mdiAccountSearchOutline, title: '学籍审核', path: 'verify' },
     { icon: mdiImageMultipleOutline, title: '素材库', path: 'assets' },
   ]

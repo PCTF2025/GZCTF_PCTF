@@ -83,7 +83,9 @@ public class ConfigService(
     }
 
     private static bool IsSensitiveConfig(string key) =>
-        key.EndsWith("PrivateKey", StringComparison.Ordinal);
+        key.EndsWith("PrivateKey", StringComparison.Ordinal) ||
+        key.EndsWith("Secret", StringComparison.Ordinal) ||
+        key.EndsWith("AccessKeySecret", StringComparison.Ordinal);
 
     private static string MaskSensitiveData(string? value)
     {

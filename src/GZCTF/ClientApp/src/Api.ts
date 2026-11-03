@@ -1115,6 +1115,27 @@ export interface TrafficMonitorStatusModel {
   items: TrafficMonitorItemModel[];
 }
 
+/** 对象存储配置（密钥不回传） */
+export interface StorageSettingsModel {
+  endpoint?: string | null;
+  bucket?: string | null;
+  accessKeyId?: string | null;
+  region?: string | null;
+  forcePathStyle?: boolean;
+  /** 是否已配置密钥（不返回明文） */
+  hasSecret?: boolean;
+}
+
+export interface StorageSettingsUpdateModel {
+  endpoint?: string | null;
+  bucket?: string | null;
+  accessKeyId?: string | null;
+  region?: string | null;
+  forcePathStyle?: boolean;
+  /** 留空或 ****** 表示不修改 */
+  accessKeySecret?: string | null;
+}
+
 export interface SchoolStatsModel {
   /** 报名总人数 */
   total?: number;
@@ -5514,6 +5535,51 @@ export class Api<
         doFetch && id > 0 ? `/api/game/${id}/Scoreboard/Members` : null,
         options,
       ),
+  }
+
+  storageSettings = {
+    /**
+     * @description 读取对象存储配置
+     * @name StorageSettingsGet
+     * @request GET:/api/storagesettings
+     */
+    storageSettingsGet: (params: RequestParams = {}) =>
+      this.request<StorageSettingsModel, RequestResponse>({
+        path: `/api/storagesettings`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useStorageSettings: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<StorageSettingsModel, RequestResponse>(doFetch ? `/api/storagesettings` : null, options),
+
+    /**
+     * @description 保存对象存储配置
+     * @name StorageSettingsUpdate
+     * @request PUT:/api/storagesettings
+     */
+    storageSettingsUpdate: (data: StorageSettingsUpdateModel, params: RequestParams = {}) =>
+      this.request<void, RequestResponse>({
+        path: `/api/storagesettings`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        ...params,
+      }),
+
+    /**
+     * @description 测试对象存储连通性
+     * @name StorageSettingsTest
+     * @request POST:/api/storagesettings/Test
+     */
+    storageSettingsTest: (params: RequestParams = {}) =>
+      this.request<{ ok?: boolean; message?: string }, RequestResponse>({
+        path: `/api/storagesettings/Test`,
+        method: "POST",
+        format: "json",
+        ...params,
+      }),
   }
 
   trafficMonitor = {

@@ -116,7 +116,7 @@ export const useAdminTabs = () => {
     if (isAuthor || isSchoolManager) keys.push('traffic')
     // 系统管理员保留全部后台功能（screen 已在上面加入）
     if (isAdmin)
-      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks')
+      keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks', 'storage')
 
     return { keys, canAccessAdmin: keys.length > 0 }
   }, [user])
