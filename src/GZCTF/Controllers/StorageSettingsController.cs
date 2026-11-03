@@ -48,6 +48,23 @@ public class StorageSettingsController(
     }
 
     /// <summary>
+    /// 阿里云 OSS 只接受虚拟主机风格（bucket.endpoint），路径风格会被拒绝：
+    /// "Please use virtual hosted style to access."
+    /// </summary>
+    private static bool RequiresVirtualHost(string endpoint, bool forcePathStyle)
+    {
+        if (!forcePathStyle)
+            return false;
+
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            return false;
+
+        var host = uri.Host;
+        return host.EndsWith(".aliyuncs.com", StringComparison.OrdinalIgnoreCase) &&
+               host.StartsWith("oss-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// 若 Endpoint 填的是「桶域名」（如 mybucket.oss-cn-hangzhou.aliyuncs.com），
     /// 去掉桶前缀，改成区域级 Endpoint，配合路径风格访问，避免请求路径变成 /bucket/bucket
     /// </summary>
@@ -150,10 +167,12 @@ public class StorageSettingsController(
 
         try
         {
+            var pathStyle = config.ForcePathStyle && !RequiresVirtualHost(config.Endpoint, config.ForcePathStyle);
+
             var s3Config = new AmazonS3Config
             {
                 ServiceURL = config.Endpoint,
-                ForcePathStyle = config.ForcePathStyle,
+                ForcePathStyle = pathStyle,
                 Timeout = TimeSpan.FromSeconds(8),
                 MaxErrorRetry = 1
             };
@@ -167,7 +186,11 @@ public class StorageSettingsController(
             await client.ListObjectsV2Async(
                 new ListObjectsV2Request { BucketName = config.Bucket, MaxKeys = 1 }, cts.Token);
 
-            return Ok(new { ok = true, message = $"连接成功，桶可访问（Endpoint: {config.Endpoint}）" });
+            return Ok(new
+            {
+                ok = true,
+                message = $"连接成功，桶可访问（Endpoint: {config.Endpoint}，风格: {(pathStyle ? "路径" : "虚拟主机")}）"
+            });
         }
         catch (OperationCanceledException)
         {

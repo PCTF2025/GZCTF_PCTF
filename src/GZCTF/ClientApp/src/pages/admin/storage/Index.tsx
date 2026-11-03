@@ -29,7 +29,7 @@ const StorageSettings: FC = () => {
   const [accessKeyId, setAccessKeyId] = useState('')
   const [accessKeySecret, setAccessKeySecret] = useState('')
   const [region, setRegion] = useState('')
-  const [forcePathStyle, setForcePathStyle] = useState(true)
+  const [forcePathStyle, setForcePathStyle] = useState(false)
   const [hasSecret, setHasSecret] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -39,7 +39,7 @@ const StorageSettings: FC = () => {
     setBucket(data.bucket ?? '')
     setAccessKeyId(data.accessKeyId ?? '')
     setRegion(data.region ?? '')
-    setForcePathStyle(data.forcePathStyle ?? true)
+    setForcePathStyle(data.forcePathStyle ?? false)
     setHasSecret(data.hasSecret ?? false)
     setAccessKeySecret('')
   }, [data])
@@ -151,7 +151,7 @@ const StorageSettings: FC = () => {
             <Switch
               checked={forcePathStyle}
               onChange={(e) => setForcePathStyle(e.currentTarget.checked)}
-              label="使用路径风格（多数第三方 OSS 需要开启）"
+              label="使用路径风格（阿里云 OSS 请关闭；MinIO 等第三方通常需要开启）"
             />
 
             <Group justify="flex-end" mt="sm">
