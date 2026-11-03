@@ -70,17 +70,20 @@ public class TrafficMonitorController(
         if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
 
-        // 优先对象存储（已切到 OSS 后本地可能已清理）
+        // 本地有就直接给（缓存，最快也最稳）
+        if (System.IO.File.Exists(full))
+        {
+            var stream = System.IO.File.OpenRead(full);
+            return File(stream, "application/vnd.tcpdump.pcap", Path.GetFileName(full));
+        }
+
+        // 本地已清理则回落到对象存储的签名地址
         var objectKey = $"{Services.Storage.S3StorageService.KeyPrefix}/{file.Replace('\\', '/')}";
         var url = await s3.GetPresignedUrlAsync(objectKey, TimeSpan.FromMinutes(30));
 
         if (!string.IsNullOrEmpty(url))
             return Redirect(url);
 
-        if (!System.IO.File.Exists(full))
-            return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
-
-        var stream = System.IO.File.OpenRead(full);
-        return File(stream, "application/vnd.tcpdump.pcap", Path.GetFileName(full));
+        return NotFound(new RequestResponse("文件不存在（本地与对象存储均未找到）", StatusCodes.Status404NotFound));
     }
 }
