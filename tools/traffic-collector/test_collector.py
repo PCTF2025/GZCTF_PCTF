@@ -69,10 +69,18 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue((self.root / "gates" / ("a" * 32)).exists())
         self.assertTrue(collector.states["a" * 32]["stopped"])
 
-    def test_failed_start_never_releases_the_application_gate(self):
+    def test_failed_start_retries_without_releasing_the_application_gate(self):
         collector = self.collector()
         collector.states["a" * 32] = {"stopped": True, "state": "error", "gateReleased": False}
         collector.reconcile({"enabled": True, "epoch": "one", "sessions": [self.entry()]}, {"challenge": self.pod()})
+        collector.start.assert_called_once()
+        self.assertFalse((self.root / "gates" / ("a" * 32)).exists())
+
+    def test_failed_pod_does_not_restart_capture(self):
+        collector = self.collector()
+        collector.states["a" * 32] = {"stopped": True, "state": "error", "gateReleased": False}
+        pod = {**self.pod(), "status": {"phase": "Failed"}}
+        collector.reconcile({"enabled": True, "epoch": "one", "sessions": [self.entry()]}, {"challenge": pod})
         collector.start.assert_not_called()
         self.assertFalse((self.root / "gates" / ("a" * 32)).exists())
 
@@ -90,13 +98,13 @@ class CollectorTests(unittest.TestCase):
     def test_rotation_does_not_upload_the_open_part(self):
         collector = self.collector()
         for number in range(3):
-            path = self.root / f"open-{number}.pcap.part"
+            path = self.root / f"open-{number}.part.pcap"
             path.write_bytes(b"x" * 40)
             import os
             os.utime(path, ns=(number + 1, number + 1))
         collector.finalize_parts(self.root, keep_latest=True)
         self.assertEqual(len(list(self.root.glob("traffic-*.pcap"))), 2)
-        self.assertTrue((self.root / "open-2.pcap.part").exists())
+        self.assertTrue((self.root / "open-2.part.pcap").exists())
 
     def test_restart_recovers_closed_parts_without_removing_contents(self):
         collector = self.collector()
@@ -104,6 +112,24 @@ class CollectorTests(unittest.TestCase):
         path.write_bytes(b"x" * 40)
         collector.finalize_parts(self.root)
         self.assertEqual(next(self.root.glob("*.pcap")).read_bytes(), b"x" * 40)
+
+    def test_failed_capture_reports_permission_error_and_exit_code(self):
+        collector = self.collector()
+        # Use the real finalizer, which the reconciliation fixtures normally replace.
+        collector.finish = Collector.finish.__get__(collector)
+        capture_id = "a" * 32
+        folder = self.root / capture_id
+        folder.mkdir()
+        (folder / "tcpdump.log").write_text("tcpdump: capture.part.pcap: Permission denied\n")
+        process = MagicMock()
+        process.poll.return_value = 1
+        process.returncode = 1
+        collector.active[capture_id] = (process, MagicMock())
+        collector.states[capture_id] = {"state": "waiting"}
+        collector.finish(capture_id)
+        self.assertEqual(collector.states[capture_id]["state"], "error")
+        self.assertEqual(collector.states[capture_id]["exitCode"], 1)
+        self.assertIn("Permission denied", collector.states[capture_id]["error"])
 
 
 if __name__ == "__main__":

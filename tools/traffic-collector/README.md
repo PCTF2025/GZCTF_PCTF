@@ -8,6 +8,7 @@
 - 开启后，所有新建 Kubernetes 题目 Pod（包括附加靶机、直连端口、代理连接）都会采集，忽略题目原有 EnableTrafficCapture 和解题状态。
 - 每个新 Pod 增加一个受信任的 `capture-ready` 初始化容器。节点采集器进入 Pod 的网络命名空间，确认 tcpdump 已监听后才释放初始化门，随后启动题目容器，覆盖应用启动时的通信。若 120 秒内采集器未就绪，初始化失败，题目应用不会在漏采状态下启动。
 - 在 Pod 的完整网络命名空间抓取全部接口、协议、端口，包含 Pod 内回环通信。抓包不通过往题目容器注入工具完成；应用容器不挂载采集目录，也拿不到平台内部密钥。
+- 活动分片使用 `open-*.part.pcap`，保持 `.pcap` 后缀以兼容节点的 tcpdump AppArmor 规则；上传器仅处理封口后的 `traffic-*.pcap`。启动恢复也兼容旧版 `.pcap.part` 文件。
 - 关闭时，采集器读取到新的控制状态后先向所有 tcpdump 发出停止信号，再刷盘、上传、回读校验和清理。控制轮询间隔为 1 秒；网络请求耗时会影响生效时间。即使快速关闭后再开启，旧启动批次也不会恢复抓包。
 - 正常销毁时，抓包持续到 Pod 退出/消失，随后结束归档；不等待成功解题。开启前就已存在的 Pod 不补抓。
 - 每 300 秒轮转一个完整 pcap，关闭或销毁时立即结束最后一个分片。每个封口文件进入上传队列，正常情况下 5 秒内开始上传，分片可用 Wireshark/mergecap 合并。上传不会阻塞控制轮询。
@@ -69,6 +70,8 @@ python -m unittest discover -s tools/traffic-collector -v
 ```
 
 Linux 抓包冒烟测试（真实 tcpdump，检查应用首包、轮转和停止后的文件）：
+
+部署验收应额外设置 `CAPTURE_TEST_ROOT=/var/lib/gzctf-traffic`，在采集器实际挂载目录运行同一测试，以验证 hostPath 和 AppArmor 写入权限。
 
 ```sh
 docker run --rm --cap-add SYS_ADMIN --cap-add NET_RAW --cap-add NET_ADMIN \

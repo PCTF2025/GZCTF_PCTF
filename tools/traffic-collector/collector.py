@@ -150,7 +150,9 @@ class Collector:
         folder.mkdir(exist_ok=True)
         log_path = folder / "tcpdump.log"
         log = log_path.open("wb")
-        output = folder / ("open-" + uuid.uuid4().hex + "-%s.pcap.part")
+        # Distribution AppArmor profiles commonly allow tcpdump to write only *.pcap.
+        # Keep that suffix while the open-* prefix excludes active files from uploads.
+        output = folder / ("open-" + uuid.uuid4().hex + "-%s.part.pcap")
         proc = subprocess.Popen(["nsenter", "--target", str(pid), "--net", "tcpdump", "-i", "any",
             "-nn", "-s", "0", "-U", "-Z", "root", "--immediate-mode", "-G", str(self.segment_seconds), "-w", str(output)],
             stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
@@ -174,8 +176,14 @@ class Collector:
         elif proc.poll() is not None or time.monotonic() >= state["readyDeadline"]:
             self.finish(capture_id, "tcpdump did not become ready; application startup remains blocked")
 
+    @staticmethod
+    def open_parts(folder):
+        # Recover the previous *.pcap.part format after an upgrade as well.
+        parts = list(folder.glob("open-*.part.pcap")) + list(folder.glob("*.part"))
+        return sorted(parts, key=lambda p: p.stat().st_mtime_ns)
+
     def finalize_parts(self, folder, keep_latest=False):
-        parts = sorted(folder.glob("*.part"), key=lambda p: p.stat().st_mtime_ns)
+        parts = self.open_parts(folder)
         if keep_latest:
             parts = parts[:-1]
         for path in parts:
@@ -199,8 +207,18 @@ class Collector:
             elif proc.returncode != 0:
                 error = error or "tcpdump exited unexpectedly; capture may be incomplete"
             log.close()
+            if proc.returncode is not None:
+                self.states[capture_id]["exitCode"] = proc.returncode
+            if error and proc.returncode not in (None, 0):
+                log_path = self.root / capture_id / "tcpdump.log"
+                if log_path.exists():
+                    with log_path.open("rb") as source:
+                        source.seek(max(0, log_path.stat().st_size - 4096))
+                        lines = source.read().decode("utf-8", errors="replace").strip().splitlines()
+                    if lines:
+                        error = f"{error} (exit code {proc.returncode}): {lines[-1][:1000]}"
         self.finalize_parts(self.root / capture_id)
-        if list((self.root / capture_id).glob("*.part")):
+        if self.open_parts(self.root / capture_id):
             error = error or "incomplete capture header; original part retained for diagnosis"
         state = self.states[capture_id]
         state.update(state="error" if error else "uploading", error=error, stopped=True)
@@ -223,7 +241,12 @@ class Collector:
                 else:
                     self.finalize_parts(self.root / capture_id, keep_latest=True)
             elif state and state.get("stopped"):
-                if pod and state.get("gateReleased"):
+                if (pod and enabled and not entry["stopped"] and not state.get("gateReleased")
+                        and pod.get("status", {}).get("phase") not in ("Failed", "Succeeded")):
+                    # A failed first start has not admitted the application. Retrying is safe
+                    # after a node/image fix, while operator-disabled sessions remain stopped.
+                    self.start(capture_id, session, pod)
+                elif pod and state.get("gateReleased"):
                     self.allow_start(capture_id)
             elif pod:
                 annotations = pod["metadata"].get("annotations", {})

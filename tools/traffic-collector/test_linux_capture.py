@@ -14,7 +14,10 @@ from collector import Collector
 @unittest.skipUnless(os.name == "posix" and shutil.which("tcpdump"), "Linux + tcpdump required")
 class LinuxCaptureTest(unittest.TestCase):
     def test_startup_gate_rotation_and_stop_preserve_application_packets(self):
-        with tempfile.TemporaryDirectory() as folder:
+        # On the deployment nodes set this to the mounted spool, so AppArmor/hostPath
+        # restrictions are tested instead of only the more permissive /tmp directory.
+        with tempfile.TemporaryDirectory(prefix="capture-permission-check-",
+                dir=os.getenv("CAPTURE_TEST_ROOT")) as folder:
             collector = Collector.__new__(Collector)
             collector.root = Path(folder)
             (collector.root / "gates").mkdir()
@@ -39,7 +42,7 @@ class LinuxCaptureTest(unittest.TestCase):
                 time.sleep(0.2)
             collector.finalize_parts(collector.root / capture_id, keep_latest=True)
             self.assertEqual(len(list((collector.root / capture_id).glob("traffic-*.pcap"))), 1)
-            self.assertEqual(len(list((collector.root / capture_id).glob("*.part"))), 1)
+            self.assertEqual(len(list((collector.root / capture_id).glob("open-*.part.pcap"))), 1)
             collector.finish(capture_id)
             self.assertEqual(collector.states[capture_id]["state"], "uploading")
             pcaps = list((collector.root / capture_id).glob("traffic-*.pcap"))
@@ -47,7 +50,7 @@ class LinuxCaptureTest(unittest.TestCase):
             data = b"".join(subprocess.check_output(["tcpdump", "-nn", "-A", "-r", str(p)], stderr=subprocess.DEVNULL) for p in pcaps)
             self.assertIn(b"application-first-packet", data)
             self.assertIn(b"application-after-rotation", data)
-            self.assertEqual(list((collector.root / capture_id).glob("*.part")), [])
+            self.assertEqual(collector.open_parts(collector.root / capture_id), [])
 
 
 if __name__ == "__main__":
