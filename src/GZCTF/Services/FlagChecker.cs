@@ -1,6 +1,7 @@
 ﻿using System.Threading.Channels;
 using GZCTF.Repositories.Interface;
 using GZCTF.Services.Cache;
+using GZCTF.Services.Traffic;
 using Microsoft.EntityFrameworkCore;
 
 namespace GZCTF.Services;
@@ -9,6 +10,7 @@ public class FlagChecker(
     ChannelReader<Submission> channelReader,
     ChannelWriter<Submission> channelWriter,
     ILogger<FlagChecker> logger,
+    TrafficArchiveStore archives,
     IServiceScopeFactory serviceScopeFactory) : IHostedService
 {
     private const int MaxWorkerCount = 4;
@@ -96,6 +98,7 @@ public class FlagChecker(
 
                 try
                 {
+                    using var captureLog = archives.SubmissionLogScope(item);
                     var (type, ans) = await instanceRepository.VerifyAnswer(item, token);
 
                     switch (ans)

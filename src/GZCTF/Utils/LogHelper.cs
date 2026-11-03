@@ -13,6 +13,7 @@ using Serilog.Sinks.File.Archive;
 using Serilog.Sinks.Grafana.Loki;
 using Serilog.Templates;
 using Serilog.Templates.Themes;
+using GZCTF.Services.Traffic;
 using ILogger = Serilog.ILogger;
 
 namespace GZCTF.Utils;
@@ -176,7 +177,8 @@ public static class LogHelper
                                 Path.Combine(PathHelper.Base, PathHelper.Logs, "archive", "{UtcDate:yyyy-MM}"))
                         ))
                         .WriteTo.SignalR(app.Services)
-                        .WriteTo.Database(app.Services);
+                        .WriteTo.Database(app.Services)
+                        .WriteTo.Sink(new TrafficArchiveSink(app.Services.GetRequiredService<TrafficArchiveStore>()));
                 }
             );
 

@@ -12,6 +12,8 @@ public class ContainerRepository(
     IDistributedCache cache,
     IContainerManager service,
     TrafficRecorderRegistry trafficRegistry,
+    TrafficArchiveStore archives,
+    IHttpContextAccessor http,
     ILogger<ContainerRepository> logger,
     AppDbContext context) : RepositoryBase(context), IContainerRepository
 {
@@ -57,6 +59,15 @@ public class ContainerRepository(
 
             if (container.Status != ContainerStatus.Destroyed)
                 return false;
+
+            var session = archives.FindPod(container.ContainerId);
+            if (session is not null)
+            {
+                archives.Stop(session.Id);
+                using var captureLog = archives.LogScope([session.Id], "container_destroy");
+                logger.Log($"题目容器已销毁：{container.LogId}", http.HttpContext?.User.Identity?.Name ?? "System",
+                    http.HttpContext?.Connection.RemoteIpAddress, TaskStatus.Success);
+            }
 
             await cache.RemoveAsync(CacheKey.ConnectionCount(container.Id), token);
 

@@ -4,6 +4,7 @@ using Amazon.S3.Model;
 using GZCTF.Models;
 using GZCTF.Models.Internal;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace GZCTF.Services.Storage;
 
@@ -20,7 +21,7 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
     /// <summary>
     /// 读取当前配置并构造客户端；未配置时返回 null
     /// </summary>
-    public async Task<(IAmazonS3 Client, string Bucket)?> CreateClientAsync(CancellationToken token)
+    public virtual async Task<(IAmazonS3 Client, string Bucket)?> CreateClientAsync(CancellationToken token)
     {
         var dict = await context.Configs.AsNoTracking()
             .Where(c => c.ConfigKey.StartsWith("StorageConfig:"))
@@ -64,24 +65,39 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
     /// 上传文件
     /// </summary>
     public async Task<bool> UploadAsync(Stream stream, string key, string contentType,
+        CancellationToken token = default) =>
+        await UploadVerifiedAsync(stream, key, contentType, token) is not null;
+
+    /// <summary>Verify the stored bytes by HEAD and a complete GET; never trust a PUT response or ETag alone.</summary>
+    public async Task<VerifiedUpload?> UploadVerifiedAsync(Stream stream, string key, string contentType,
         CancellationToken token = default)
     {
         var client = await CreateClientAsync(token);
         if (client is null)
-            return false;
+            return null;
 
+        FileStream? spool = null;
         try
         {
-            // 先读入内存以拿到确定长度：OSS 对 chunked 上传支持不佳
-            await using var buffer = new MemoryStream();
-            await stream.CopyToAsync(buffer, token);
-            buffer.Position = 0;
+            // Large captures must not be buffered in RAM. IFormFile/FileStream is normally seekable.
+            if (!stream.CanSeek)
+            {
+                spool = new FileStream(Path.GetTempFileName(), FileMode.Open, FileAccess.ReadWrite,
+                    FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+                await stream.CopyToAsync(spool, token);
+                spool.Position = 0;
+                stream = spool;
+            }
+            var position = stream.Position;
+            var size = stream.Length - position;
+            var hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, token));
+            stream.Position = position;
 
             var request = new PutObjectRequest
             {
                 BucketName = client.Value.Bucket,
                 Key = key,
-                InputStream = buffer,
+                InputStream = stream,
                 ContentType = contentType,
                 AutoCloseStream = false,
                 // 关键：关闭分块编码与默认校验，否则 OSS 会拒绝 STREAMING-* 载荷
@@ -92,22 +108,35 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
 
             await client.Value.Client.PutObjectAsync(request, token);
 
-            return true;
+            var metadata = await client.Value.Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            {
+                BucketName = client.Value.Bucket, Key = key
+            }, token);
+            if (metadata.ContentLength != size)
+                throw new IOException($"Object size mismatch for {key}");
+            using var stored = await client.Value.Client.GetObjectAsync(client.Value.Bucket, key, token);
+            var storedHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stored.ResponseStream, token));
+            if (stored.ContentLength != size || storedHash != hash)
+                throw new IOException($"Object SHA-256 mismatch for {key}");
+            return new VerifiedUpload(key, size, hash);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (AmazonS3Exception e)
         {
             logger.LogErrorMessage(e,
                 $"上传对象存储失败：{key} | code={e.ErrorCode} status={e.StatusCode} msg={e.Message}");
-            return false;
+            return null;
         }
         catch (Exception e)
         {
             logger.LogErrorMessage(e, $"上传对象存储失败：{key} | {e.GetType().Name}: {e.Message}");
-            return false;
+            return null;
         }
         finally
         {
             client.Value.Client.Dispose();
+            if (spool is not null)
+                await spool.DisposeAsync();
         }
     }
 
@@ -122,6 +151,10 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
 
         try
         {
+            await client.Value.Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            {
+                BucketName = client.Value.Bucket, Key = key
+            }, token);
             var url = await client.Value.Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
             {
                 BucketName = client.Value.Bucket,
@@ -169,3 +202,5 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
         return value;
     }
 }
+
+public record VerifiedUpload(string Key, long Size, string Sha256);

@@ -1098,6 +1098,7 @@ export interface ScoreboardMemberListModel {
 
 /** 靶机流量监控 */
 export interface TrafficMonitorItemModel {
+  id: string;
   pod: string;
   challengeId: number;
   title: string;
@@ -1108,9 +1109,16 @@ export interface TrafficMonitorItemModel {
   solved?: boolean;
   frozen?: boolean;
   keepFiles?: string[];
+  logFiles?: string[];
+  pendingLogs?: number;
+  state?: 'waiting' | 'capturing' | 'stopping' | 'stopped' | 'uploading' | 'archived' | 'error';
+  error?: string | null;
+  ip?: string | null;
+  startedAt?: string;
 }
 
 export interface TrafficMonitorStatusModel {
+  enabled: boolean;
   updatedAt?: string | null;
   items: TrafficMonitorItemModel[];
 }
@@ -5583,6 +5591,15 @@ export class Api<
   }
 
   trafficMonitor = {
+    trafficMonitorSettings: (enabled: boolean, params: RequestParams = {}) =>
+      this.request<{ enabled: boolean; epoch: string }, RequestResponse>({
+        path: `/api/trafficmonitor/Settings`,
+        method: "PUT",
+        body: { enabled },
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
     /**
      * @description 当前抓包状态
      * @name TrafficMonitorStatus
