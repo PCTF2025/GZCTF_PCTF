@@ -31,6 +31,23 @@ public class StorageSettingsController(
     private const string SecretKey = "StorageConfig:AccessKeySecret";
 
     /// <summary>
+    /// Endpoint 归一化：允许只填域名（如 xxx.oss-cn-hangzhou.aliyuncs.com），自动补 https://
+    /// </summary>
+    private static string NormalizeEndpoint(string? endpoint)
+    {
+        var value = endpoint?.Trim() ?? string.Empty;
+
+        if (value.Length == 0)
+            return string.Empty;
+
+        if (!value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            value = "https://" + value.TrimStart('/');
+
+        return value.TrimEnd('/');
+    }
+
+    /// <summary>
     /// 读取对象存储配置（密钥不回传）
     /// </summary>
     [HttpGet]
@@ -65,7 +82,7 @@ public class StorageSettingsController(
         if (string.IsNullOrWhiteSpace(model.AccessKeySecret) || model.AccessKeySecret == SecretMask)
             model.AccessKeySecret = await GetSecretAsync(token);
 
-        model.Endpoint = model.Endpoint?.Trim() ?? string.Empty;
+        model.Endpoint = NormalizeEndpoint(model.Endpoint);
         model.Bucket = model.Bucket?.Trim() ?? string.Empty;
         model.AccessKeyId = model.AccessKeyId?.Trim() ?? string.Empty;
         model.Region = model.Region?.Trim() ?? string.Empty;
@@ -91,6 +108,7 @@ public class StorageSettingsController(
     {
         var config = await LoadAsync(token);
         var secret = await GetSecretAsync(token);
+        config.Endpoint = NormalizeEndpoint(config.Endpoint);
 
         if (string.IsNullOrWhiteSpace(config.Endpoint) || string.IsNullOrWhiteSpace(config.Bucket) ||
             string.IsNullOrWhiteSpace(config.AccessKeyId) || string.IsNullOrWhiteSpace(secret))
@@ -98,15 +116,24 @@ public class StorageSettingsController(
 
         try
         {
-            var s3Config = new AmazonS3Config { ServiceURL = config.Endpoint, ForcePathStyle = config.ForcePathStyle };
-            if (!string.IsNullOrWhiteSpace(config.Region))
+            var s3Config = new AmazonS3Config
             {
-                s3Config.ServiceURL = config.Endpoint;
-            }
+                ServiceURL = config.Endpoint,
+                ForcePathStyle = config.ForcePathStyle,
+                Timeout = TimeSpan.FromSeconds(8),
+                MaxErrorRetry = 1
+            };
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
 
             using var client = new AmazonS3Client(new BasicAWSCredentials(config.AccessKeyId, secret), s3Config);
-            await client.GetACLAsync(new GetACLRequest { BucketName = config.Bucket }, token);
+            await client.GetACLAsync(new GetACLRequest { BucketName = config.Bucket }, cts.Token);
             return Ok(new { ok = true, message = "连接成功，桶可访问" });
+        }
+        catch (OperationCanceledException)
+        {
+            return Ok(new { ok = false, message = "连接超时（15 秒），请检查 Endpoint 或服务器出网情况" });
         }
         catch (Exception e)
         {

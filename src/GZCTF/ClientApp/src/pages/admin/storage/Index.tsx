@@ -44,11 +44,19 @@ const StorageSettings: FC = () => {
     setAccessKeySecret('')
   }, [data])
 
+  /// 允许只填域名，自动补协议
+  const normalizeEndpoint = (value: string) => {
+    const v = value.trim()
+    if (!v) return ''
+    const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`
+    return withScheme.replace(/\/+$/, '')
+  }
+
   const onSave = async () => {
     setBusy(true)
     try {
       await api.storageSettings.storageSettingsUpdate({
-        endpoint: endpoint.trim(),
+        endpoint: normalizeEndpoint(endpoint),
         bucket: bucket.trim(),
         accessKeyId: accessKeyId.trim(),
         region: region.trim(),
@@ -109,9 +117,11 @@ const StorageSettings: FC = () => {
 
             <TextInput
               label="Endpoint（OSS 站点）"
-              placeholder="https://oss-cn-hangzhou.aliyuncs.com"
+              description="只填域名也可以，会自动补 https://"
+              placeholder="touful-waf-oss.oss-cn-hangzhou.aliyuncs.com"
               value={endpoint}
               onChange={(e) => setEndpoint(e.currentTarget.value)}
+              onBlur={() => setEndpoint((v) => normalizeEndpoint(v))}
             />
             <TextInput
               label="Bucket"
