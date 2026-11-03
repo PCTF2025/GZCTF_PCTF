@@ -1096,6 +1096,25 @@ export interface ScoreboardMemberListModel {
   items: ScoreboardMemberModel[];
 }
 
+/** 靶机流量监控 */
+export interface TrafficMonitorItemModel {
+  pod: string;
+  challengeId: number;
+  title: string;
+  team: string;
+  users: string;
+  node?: string | null;
+  sizeMB?: number;
+  solved?: boolean;
+  frozen?: boolean;
+  keepFiles?: string[];
+}
+
+export interface TrafficMonitorStatusModel {
+  updatedAt?: string | null;
+  items: TrafficMonitorItemModel[];
+}
+
 export interface SchoolStatsModel {
   /** 报名总人数 */
   total?: number;
@@ -5495,6 +5514,31 @@ export class Api<
         doFetch && id > 0 ? `/api/game/${id}/Scoreboard/Members` : null,
         options,
       ),
+  }
+
+  trafficMonitor = {
+    /**
+     * @description 当前抓包状态
+     * @name TrafficMonitorStatus
+     * @request GET:/api/trafficmonitor/Status
+     */
+    trafficMonitorStatus: (params: RequestParams = {}) =>
+      this.request<TrafficMonitorStatusModel, RequestResponse>({
+        path: `/api/trafficmonitor/Status`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    useTrafficMonitorStatus: (options?: SWRConfiguration, doFetch: boolean = true) =>
+      useSWR<TrafficMonitorStatusModel, RequestResponse>(
+        doFetch ? `/api/trafficmonitor/Status` : null,
+        options,
+      ),
+
+    /** 已保留 pcap 下载地址 */
+    trafficMonitorDownloadUrl: (file: string) =>
+      `/api/trafficmonitor/Download?file=${encodeURIComponent(file)}`,
   }
 
   challengeWriteup = {

@@ -112,6 +112,8 @@ export const useAdminTabs = () => {
     if (canUpload) keys.push('assets')
     // 报名大屏：出题人 / 出题管理员 / 学籍审核人 / 系统管理员均可查看
     if (isAuthor || isSchoolManager) keys.push('screen')
+    // 靶机流量监控：同上权限
+    if (isAuthor || isSchoolManager) keys.push('traffic')
     // 系统管理员保留全部后台功能（screen 已在上面加入）
     if (isAdmin)
       keys.push('teams', 'users', 'instances', 'logs', 'settings', 'schools', 'tracks')
