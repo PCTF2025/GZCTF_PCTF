@@ -71,7 +71,7 @@ export const ChallengeCard: FC<ChallengeCardProps> = (props: ChallengeCardProps)
           <Stack gap={2} align="flex-start" style={{ minWidth: 0 }}>
             {showWeek && challenge.week && (
               <Tooltip
-                label={disabled ? '不在开放时间内，暂不可提交' : weekLabel || `第 ${challenge.week} 周`}
+                label={weekLabel || `第 ${challenge.week} 周`}
                 multiline
                 maw={240}
               >
