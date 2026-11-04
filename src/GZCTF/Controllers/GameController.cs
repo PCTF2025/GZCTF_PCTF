@@ -566,7 +566,7 @@ public class GameController(
     /// <param name="token"></param>
     /// <response code="200">Successfully retrieved game cheat data</response>
     /// <response code="400">Game not found</response>
-    [RequireMonitor]
+    [RequireMonitorOrReviewer]
     [HttpGet("{id:int}/CheatInfo")]
     [ProducesResponseType(typeof(CheatInfoModel[]), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]

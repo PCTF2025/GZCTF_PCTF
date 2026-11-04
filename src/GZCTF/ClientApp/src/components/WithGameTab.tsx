@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { GameProgress } from '@Components/GameProgress'
 import { IconTabs } from '@Components/IconTabs'
-import { RequireRole } from '@Components/WithRole'
+import { RequireRole, useMonitorAccess } from '@Components/WithRole'
 import { DEFAULT_LOADING_OVERLAY } from '@Utils/Shared'
 import { getGameStatus, useGame } from '@Hooks/useGame'
 import { usePageTitle } from '@Hooks/usePageTitle'
@@ -143,8 +143,10 @@ export const WithGameTab: FC<React.PropsWithChildren> = ({ children }) => {
     },
   ]
 
+  const monitorAccess = useMonitorAccess()
+
   const filteredPages = pages
-    .filter((p) => RequireRole(p.requireRole, role))
+    .filter((p) => (p.path === 'monitor' ? monitorAccess : RequireRole(p.requireRole, role)))
     .filter((p) => !p.requireJoin || game?.status === ParticipationStatus.Accepted)
     .filter((p) => !p.requireJoin || !finished || game?.practiceMode)
 
@@ -190,7 +192,7 @@ export const WithGameTab: FC<React.PropsWithChildren> = ({ children }) => {
         return
       }
 
-      if (location.pathname.includes('monitor') && RequireRole(Role.Monitor, role)) {
+      if (location.pathname.includes('monitor') && monitorAccess) {
         // allow access to monitor
         return
       }

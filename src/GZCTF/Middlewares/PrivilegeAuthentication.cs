@@ -154,6 +154,21 @@ public class RequireGameReviewerAttribute()
 }
 
 /// <summary>
+/// 可查看作弊信息（监考角色 / 系统管理员 / 出题人 / 出题管理员 / 学校负责人）。
+/// 出题人与学校负责人需要溯源作弊行为，故在 Monitor 之外一并放行。
+/// </summary>
+public class RequireMonitorOrReviewerAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Monitor ||
+        user.Role >= Role.Admin ||
+        user.CanEditChallenge ||
+        user.IsSchoolAdmin ||
+        user.HasPermission(UserPermission.SchoolManager);
+}
+
+/// <summary>
 /// 可查看报名数据大屏（系统管理员 / 出题人 / 出题管理员 / 学校负责人）
 /// </summary>
 public class RequireDashboardViewerAttribute()
