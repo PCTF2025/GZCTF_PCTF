@@ -72,8 +72,11 @@ interface CheatSubmissionInfo {
   time?: dayjs.Dayjs
   answer?: string
   user?: string
+  realName?: string | null
+  stdNumber?: string | null
   challenge?: string
   relatedTeam?: string
+  division?: string | null
   cheatType: CheatType
 }
 
@@ -119,9 +122,12 @@ const ToCheatTeamInfo = (cheatInfo: CheatInfoModel[]) => {
         time,
         answer: submission.answer,
         user: submission.user,
+        realName: info.realName,
+        stdNumber: info.stdNumber,
         challenge: submission.challenge,
         cheatType: CheatType.MassSubmit,
         relatedTeam: undefined,
+        division: part.division,
       })
       continue
     }
@@ -155,9 +161,12 @@ const ToCheatTeamInfo = (cheatInfo: CheatInfoModel[]) => {
       time: time,
       answer: submission.answer,
       user: submission.user,
+      realName: info.realName,
+      stdNumber: info.stdNumber,
       challenge: submission.challenge,
       cheatType: CheatType.Owned,
       relatedTeam: submitTeam.team?.name,
+      division: submitTeam.division,
     }
 
     ownedTeamInfo.submissionInfo.add(cheatSubmissionInfo)
@@ -200,9 +209,28 @@ const CheatSubmissionInfo: FC<CheatSubmissionInfoProps> = (props) => {
             {submissionInfo.cheatType === CheatType.MassSubmit ? '短时间内大量提交' : submissionInfo.relatedTeam}
           </Text>
         </Group>
-        <Text size="sm" lineClamp={1} fw="bold">
-          {submissionInfo.user}
-        </Text>
+        <Stack gap={0} align="flex-end">
+          <Text size="sm" lineClamp={1} fw="bold">
+            {submissionInfo.user}
+          </Text>
+          <Group gap={4} wrap="nowrap">
+            {submissionInfo.realName && (
+              <Text size="xs" c="teal" lineClamp={1}>
+                {submissionInfo.realName}
+              </Text>
+            )}
+            {submissionInfo.stdNumber && (
+              <Text size="xs" c="dimmed" ff="monospace" lineClamp={1}>
+                {submissionInfo.stdNumber}
+              </Text>
+            )}
+            {submissionInfo.division && (
+              <Badge size="xs" variant="light" color="gray">
+                {submissionInfo.division}
+              </Badge>
+            )}
+          </Group>
+        </Stack>
       </Group>
       <Stack gap={0} w="40%">
         <Text fw="bold" size="xs" lineClamp={1}>

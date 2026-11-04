@@ -33,6 +33,8 @@ public class CheatInfoRepository(
         Context.CheatInfo.IgnoreAutoIncludes().Where(i => i.GameId == gameId)
             .Include(i => i.SourceTeam).ThenInclude(t => t.Team)
             .Include(i => i.SubmitTeam).ThenInclude(t => t.Team)
+            .Include(i => i.SubmitTeam).ThenInclude(t => t.Division)
+            .Include(i => i.SourceTeam).ThenInclude(t => t.Division)
             .Include(i => i.Submission).ThenInclude(s => s.User)
             .Include(i => i.Submission).ThenInclude(s => s.GameChallenge)
             .AsSplitQuery().ToArrayAsync(token);

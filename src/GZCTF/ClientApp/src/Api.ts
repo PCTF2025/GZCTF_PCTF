@@ -2492,6 +2492,10 @@ export interface Submission {
 export interface CheatInfoModel {
   /** 异常行为类型：FlagShared 共享 flag / MassSubmission 短时间大量提交 */
   behavior?: string | null;
+  /** 提交者真实姓名 */
+  realName?: string | null;
+  /** 提交者学号 */
+  stdNumber?: string | null;
   /** Team owning the flag */
   ownedTeam?: ParticipationModel;
   /** Team submitting the flag */

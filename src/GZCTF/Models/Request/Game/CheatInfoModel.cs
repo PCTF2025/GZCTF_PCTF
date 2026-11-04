@@ -25,11 +25,23 @@ public class CheatInfoModel
     /// </summary>
     public CheatBehavior Behavior { get; set; }
 
+    /// <summary>
+    /// 提交者真实姓名
+    /// </summary>
+    public string? RealName { get; set; }
+
+    /// <summary>
+    /// 提交者学号
+    /// </summary>
+    public string? StdNumber { get; set; }
+
     internal static CheatInfoModel FromCheatInfo(CheatInfo info) =>
         new()
         {
             Submission = info.Submission,
             Behavior = info.Behavior,
+            RealName = info.Submission.User?.RealName,
+            StdNumber = info.Submission.User?.StdNumber,
             OwnedTeam = ParticipationModel.FromParticipation(info.SourceTeam),
             SubmitTeam = ParticipationModel.FromParticipation(info.SubmitTeam)
         };
