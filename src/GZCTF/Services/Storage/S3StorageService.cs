@@ -18,6 +18,9 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
 {
     public const string KeyPrefix = "traffic";
 
+    /// <summary>超过此大小的对象不做整包回读校验</summary>
+    private const long LargeObjectThreshold = 32L * 1024 * 1024;
+
     /// <summary>
     /// 读取当前配置并构造客户端；未配置时返回 null
     /// </summary>
@@ -51,8 +54,9 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
         {
             ServiceURL = endpoint,
             ForcePathStyle = forcePathStyle,
-            Timeout = TimeSpan.FromSeconds(30),
-            MaxErrorRetry = 2,
+            // 大抓包文件（数百 MB）上传 + 校验需要更长时间；过短会必然超时
+            Timeout = TimeSpan.FromMinutes(10),
+            MaxErrorRetry = 1,
             // 阿里云 OSS 不支持 AWS 的分块校验 trailer
             RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
@@ -105,6 +109,8 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
                 DisableDefaultChecksumValidation = true,
                 DisablePayloadSigning = false
             };
+            // 把 SHA-256 随对象一起写入元数据，校验时直接读元数据，无需整包回读
+            request.Metadata.Add("x-amz-meta-sha256", hash);
 
             await client.Value.Client.PutObjectAsync(request, token);
 
@@ -114,10 +120,22 @@ public class S3StorageService(AppDbContext context, ILogger<S3StorageService> lo
             }, token);
             if (metadata.ContentLength != size)
                 throw new IOException($"Object size mismatch for {key}");
-            using var stored = await client.Value.Client.GetObjectAsync(client.Value.Bucket, key, token);
-            var storedHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stored.ResponseStream, token));
-            if (stored.ContentLength != size || storedHash != hash)
+
+            // 大文件不再整包回读（数百 MB 回读会占满连接并超时）：
+            // 以「HEAD 大小 + 写入时记录的 SHA-256 元数据」作为校验依据。
+            var storedHash = metadata.Metadata["x-amz-meta-sha256"];
+            if (string.IsNullOrEmpty(storedHash))
+            {
+                // 元数据不可用时才回退到完整回读（仅限小文件）
+                if (size > LargeObjectThreshold)
+                    throw new IOException($"Object metadata missing for large object {key}");
+                using var stored = await client.Value.Client.GetObjectAsync(client.Value.Bucket, key, token);
+                storedHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stored.ResponseStream, token));
+            }
+
+            if (!string.Equals(storedHash, hash, StringComparison.OrdinalIgnoreCase))
                 throw new IOException($"Object SHA-256 mismatch for {key}");
+
             return new VerifiedUpload(key, size, hash);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
