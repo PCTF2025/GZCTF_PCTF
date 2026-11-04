@@ -35,6 +35,14 @@ public class CheatInfoModel
     /// </summary>
     public string? StdNumber { get; set; }
 
+    /// <summary>
+    /// 提供 flag 一方的队员（真实姓名+学号），用于溯源
+    ///
+    /// 平台只记录 flag 所属队伍，不记录具体是谁启动的容器，
+    /// 因此这里列出该队全部队员；单队伍单人时即为提供者本人。
+    /// </summary>
+    public string? SourceMembers { get; set; }
+
     internal static CheatInfoModel FromCheatInfo(CheatInfo info) =>
         new()
         {
@@ -42,7 +50,28 @@ public class CheatInfoModel
             Behavior = info.Behavior,
             RealName = info.Submission.User?.RealName,
             StdNumber = info.Submission.User?.StdNumber,
+            SourceMembers = FormatMembers(info.SourceTeam),
             OwnedTeam = ParticipationModel.FromParticipation(info.SourceTeam),
             SubmitTeam = ParticipationModel.FromParticipation(info.SubmitTeam)
         };
+
+    /// <summary>
+    /// 把队伍成员格式化为「姓名(学号)」列表
+    /// </summary>
+    private static string? FormatMembers(Participation participation)
+    {
+        var members = participation.Members
+            .Select(m => m.User)
+            .Where(u => u is not null)
+            .Select(u =>
+            {
+                var name = string.IsNullOrWhiteSpace(u.RealName) ? u.UserName : u.RealName;
+                return string.IsNullOrWhiteSpace(u.StdNumber) ? name : $"{name}({u.StdNumber})";
+            })
+            .Distinct()
+            .OrderBy(x => x)
+            .ToArray();
+
+        return members.Length == 0 ? null : string.Join("、", members);
+    }
 }

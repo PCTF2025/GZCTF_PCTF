@@ -76,6 +76,7 @@ interface CheatSubmissionInfo {
   stdNumber?: string | null
   challenge?: string
   relatedTeam?: string
+  relatedMembers?: string | null
   division?: string | null
   cheatType: CheatType
 }
@@ -127,6 +128,7 @@ const ToCheatTeamInfo = (cheatInfo: CheatInfoModel[]) => {
         challenge: submission.challenge,
         cheatType: CheatType.MassSubmit,
         relatedTeam: undefined,
+        relatedMembers: undefined,
         division: part.division,
       })
       continue
@@ -166,6 +168,7 @@ const ToCheatTeamInfo = (cheatInfo: CheatInfoModel[]) => {
       challenge: submission.challenge,
       cheatType: CheatType.Owned,
       relatedTeam: submitTeam.team?.name,
+      relatedMembers: info.sourceMembers,
       division: submitTeam.division,
     }
 
@@ -205,9 +208,16 @@ const CheatSubmissionInfo: FC<CheatSubmissionInfoProps> = (props) => {
           <Badge size="sm" color="indigo">
             {dayjs(submissionInfo.time).locale(locale).format('SL HH:mm:ss')}
           </Badge>
-          <Text lineClamp={1} fw="bold">
-            {submissionInfo.cheatType === CheatType.MassSubmit ? '短时间内大量提交' : submissionInfo.relatedTeam}
-          </Text>
+          <Stack gap={0}>
+            <Text lineClamp={1} fw="bold">
+              {submissionInfo.cheatType === CheatType.MassSubmit ? '短时间内大量提交' : submissionInfo.relatedTeam}
+            </Text>
+            {submissionInfo.cheatType !== CheatType.MassSubmit && submissionInfo.relatedMembers && (
+              <Text size="xs" c="dimmed" lineClamp={1}>
+                {submissionInfo.relatedMembers}
+              </Text>
+            )}
+          </Stack>
         </Group>
         <Stack gap={0} align="flex-end">
           <Text size="sm" lineClamp={1} fw="bold">

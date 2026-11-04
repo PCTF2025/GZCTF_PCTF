@@ -34,7 +34,9 @@ public class CheatInfoRepository(
             .Include(i => i.SourceTeam).ThenInclude(t => t.Team)
             .Include(i => i.SubmitTeam).ThenInclude(t => t.Team)
             .Include(i => i.SubmitTeam).ThenInclude(t => t.Division)
+            .Include(i => i.SubmitTeam).ThenInclude(t => t.Members).ThenInclude(m => m.User)
             .Include(i => i.SourceTeam).ThenInclude(t => t.Division)
+            .Include(i => i.SourceTeam).ThenInclude(t => t.Members).ThenInclude(m => m.User)
             .Include(i => i.Submission).ThenInclude(s => s.User)
             .Include(i => i.Submission).ThenInclude(s => s.GameChallenge)
             .AsSplitQuery().ToArrayAsync(token);

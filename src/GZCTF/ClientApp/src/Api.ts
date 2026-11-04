@@ -2496,6 +2496,8 @@ export interface CheatInfoModel {
   realName?: string | null;
   /** 提交者学号 */
   stdNumber?: string | null;
+  /** 提供 flag 一方的队员（姓名(学号)），用于溯源 */
+  sourceMembers?: string | null;
   /** Team owning the flag */
   ownedTeam?: ParticipationModel;
   /** Team submitting the flag */
