@@ -299,17 +299,18 @@ const Writeups: FC = () => {
     </Stack>
   )
 
-  if (isMobile)
-    return (
-      <WithNavBar width="90%" minWidth={0}>
+  return (
+    <WithNavBar width="90%" minWidth={0}>
+      {isMobile ? (
         <Stack pt="md">
           <Title order={4}>WP 提交</Title>
           {content}
         </Stack>
-      </WithNavBar>
-    )
-
-  return <WithGameTab>{content}</WithGameTab>
+      ) : (
+        <WithGameTab>{content}</WithGameTab>
+      )}
+    </WithNavBar>
+  )
 }
 
 export default Writeups
