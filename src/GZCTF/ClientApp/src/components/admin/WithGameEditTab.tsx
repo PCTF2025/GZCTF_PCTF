@@ -52,14 +52,17 @@ export const WithGameEditTab: FC<GameEditTabProps> = ({
     { icon: mdiFlagOutline, title: t('admin.tab.games.challenges'), path: 'challenges' },
     { icon: mdiCalendarWeek, title: '周次设置', path: 'weeks' },
     { icon: mdiTagOutline, title: t('admin.tab.games.divisions'), path: 'divisions' },
-    { icon: mdiFileDocumentOutline, title: '挑战题WP', path: 'challengeWriteups' },
+    { icon: mdiFileDocumentOutline, title: 'WP 审核', path: 'challengeWriteups' },
     { icon: mdiAccountGroupOutline, title: t('admin.tab.games.review'), path: 'review' },
     { icon: mdiFileDocumentCheckOutline, title: t('admin.tab.games.writeups'), path: 'writeups' },
   ]
 
   // 出题人仅负责出题；学校负责人需要「队伍审核」来调整组别
   const isSchoolManager = user?.isSchoolAdmin === true
-  const NON_ADMIN_PATHS = isSchoolManager ? ['challenges', 'review'] : ['challenges']
+  // 出题人需要查看/审核本方向 WP；学校学籍审核需要查看全部 WP 与队伍审核
+  const NON_ADMIN_PATHS = isSchoolManager
+    ? ['challenges', 'review', 'challengeWriteups']
+    : ['challenges', 'challengeWriteups']
   const pages = isAdmin ? allPages : allPages.filter((p) => NON_ADMIN_PATHS.includes(p.path))
 
   const getTab = (path: string) => pages.find((page) => path.includes(page.path))

@@ -67,8 +67,17 @@ public class ChallengeWriteupReviewItemModel
 
     public string TeamName { get; set; } = string.Empty;
 
-    /// <summary>所属周次</summary>
+    /// <summary>所属周次（挑战题为分桶编号 6）</summary>
     public int Week { get; set; }
+
+    /// <summary>是否挑战题（逐题提交）</summary>
+    public bool IsChallengeBucket { get; set; }
+
+    /// <summary>队伍所属学校（多成员取并集）</summary>
+    public string School { get; set; } = string.Empty;
+
+    /// <summary>队伍组别</summary>
+    public string? Division { get; set; }
 
     public int? ChallengeId { get; set; }
 

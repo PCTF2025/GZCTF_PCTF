@@ -154,6 +154,20 @@ public class RequireGameReviewerAttribute()
 }
 
 /// <summary>
+/// 可查看 WP 提交（系统管理员 / 出题人 / 出题管理员 / 学校学籍审核）。
+/// 学校负责人需要检查学生解题报告，故一并放行查看与下载；加分仍按方向限定。
+/// </summary>
+public class RequireWriteupReviewerAttribute()
+    : RequirePrivilegeAttribute(Role.User)
+{
+    protected override bool Verify(UserInfo user, Role required) =>
+        user.Role >= Role.Admin ||
+        user.CanEditChallenge ||
+        user.IsSchoolAdmin ||
+        user.HasPermission(UserPermission.SchoolManager);
+}
+
+/// <summary>
 /// 可查看作弊信息（监考角色 / 系统管理员 / 出题人 / 出题管理员 / 学校负责人）。
 /// 出题人与学校负责人需要溯源作弊行为，故在 Monitor 之外一并放行。
 /// </summary>

@@ -367,8 +367,10 @@ public class ChallengeWriteupController(
             return NotFound(new RequestResponse("文件不存在", StatusCodes.Status404NotFound));
 
         var isMember = writeup.Participation.Members.Any(m => m.UserId == user.Id);
-        var canReview = user.Role >= Role.Admin ||
-                        (user.CanEditChallenge && user.HasManagedCategory(writeup.Challenge.Category));
+        var isSchoolReviewer = user.IsSchoolAdmin || user.HasPermission(UserPermission.SchoolManager);
+        var canReview = user.Role >= Role.Admin || isSchoolReviewer ||
+                        (user.CanEditChallenge &&
+                         (writeup.Challenge is null || user.HasManagedCategory(writeup.Challenge.Category)));
 
         if (!isMember && !canReview)
             return StatusCode(StatusCodes.Status403Forbidden, new RequestResponse("无权下载该文件"));
@@ -392,7 +394,7 @@ public class ChallengeWriteupController(
     /// <param name="gameId">比赛 Id</param>
     /// <param name="token"></param>
     [HttpGet("Games/{gameId:int}/Review")]
-    [RequireChallengeEditorOrAdmin]
+    [RequireWriteupReviewer]
     [ProducesResponseType(typeof(ChallengeWriteupReviewListModel), StatusCodes.Status200OK)]
     public async Task<IActionResult> Review(int gameId, CancellationToken token)
     {
@@ -404,35 +406,51 @@ public class ChallengeWriteupController(
         var query = dbContext.ChallengeWriteups.AsNoTracking()
             .Where(w => w.GameId == gameId);
 
-        if (user.Role < Role.Admin)
+        // 管理员与学校学籍审核可见全部；出题人可见自己方向 + 按周提交的报告（跨方向，无法按方向拆分）
+        var seesAll = user.Role >= Role.Admin || user.IsSchoolAdmin ||
+                      user.HasPermission(UserPermission.SchoolManager);
+
+        if (!seesAll)
         {
             var categories = user.ManagedCategoryList;
-
-            if (categories.Count == 0)
-                return Ok(new ChallengeWriteupReviewListModel());
-
-            query = query.Where(w => categories.Contains(w.Challenge.Category));
+            query = query.Where(w => w.ChallengeId == null || categories.Contains(w.Challenge!.Category));
         }
 
-        var items = await query
+        var rows = await query
+            .Include(w => w.File)
+            .Include(w => w.Challenge)
+            .Include(w => w.Participation).ThenInclude(p => p.Team)
+            .Include(w => w.Participation).ThenInclude(p => p.Division)
+            .Include(w => w.Participation).ThenInclude(p => p.Members).ThenInclude(m => m.User)
             .OrderByDescending(w => w.AwardedAtUtc == null)
             .ThenBy(w => w.SubmitTimeUtc)
-            .Select(w => new ChallengeWriteupReviewItemModel
-            {
-                Id = w.Id,
-                TeamId = w.Participation.TeamId,
-                TeamName = w.Participation.Team.Name,
-                Week = w.Week,
-                ChallengeId = w.ChallengeId,
-                ChallengeTitle = w.Challenge != null ? w.Challenge.Title : string.Empty,
-                Category = w.Challenge.Category.ToString(),
-                SubmitTimeUtc = w.SubmitTimeUtc,
-                AwardedScore = w.AwardedScore,
-                AwardedAtUtc = w.AwardedAtUtc,
-                ReviewNote = w.ReviewNote,
-                FileName = w.File != null ? w.File.Name : null
-            })
             .ToListAsync(token);
+
+        var items = rows.Select(w => new ChallengeWriteupReviewItemModel
+        {
+            Id = w.Id,
+            TeamId = w.Participation.TeamId,
+            TeamName = w.Participation.Team.Name,
+            Week = w.Week,
+            // 只有「挑战题分桶」的逐题提交才算挑战题；历史按题记录按周归类
+            IsChallengeBucket = w.ChallengeId is not null &&
+                                w.Challenge is not null &&
+                                w.Challenge.Week == Game.ChallengeBucket,
+            School = string.Join("、", w.Participation.Members
+                .Select(m => m.User.School)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct()
+                .OrderBy(s => s)),
+            Division = w.Participation.Division?.Name,
+            ChallengeId = w.ChallengeId,
+            ChallengeTitle = w.Challenge?.Title ?? string.Empty,
+            Category = w.Challenge?.Category.ToString() ?? string.Empty,
+            SubmitTimeUtc = w.SubmitTimeUtc,
+            AwardedScore = w.AwardedScore,
+            AwardedAtUtc = w.AwardedAtUtc,
+            ReviewNote = w.ReviewNote,
+            FileName = w.File?.Name
+        }).ToList();
 
         return Ok(new ChallengeWriteupReviewListModel { Items = items });
     }
@@ -444,7 +462,7 @@ public class ChallengeWriteupController(
     /// <param name="model">加分值与备注</param>
     /// <param name="token"></param>
     [HttpPost("{id:int}/Award")]
-    [RequireChallengeEditorOrAdmin]
+    [RequireWriteupReviewer]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
@@ -463,7 +481,12 @@ public class ChallengeWriteupController(
         if (writeup is null)
             return NotFound(new RequestResponse("记录不存在", StatusCodes.Status404NotFound));
 
-        if (user.Role < Role.Admin && !user.HasManagedCategory(writeup.Challenge.Category))
+        // 加分权限：管理员不限；按周报告（无题目）任意出题人可加分；按题需具备该方向
+        var canAward = user.Role >= Role.Admin ||
+                       (user.CanEditChallenge &&
+                        (writeup.Challenge is null || user.HasManagedCategory(writeup.Challenge.Category)));
+
+        if (!canAward)
             return StatusCode(StatusCodes.Status403Forbidden,
                 new RequestResponse("你只能为自己授权方向下的题目加分"));
 

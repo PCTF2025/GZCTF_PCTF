@@ -1075,6 +1075,12 @@ export interface ChallengeWriteupReviewListModel {
 export interface ChallengeWriteupReviewItemModel {
   /** 所属周次 */
   week?: number;
+  /** 是否挑战题（逐题提交） */
+  isChallengeBucket?: boolean;
+  /** 队伍所属学校 */
+  school?: string | null;
+  /** 队伍组别 */
+  division?: string | null;
   id: number;
   teamId?: number;
   teamName: string;

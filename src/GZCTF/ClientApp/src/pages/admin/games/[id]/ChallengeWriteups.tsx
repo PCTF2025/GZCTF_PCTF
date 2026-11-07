@@ -4,8 +4,10 @@ import {
   Button,
   Group,
   NumberInput,
+  Select,
   Paper,
   ScrollArea,
+  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -22,7 +24,8 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { showErrorMsg } from '@Utils/Shared'
-import api, { ChallengeWriteupReviewItemModel } from '@Api'
+import { useUser } from '@Hooks/useUser'
+import api, { ChallengeWriteupReviewItemModel, Role } from '@Api'
 
 /// 挑战题 WP 审核：查看提交并手动加分
 const ChallengeWriteups: FC = () => {
@@ -31,12 +34,54 @@ const ChallengeWriteups: FC = () => {
   const { t } = useTranslation()
 
   const { data, isLoading, isValidating, mutate } = api.challengeWriteup.useChallengeWriteupReview(numId)
+  const { user } = useUser()
+  // 学校学籍审核只能查看与下载，不能加分
+  const canAward =
+    user?.role === Role.Admin || user?.isChallengeAuthor === true || user?.isChallengeManager === true
 
   const [scores, setScores] = useState<Record<number, number | string>>({})
   const [notes, setNotes] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState<number | null>(null)
 
-  const items = useMemo(() => data?.items ?? [], [data])
+  const allItems = useMemo(() => data?.items ?? [], [data])
+
+  const [kind, setKind] = useState<'all' | 'week' | 'challenge'>('all')
+  const [weekFilter, setWeekFilter] = useState<string | null>(null)
+  const [schoolFilter, setSchoolFilter] = useState<string | null>(null)
+  const [divisionFilter, setDivisionFilter] = useState<string | null>(null)
+
+  const weekOptions = useMemo(() => {
+    const weeks = Array.from(
+      new Set(allItems.filter((i) => !i.isChallengeBucket).map((i) => i.week ?? 0))
+    ).sort((a, b) => a - b)
+    return weeks.map((w) => ({ value: String(w), label: `第 ${w} 周` }))
+  }, [allItems])
+
+  const schoolOptions = useMemo(() => {
+    const schools = Array.from(new Set(allItems.map((i) => i.school || '').filter(Boolean))).sort()
+    return schools.map((s) => ({ value: s, label: s }))
+  }, [allItems])
+
+  const divisionOptions = useMemo(() => {
+    const divisions = Array.from(
+      new Set(allItems.map((i) => i.division || '').filter(Boolean))
+    ).sort()
+    return divisions.map((d) => ({ value: d, label: d }))
+  }, [allItems])
+
+  const items = useMemo(
+    () =>
+      allItems.filter((i) => {
+        if (kind === 'week' && i.isChallengeBucket) return false
+        if (kind === 'challenge' && !i.isChallengeBucket) return false
+        if (weekFilter && String(i.week ?? '') !== weekFilter) return false
+        if (schoolFilter && (i.school || '') !== schoolFilter) return false
+        if (divisionFilter && (i.division || '') !== divisionFilter) return false
+        return true
+      }),
+    [allItems, kind, weekFilter, schoolFilter, divisionFilter]
+  )
+
   const pending = useMemo(() => items.filter((i) => !i.awardedAtUtc).length, [items])
 
   const onAward = async (item: ChallengeWriteupReviewItemModel) => {
@@ -73,7 +118,7 @@ const ChallengeWriteups: FC = () => {
       head={
         <>
           <Group gap="sm">
-            <Title order={4}>挑战题 WP 审核</Title>
+            <Title order={4}>WP 审核</Title>
             <Badge variant="light" color={pending > 0 ? 'orange' : 'teal'}>
               待处理 {pending} / 共 {items.length}
             </Badge>
@@ -93,19 +138,65 @@ const ChallengeWriteups: FC = () => {
     >
       <Stack w="100%" gap="md">
         <Paper p="md" withBorder>
+          <Group gap="sm" wrap="wrap">
+            <SegmentedControl
+              size="xs"
+              value={kind}
+              onChange={(v) => setKind(v as 'all' | 'week' | 'challenge')}
+              data={[
+                { value: 'all', label: '全部' },
+                { value: 'week', label: '按周报告' },
+                { value: 'challenge', label: '挑战题' },
+              ]}
+            />
+            <Select
+              size="xs"
+              w="8rem"
+              clearable
+              placeholder="全部周次"
+              data={weekOptions}
+              value={weekFilter}
+              onChange={setWeekFilter}
+              disabled={kind === 'challenge'}
+            />
+            <Select
+              size="xs"
+              w="12rem"
+              clearable
+              searchable
+              placeholder="全部学校"
+              data={schoolOptions}
+              value={schoolFilter}
+              onChange={setSchoolFilter}
+            />
+            <Select
+              size="xs"
+              w="12rem"
+              clearable
+              searchable
+              placeholder="全部组别"
+              data={divisionOptions}
+              value={divisionFilter}
+              onChange={setDivisionFilter}
+            />
+          </Group>
+        </Paper>
+        <Paper p="md" withBorder>
           <ScrollArea h="calc(100vh - 300px)" type="auto" offsetScrollbars>
             <Table highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th w="11rem">队伍</Table.Th>
-                  <Table.Th w="7rem">周次</Table.Th>
-                  <Table.Th>题目</Table.Th>
-                  <Table.Th w="6rem">方向</Table.Th>
+                  <Table.Th w="9rem">队伍</Table.Th>
+                  <Table.Th w="7rem">类型</Table.Th>
+                  <Table.Th w="13rem">学校</Table.Th>
+                  <Table.Th w="13rem">组别</Table.Th>
+                  <Table.Th maw="10rem">题目</Table.Th>
+                  <Table.Th w="5rem">方向</Table.Th>
                   <Table.Th w="8rem">提交时间</Table.Th>
-                  <Table.Th w="9rem">当前加分</Table.Th>
-                  <Table.Th w="9rem">加分数值</Table.Th>
-                  <Table.Th w="14rem">备注</Table.Th>
-                  <Table.Th w="10rem">操作</Table.Th>
+                  <Table.Th w="7rem">当前加分</Table.Th>
+                  <Table.Th w="8rem">加分数值</Table.Th>
+                  <Table.Th w="9rem">备注</Table.Th>
+                  <Table.Th w="7rem">操作</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -117,9 +208,19 @@ const ChallengeWriteups: FC = () => {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge size="sm" variant="light" color="indigo">
-                        第 {item.week} 周
+                      <Badge size="sm" variant="light" color={item.isChallengeBucket ? 'orange' : 'indigo'}>
+                        {item.isChallengeBucket ? '挑战题' : `第 ${item.week} 周`}
                       </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {item.school || '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {item.division || '—'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" truncate>
@@ -149,6 +250,7 @@ const ChallengeWriteups: FC = () => {
                     </Table.Td>
                     <Table.Td>
                       <NumberInput
+                        disabled={!canAward}
                         size="xs"
                         min={0}
                         max={100000}
@@ -167,7 +269,12 @@ const ChallengeWriteups: FC = () => {
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4} wrap="nowrap">
-                        <Button size="xs" loading={saving === item.id} onClick={() => onAward(item)}>
+                        <Button
+                          size="xs"
+                          disabled={!canAward}
+                          loading={saving === item.id}
+                          onClick={() => onAward(item)}
+                        >
                           保存
                         </Button>
                         <Tooltip label="下载 WP">
