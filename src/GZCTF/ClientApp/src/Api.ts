@@ -1052,6 +1052,8 @@ export interface ChallengeWriteupItemModel {
   challengeId?: number | null;
   /** 是否历史按题提交 */
   legacy?: boolean;
+  /** 是否挑战题（逐题提交） */
+  isChallengeBucket?: boolean;
   title?: string;
   category: string;
   /** 是否挑战题 */
