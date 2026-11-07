@@ -8,11 +8,24 @@ namespace GZCTF.Models.Request.Game;
 public class ChallengeWriteupListModel
 {
     public List<ChallengeWriteupItemModel> Items { get; set; } = [];
+
+    /// <summary>可提交的周次</summary>
+    public int[] Weeks { get; set; } = [];
 }
 
 public class ChallengeWriteupItemModel
 {
-    public int ChallengeId { get; set; }
+    /// <summary>提交 Id（未提交为 null）</summary>
+    public int? Id { get; set; }
+
+    /// <summary>所属周次（1-5；历史按题记录为题目周次）</summary>
+    public int Week { get; set; }
+
+    /// <summary>历史记录对应的题目 Id（按周提交为 null）</summary>
+    public int? ChallengeId { get; set; }
+
+    /// <summary>是否历史按题提交</summary>
+    public bool Legacy { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
@@ -54,7 +67,10 @@ public class ChallengeWriteupReviewItemModel
 
     public string TeamName { get; set; } = string.Empty;
 
-    public int ChallengeId { get; set; }
+    /// <summary>所属周次</summary>
+    public int Week { get; set; }
+
+    public int? ChallengeId { get; set; }
 
     public string ChallengeTitle { get; set; } = string.Empty;
 

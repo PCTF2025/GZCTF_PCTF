@@ -107,7 +107,7 @@ namespace GZCTF.Migrations
                     b.Property<int>("AwardedScore")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ChallengeId")
+                    b.Property<int?>("ChallengeId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("FileId")
@@ -126,6 +126,9 @@ namespace GZCTF.Migrations
                     b.Property<DateTimeOffset>("SubmitTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Week")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AwardedById");
@@ -136,8 +139,7 @@ namespace GZCTF.Migrations
 
                     b.HasIndex("GameId");
 
-                    b.HasIndex("ParticipationId", "ChallengeId")
-                        .IsUnique();
+                    b.HasIndex("ParticipationId", "Week");
 
                     b.ToTable("ChallengeWriteups");
                 });
@@ -1571,8 +1573,7 @@ namespace GZCTF.Migrations
                     b.HasOne("GZCTF.Models.Data.GameChallenge", "Challenge")
                         .WithMany()
                         .HasForeignKey("ChallengeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("GZCTF.Models.Data.LocalFile", "File")
                         .WithMany()

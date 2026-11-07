@@ -46,7 +46,7 @@ public class ChallengeWriteupController(
                                       p.Members.Any(m => m.UserId == user.Id), token);
 
     /// <summary>
-    /// 队伍视角：本队已解出的题目及 WP 提交状态
+    /// 队伍视角：按周提交的 WP 状态（含历史按题提交记录）
     /// </summary>
     /// <param name="gameId">比赛 Id</param>
     /// <param name="token"></param>
@@ -64,66 +64,78 @@ public class ChallengeWriteupController(
         if (participation is null)
             return NotFound(new RequestResponse("你尚未报名该场比赛", StatusCodes.Status404NotFound));
 
-        // 本队已解出的题目
-        var solved = await dbContext.FirstSolves.AsNoTracking()
-            .Where(f => f.ParticipationId == participation.Id)
-            .Select(f => f.ChallengeId)
-            .ToListAsync(token);
+        var game = await dbContext.Games.AsNoTracking().FirstOrDefaultAsync(g => g.Id == gameId, token);
 
-        var solvedSet = solved.ToHashSet();
+        if (game is null)
+            return NotFound(new RequestResponse("比赛不存在", StatusCodes.Status404NotFound));
 
-        // 挑战题 WP 只针对「挑战题」分桶，其他周的题目不在此提交
-        var challenges = await dbContext.GameChallenges.AsNoTracking()
-            .Where(c => c.GameId == gameId && c.IsEnabled && c.Week == Game.ChallengeBucket)
-            .OrderBy(c => c.Category).ThenBy(c => c.Title)
-            .Select(c => new { c.Id, c.Title, c.Category, c.Week })
-            .ToListAsync(token);
+        // 可提交的周次：已配置开始时间的周（1-5）
+        var weeks = Enumerable.Range(1, 5)
+            .Where(w => game.GetWeekWindow(w).Start is not null)
+            .ToArray();
 
         var writeups = await dbContext.ChallengeWriteups.AsNoTracking()
             .Where(w => w.ParticipationId == participation.Id)
             .Include(w => w.File)
-            .ToDictionaryAsync(w => w.ChallengeId, token);
+            .Include(w => w.Challenge)
+            .OrderByDescending(w => w.SubmitTimeUtc)
+            .ToListAsync(token);
 
-        var items = challenges
-            .Where(c => solvedSet.Contains(c.Id))
-            .Select(c =>
+        var items = new List<ChallengeWriteupItemModel>();
+
+        // 每周一条：取该周最新提交
+        foreach (var week in weeks)
+        {
+            var wp = writeups.FirstOrDefault(w => w.Week == week && w.ChallengeId is null);
+            items.Add(new ChallengeWriteupItemModel
             {
-                writeups.TryGetValue(c.Id, out var wp);
-                return new ChallengeWriteupItemModel
-                {
-                    ChallengeId = c.Id,
-                    Title = c.Title,
-                    Category = c.Category.ToString(),
-                    IsChallengeBucket = c.Week == Game.ChallengeBucket,
-                    Solved = true,
-                    Submitted = wp is not null,
-                    SubmitTimeUtc = wp?.SubmitTimeUtc,
-                    AwardedScore = wp?.AwardedScore ?? 0,
-                    ReviewNote = wp?.ReviewNote,
-                    FileName = wp?.File?.Name
-                };
-            })
-            .OrderByDescending(i => i.IsChallengeBucket)
-            .ThenBy(i => i.Category)
-            .ThenBy(i => i.Title)
-            .ToList();
+                Id = wp?.Id,
+                Week = week,
+                Solved = true,
+                Submitted = wp is not null,
+                SubmitTimeUtc = wp?.SubmitTimeUtc,
+                AwardedScore = wp?.AwardedScore ?? 0,
+                ReviewNote = wp?.ReviewNote,
+                FileName = wp?.File?.Name
+            });
+        }
 
-        return Ok(new ChallengeWriteupListModel { Items = items });
+        // 历史按题提交记录（迁移前已有数据）
+        foreach (var wp in writeups.Where(w => w.ChallengeId is not null))
+        {
+            items.Add(new ChallengeWriteupItemModel
+            {
+                Id = wp.Id,
+                Week = wp.Week,
+                ChallengeId = wp.ChallengeId,
+                Legacy = true,
+                Title = wp.Challenge?.Title ?? string.Empty,
+                Category = wp.Challenge?.Category.ToString() ?? string.Empty,
+                Solved = true,
+                Submitted = true,
+                SubmitTimeUtc = wp.SubmitTimeUtc,
+                AwardedScore = wp.AwardedScore,
+                ReviewNote = wp.ReviewNote,
+                FileName = wp.File?.Name
+            });
+        }
+
+        return Ok(new ChallengeWriteupListModel { Items = items, Weeks = weeks });
     }
 
     /// <summary>
-    /// 上传某道题的解题思路（PDF）
+    /// 按周上传解题思路（PDF）
     /// </summary>
-    /// <remarks>仅可对已解出的题目提交；重复提交会覆盖旧文件。</remarks>
+    /// <remarks>同一按钮可反复使用：同一周重复提交会覆盖旧文件，不同周互不影响。</remarks>
     /// <param name="gameId">比赛 Id</param>
-    /// <param name="challengeId">题目 Id</param>
+    /// <param name="week">周次（1-5）</param>
     /// <param name="file">PDF 文件</param>
     /// <param name="token"></param>
-    [HttpPost("Games/{gameId:int}/Challenges/{challengeId:int}")]
+    [HttpPost("Games/{gameId:int}/Weeks/{week:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(RequestResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Upload(int gameId, int challengeId, IFormFile file,
+    public async Task<IActionResult> Upload(int gameId, int week, IFormFile file,
         CancellationToken token)
     {
         if (file.Length == 0)
@@ -145,26 +157,19 @@ public class ChallengeWriteupController(
         if (participation is null)
             return NotFound(new RequestResponse("你尚未报名该场比赛", StatusCodes.Status404NotFound));
 
-        var challenge = await dbContext.GameChallenges.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == challengeId && c.GameId == gameId, token);
+        var game = await dbContext.Games.AsNoTracking().FirstOrDefaultAsync(g => g.Id == gameId, token);
 
-        if (challenge is null)
-            return NotFound(new RequestResponse("题目不存在", StatusCodes.Status404NotFound));
+        if (game is null)
+            return NotFound(new RequestResponse("比赛不存在", StatusCodes.Status404NotFound));
 
-        // 仅挑战题支持提交解题思路
-        if (challenge.Week != Game.ChallengeBucket)
-            return BadRequest(new RequestResponse("只有挑战题需要提交解题思路"));
+        if (week < 1 || week > 5 || game.GetWeekWindow(week).Start is null)
+            return BadRequest(new RequestResponse("该周次未开启，无法提交"));
 
-        var solved = await dbContext.FirstSolves.AsNoTracking()
-            .AnyAsync(f => f.ParticipationId == participation.Id && f.ChallengeId == challengeId, token);
-
-        if (!solved)
-            return BadRequest(new RequestResponse("只有解出该题后才能提交解题思路"));
-
+        // 本周已有记录则覆盖（同一按钮可多次使用）
         var writeup = await dbContext.ChallengeWriteups
             .Include(w => w.File)
-            .FirstOrDefaultAsync(w => w.ParticipationId == participation.Id && w.ChallengeId == challengeId,
-                token);
+            .FirstOrDefaultAsync(w => w.ParticipationId == participation.Id &&
+                                      w.Week == week && w.ChallengeId == null, token);
 
         var oldFile = writeup?.File;
 
@@ -174,24 +179,23 @@ public class ChallengeWriteupController(
             {
                 GameId = gameId,
                 ParticipationId = participation.Id,
-                ChallengeId = challengeId
+                Week = week
             };
             dbContext.ChallengeWriteups.Add(writeup);
         }
 
         writeup.File = await blobRepository.CreateOrUpdateBlob(file,
-            $"WP-{gameId}-{participation.TeamId}-{challengeId}-{DateTimeOffset.UtcNow:yyyyMMdd-HH.mm.ss}Z.pdf",
+            $"WP-{gameId}-{participation.TeamId}-W{week}-{DateTimeOffset.UtcNow:yyyyMMdd-HH.mm.ss}Z.pdf",
             token);
         writeup.SubmitTimeUtc = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync(token);
 
-        // 旧文件不再被引用，清理
         if (oldFile is not null)
             await blobRepository.DeleteBlob(oldFile, token);
 
         logger.Log(
-            $"提交解题思路：game={gameId} challenge={challengeId} team={participation.Team?.Name}",
+            $"提交解题思路：game={gameId} week={week} team={participation.Team?.Name}",
             user, TaskStatus.Success, LogLevel.Information);
 
         return Ok();
@@ -276,8 +280,9 @@ public class ChallengeWriteupController(
                 Id = w.Id,
                 TeamId = w.Participation.TeamId,
                 TeamName = w.Participation.Team.Name,
+                Week = w.Week,
                 ChallengeId = w.ChallengeId,
-                ChallengeTitle = w.Challenge.Title,
+                ChallengeTitle = w.Challenge != null ? w.Challenge.Title : string.Empty,
                 Category = w.Challenge.Category.ToString(),
                 SubmitTimeUtc = w.SubmitTimeUtc,
                 AwardedScore = w.AwardedScore,

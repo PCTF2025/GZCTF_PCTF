@@ -120,7 +120,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         builder.Entity<ChallengeWriteup>(entity =>
         {
             // 每支队伍对每道题只能有一份 WP
-            entity.HasIndex(e => new { e.ParticipationId, e.ChallengeId }).IsUnique();
+            entity.HasIndex(e => new { e.ParticipationId, e.Week });
             entity.HasIndex(e => e.GameId);
 
             entity.HasOne(e => e.Game)

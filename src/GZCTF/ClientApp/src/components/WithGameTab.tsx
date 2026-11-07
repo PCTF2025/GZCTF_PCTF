@@ -127,7 +127,7 @@ export const WithGameTab: FC<React.PropsWithChildren> = ({ children }) => {
     },
     {
       icon: mdiFileDocumentOutline,
-      title: '挑战题 WP',
+      title: '解题思路 WP',
       path: 'writeups',
       link: 'writeups',
       requireJoin: true,

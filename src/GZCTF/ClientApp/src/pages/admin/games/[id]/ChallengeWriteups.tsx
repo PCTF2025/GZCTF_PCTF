@@ -57,7 +57,7 @@ const ChallengeWriteups: FC = () => {
       await mutate()
       showNotification({
         color: 'teal',
-        message: `已为「${item.teamName}」的《${item.challengeTitle}》加 ${score} 分`,
+        message: `已为「${item.teamName}」第 ${item.week} 周解题思路加 ${score} 分`,
         icon: <Icon path={mdiCheck} size={1} />,
       })
     } catch (e) {
@@ -98,6 +98,7 @@ const ChallengeWriteups: FC = () => {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th w="11rem">队伍</Table.Th>
+                  <Table.Th w="7rem">周次</Table.Th>
                   <Table.Th>题目</Table.Th>
                   <Table.Th w="6rem">方向</Table.Th>
                   <Table.Th w="8rem">提交时间</Table.Th>
@@ -116,8 +117,13 @@ const ChallengeWriteups: FC = () => {
                       </Text>
                     </Table.Td>
                     <Table.Td>
+                      <Badge size="sm" variant="light" color="indigo">
+                        第 {item.week} 周
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
                       <Text size="sm" truncate>
-                        {item.challengeTitle}
+                        {item.challengeTitle || '按周提交'}
                       </Text>
                     </Table.Td>
                     <Table.Td>

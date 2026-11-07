@@ -4,8 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace GZCTF.Models.Data;
 
 /// <summary>
-/// 挑战题解题思路（WP）提交与人工加分记录。
-/// 每支队伍对每道题最多提交一份，管理员/出题人审核后手动加分。
+/// 解题思路（WP）提交与人工加分记录。
+/// 按周提交：每支队伍每周一份，可重复提交覆盖；管理员/出题人审核后手动加分。
 /// </summary>
 public class ChallengeWriteup
 {
@@ -22,10 +22,18 @@ public class ChallengeWriteup
     [ForeignKey(nameof(ParticipationId))]
     public Participation Participation { get; set; } = null!;
 
-    public int ChallengeId { get; set; }
+    /// <summary>
+    /// 提交所属周次（1-5）。旧数据按题提交，保留 ChallengeId 作为历史记录。
+    /// </summary>
+    public int Week { get; set; }
+
+    /// <summary>
+    /// 历史按题提交时的题目 Id；按周提交后为 null
+    /// </summary>
+    public int? ChallengeId { get; set; }
 
     [ForeignKey(nameof(ChallengeId))]
-    public GameChallenge Challenge { get; set; } = null!;
+    public GameChallenge? Challenge { get; set; }
 
     /// <summary>上传的 WP 文件（PDF）</summary>
     public int? FileId { get; set; }

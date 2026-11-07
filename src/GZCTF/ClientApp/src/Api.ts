@@ -1039,11 +1039,20 @@ export interface TeamDivisionUpdateModel {
 /** 挑战题 WP：队伍视角 */
 export interface ChallengeWriteupListModel {
   items: ChallengeWriteupItemModel[];
+  /** 可提交的周次 */
+  weeks?: number[];
 }
 
 export interface ChallengeWriteupItemModel {
-  challengeId: number;
-  title: string;
+  /** 提交 Id（未提交为空） */
+  id?: number | null;
+  /** 所属周次 */
+  week?: number;
+  /** 历史按题提交的题目 Id */
+  challengeId?: number | null;
+  /** 是否历史按题提交 */
+  legacy?: boolean;
+  title?: string;
   category: string;
   /** 是否挑战题 */
   isChallengeBucket?: boolean;
@@ -1062,6 +1071,8 @@ export interface ChallengeWriteupReviewListModel {
 }
 
 export interface ChallengeWriteupReviewItemModel {
+  /** 所属周次 */
+  week?: number;
   id: number;
   teamId?: number;
   teamName: string;
@@ -5651,6 +5662,28 @@ export class Api<
         doFetch && gameId > 0 ? `/api/challengewriteup/Games/${gameId}` : null,
         options,
       ),
+
+    /**
+     * @description 按周上传解题思路（PDF），同一周重复提交会覆盖
+     * @name ChallengeWriteupUploadWeek
+     * @request POST:/api/challengewriteup/Games/{gameId}/Weeks/{week}
+     */
+    challengeWriteupUploadWeek: (
+      gameId: number,
+      week: number,
+      data: {
+        /** @format binary */
+        file?: File | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<void, RequestResponse>({
+        path: `/api/challengewriteup/Games/${gameId}/Weeks/${week}`,
+        method: "POST",
+        body: data,
+        type: ContentType.FormData,
+        ...params,
+      }),
 
     /**
      * @description 上传某道题的解题思路（PDF）
